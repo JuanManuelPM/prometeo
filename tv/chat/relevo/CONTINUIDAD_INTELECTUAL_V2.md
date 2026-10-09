@@ -124,6 +124,10 @@ Cada episodio útil debería distinguir:
 
 La investigación siguiente está almacenada **sin ejecutarse todavía** en `gh-pages:tv/chat/relevo/VIDEO_2_ESCALA_Y_DELEGACION_V1.md`, con 26 ideas evaluables en `gh-pages:tv/chat/relevo/VIDEO_2_IDEAS_INDEX_V1.json`. Aporta una tensión que toda generación debería conservar: **más cómputo no implica mejor resultado si se divide una tarea muy acoplada**; en ese caso comparar un ejecutor fuerte end-to-end y variantes integrales independientes antes de armar un ejército de subagentes. Para auditorías y trabajos realmente separables, sí probar paralelismo modular. El video del usuario tiene cifras llamativas pero no prueba reproducible; conservar la distinción entre relato y evidencia. Estos son documentos de investigación; no son nuevas skills instaladas ni cambios funcionales de Prometeo.
 
+## Retomar sin depender de la memoria humana
+
+El punto de retorno `gh-pages:tv/chat/relevo/RETOMAR_V1.md` y su pantalla de lectura pública `/prometeo/tv/chat/relevo/retomar/` conserva, aparte de los episodios, una **próxima experiencia candidata concreta** para que no se abandone cada idea luego de escribir skills y guías. El candidato inicial `EMBLEM-001` es un juego original de autos y pelota en el navegador, con demo real y pruebas; NO figura como implementado. La prioridad puede cambiar mediante decisión y evidencia, nunca por olvidar que existía. Los 24 conceptos, 26 ideas y 45 EVO siguen en sus owners. El regreso sólo requiere mirar la pantalla o escribir «🔥prometeo ¿qué sigue?» y el chat nuevo debe revalidar estado actual.
+
 ## Fuente de control y scope
 1. `gh-pages:tv/chat/AGENT_ENTRY_V1.md`: punto de entrada configurado en el Proyecto.
 2. `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md`: protocolo de relevo con CAS y contador.

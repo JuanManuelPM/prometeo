@@ -16,6 +16,10 @@ Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invo
 
 Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteriores. No exige recrear arquitectura, memoria privada o scheduler.
 
+## Punto de retorno: nunca volver a perder un gran objetivo
+
+Cuando el humano pregunta «¿qué sigue?», vuelve cansado/después de días, teme olvidar planes o pide que un chat nuevo recuerde TODO el trabajo creativo: leer primero `gh-pages:tv/chat/relevo/RETOMAR_V1.md` y su proyección `gh-pages:tv/chat/relevo/retomar/reentrada.json`, además de los owners de ideas necesarios. Mostrar la **próxima experiencia real** y qué evidencia falta; evitar reemplazar productos por nuevas instrucciones. Pantalla humana read-only: `/prometeo/tv/chat/relevo/retomar/`. No invocar este ritual para órdenes rápidas de TV, ni tratar la proyección como fuente de estado live.
+
 ## Prueba de relevo entre chats descartables
 
 Leer `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md` **y `gh-pages:tv/chat/relevo/CONTINUIDAD_INTELECTUAL_V2.md`** cuando la tarea sea **continuar intelectualmente una conversación en un chat nuevo**, no para órdenes rápidas de TV. Aplicar `gh-pages:tv/chat/relevo/PRUEBA_CONVERSACIONAL_V2.json` para distinguir continuidad de recitación. El estado incremental se conserva en `gh-pages:tv/chat/relevo/STATE_V1.json`. No significa que dos chats sean la misma instancia ni que se compartan memorias privadas.

@@ -5,6 +5,10 @@
 ## Objetivo humano
 El chat actual funciona como director/editor: conversar, detectar oportunidades, convertirlas en encargos con criterios observables y recuperar resultados. El usuario abre otros chats del mismo Proyecto o usa Work para ejecutarlos, y **no tiene que traer de vuelta el texto de sus respuestas**. Todo resultado material se guarda en GitHub con commits/PR, pruebas y recibos. Las conversaciones son prescindibles.
 
+## Regreso tras interrupciones y olvido
+
+`gh-pages:tv/chat/relevo/RETOMAR_V1.md` fija la regla antideriva para conversaciones de estrategia, priorización y «¿qué sigue?». Su pantalla `/prometeo/tv/chat/relevo/retomar/` es una lectura humana, NO un nuevo controlador. La prioridad propuesta del próximo producto se encuentra en `reentrada.json`; antes de ejecutarla recuperar el owner actual para comprobar que nadie la completó. **Éxito = artefacto humano verificable, no sólo arquitectura, skills, docs o commits.** Preservar las otras ideas y registrar reemplazos de prioridad.
+
 ## Consulta al comienzo de cada mensaje relacionado con Prometeo
 1. Leer este índice sólo si todavía no se leyó en la sesión, o si se perdió el contexto. **Siempre refrescar** las fuentes dinámicas que interesan a la pregunta actual.
 2. Comprobar GitHub `JuanManuelPM/prometeo`: `GET /pulls?state=open` y para PRs pertinentes `GET /pulls/<N>`, `GET /actions/runs?branch=<branch>`. No tratar el último resumen del chat como estado vigente. Repositorio separado `JuanManuelPM/Experimentos` sólo para una demo/tarea que dependa de él.
