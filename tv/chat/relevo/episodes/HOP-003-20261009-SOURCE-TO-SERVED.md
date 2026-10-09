@@ -61,3 +61,9 @@ Branch aislada `feature/retomar-live-evidence-hop3-20261009`, base exacta gh-pag
 **Decisión conservada:** misión principal persistencia; ejecución del juego como experimento auxiliar; no se crean sistemas paralelos ni se promueve un candidato por escritura.
 
 **PR de pantalla:** https://github.com/JuanManuelPM/prometeo/pull/77, OPEN/DRAFT. Base: gh-pages; no merge ni validación de contenido servido. GitHub Pages actualizado concurrentemente en un archivo independiente RETOMAR_V1.md; no sobrescribirlo.
+
+## Adenda · reconciliación concurrente verificada
+
+Mientras se desarrollaba la pantalla, `gh-pages` avanzó por una modificación independiente de `tv/chat/relevo/RETOMAR_V1.md` (HEAD intermedio `1a862fe405becde932e3bdb5d8923059f3d42927`). Después de guardar HOP3, el HEAD público pasó a `bc1bd660c4b5eb3a23e5bf130da9aa0fa378358e`. El PR #77 se mostró temporalmente `mergeable=false` por base divergente. Se corrigió sin pisar el trabajo concurrente: `create_tree` heredó **todos los archivos** del árbol público vigente y sustituyó únicamente `tv/chat/relevo/retomar/index.html` por su blob probado `ad2116f8eabc8f20f6731e7d00362230aca072f7`; `create_commit` parent `bc1bd660...`; `update_ref(force=true,expected_sha=15ca1d337dd74f18d3e56938366e875458a2941a)` pasó con lease. PR #77 nuevo HEAD `149774820b2bc01a7f280ff7ca28e0282908d326`. Compare frescos: `ahead=1, behind=0`, **único archivo cambiado index.html**, PR open/draft/mergeable=true. No merge. La ejecución Pages para el HEAD público previo `bc1bd660...` informó success; NO equivale a prueba visual de la UI candidata.
+
+**Lección:** el propio relevo entre chats debe tolerar versiones concurrentes: estado de cada owner se refresca antes de escribir, el diff es explícito, y los conflictos se resuelven sin reimponer una rama vieja. El nuevo PR no lleva el viejo episodio ni revierte `RETOMAR_V1.md`, `STATE_V1.json` o `reentrada.json`.
