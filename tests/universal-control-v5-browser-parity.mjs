@@ -139,7 +139,7 @@ function assertPreservedRoot(candidate, legacy, where) {
   // V5 Change Loop adds exactly one permitted root item: Continue Chat.
   // Every pre-existing root field and the selected Favorites index must survive.
   const parseCount = value => {
-    const found = String(value).match(/^(\\d+)\\/(\\d+)$/);
+    const found = String(value).match(/^([0-9]+)\/([0-9]+)$/);
     assert.ok(found, 'root count must be index/size');
     return found.slice(1).map(Number);
   };
