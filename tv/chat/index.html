@@ -14,7 +14,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) clamp(300px,27vw,540px);mi
 .viewer{display:flex;flex-direction:column;min-width:0;min-height:0;background:#eee}
 .viewer-top{background:#191919;color:#f4f4f0;display:flex;align-items:center;gap:.8rem;padding:.6rem .9rem;min-height:48px}
 #focusTitle{font-size:clamp(15px,1.4vw,22px);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mode-btn{border:1px solid #515151;border-radius:5px;background:#232323;color:#eee;padding:7px 10px;font-size:clamp(11px,1vw,14px);font-weight:650;cursor:pointer;white-space:nowrap}.mode-btn[aria-pressed="true"]{background:#eee;color:#101010}.mode-btn:focus-visible{outline:2px solid #f7a26b;outline-offset:2px}
+.mode-btn{border:1px solid #515151;border-radius:5px;background:#232323;color:#eee;padding:7px 10px;font-size:clamp(11px,1vw,14px);font-weight:650;cursor:pointer;white-space:nowrap}.mode-btn[aria-pressed="true"]{background:#eee;color:#101010}.mode-btn:focus-visible{outline:2px solid #f7a26b;outline-offset:2px}.voice-line{padding:.55rem 1rem;background:#201e1b;color:#f1ede4;font-size:clamp(12px,1vw,16px);border-top:1px solid #3a3732}.voice-line[hidden]{display:none}
 #openFocus{margin-left:auto;color:#f4f4f0;text-underline-offset:3px;white-space:nowrap;font-size:14px}
 iframe{display:block;width:100%;height:100%;border:0;flex:1;background:#f6f3ea}
 aside{min-height:0;display:flex;flex-direction:column;border-left:1px solid #353535}
@@ -35,7 +35,7 @@ footer a{color:inherit}
 </style></head><body>
 <header><div class="brand">PROMETEO</div><div class="context">Vista desde los chats · solo lectura</div><div id="connect" role="status" aria-live="polite">Leyendo GitHub Pages…</div></header>
 <main><section class="viewer" aria-label="Página publicada">
-<div class="viewer-top"><span id="focusTitle">Página de Prometeo</span><button class="mode-btn" id="viewPage" type="button" aria-pressed="true">PÁGINA</button><button class="mode-btn" id="viewDemo" type="button" aria-pressed="false">DEMO V6</button><a id="openFocus" href="../../pages/calendar/" target="_blank" rel="noopener noreferrer">Abrir página ↗</a></div>
+<div class="viewer-top"><span id="focusTitle">Página de Prometeo</span><button class="mode-btn" id="viewPage" type="button" aria-pressed="true">PÁGINA</button><button class="mode-btn" id="viewDemo" type="button" aria-pressed="false">DEMO V6</button><button class="mode-btn" id="playStudy" type="button" hidden>▶ Escuchar Piaget</button><a id="openFocus" href="../../pages/calendar/" target="_blank" rel="noopener noreferrer">Abrir página ↗</a></div><div id="studyStatus" class="voice-line" role="status" aria-live="polite" hidden>Abriendo Piaget…</div>
 <iframe id="focus" title="Página de Prometeo publicada" src="../../pages/calendar/" loading="eager"></iframe>
 </section><aside><section class="summary"><div class="eyebrow">Lo último guardado</div><div id="headline">Esperando el primer cambio público confirmado</div><div id="revision">No hay resultados cargados</div></section>
 <div class="feedhead">Cambios visibles</div><ul id="changes"><li>El registro todavía está vacío. Los cambios se publican mediante commits de GitHub.</li></ul>
@@ -46,11 +46,73 @@ footer a{color:inherit}
 const $=id=>document.getElementById(id);
 const url=new URL('./state.json',location.href);
 let previous=-1,lastOk=0,requesting=false,lastState=null,localMode=null,activeMode='page';
+let studyWatcher=null,studyTimer=null,studyAutoRevision=-1;
 const DEMO_PATH='/Experimentos/demo-engine-window-lab-v3/';
 function internal(raw){
  if(typeof raw!=='string'||!raw.startsWith('/prometeo/'))return null;
  try {let u=new URL(raw,location.origin);return u.origin===location.origin&&u.pathname.startsWith('/prometeo/')&&u.protocol===location.protocol?u:null}catch(e){return null}
 }
+function studyCommand(){
+ const p=lastState?.presentation;
+ return activeMode==='page'&&p?.kind==='study_audio'&&
+   p.module_id==='piaget-fundamentos'&&p.topic_id==='ev-001'&&
+   internal(lastState?.focus?.path)?.pathname==='/prometeo/pages/psicologia-evolutiva/';
+}
+function studyStatus(message){
+ const line=$('studyStatus');
+ line.hidden=!studyCommand();
+ if(!line.hidden && message)line.textContent=message;
+ $('playStudy').hidden=!studyCommand();
+}
+function stopStudyWatcher(){
+ if(studyWatcher){studyWatcher.disconnect();studyWatcher=null}
+ if(studyTimer){clearTimeout(studyTimer);studyTimer=null}
+}
+function tryOpenAndListen(userGesture){
+ if(!studyCommand())return false;
+ const frame=$('focus'),doc=frame.contentDocument;
+ if(!doc||frame.contentWindow.location.origin!==location.origin||frame.contentWindow.location.pathname!=='/prometeo/pages/psicologia-evolutiva/')return false;
+ const topic=doc.querySelector('.topic[data-topic="ev-001"]');
+ if(!topic){
+  const mod=doc.querySelector('.rail [data-module="piaget-fundamentos"]');
+  if(mod&&!mod.classList.contains('on'))mod.click();
+  return false;
+ }
+ if(!topic.classList.contains('open')){
+  topic.querySelector('[data-open-topic="ev-001"]')?.click();
+  return false;
+ }
+ const play=topic.querySelector('button[data-voice-topic="ev-001"]');
+ if(!play)return false;
+ stopStudyWatcher();
+ // If a blocked autoplay left the TTS button in a pseudo-playing state, reset it before retry.
+ if(userGesture && play.textContent.includes('Sonando'))play.click();
+ play.click();
+ studyStatus(userGesture
+  ? 'Piaget abierto · lectura solicitada desde tu clic. Comprobá el volumen de la tele.'
+  : 'Piaget abierto · inicio automático solicitado. Si no se escucha, tocá ▶ Escuchar Piaget.');
+ return true;
+}
+function prepareStudyPlayback(){
+ if(!studyCommand())return;
+ stopStudyWatcher();
+ studyStatus('Abriendo Piaget en la guía de Psicología Evolutiva…');
+ const frame=$('focus'),doc=frame.contentDocument;
+ if(!doc)return;
+ let completed=false;
+ const tryStart=()=>{if(completed||!studyCommand())return;try{completed=tryOpenAndListen(false)}catch(e){stopStudyWatcher();studyStatus('Piaget cargado, pero la lectura automática necesita intervención. Tocá ▶ Escuchar Piaget.')}};
+ // The study app fetches its module JSON after frame load, so wait for DOM semantic targets.
+ studyWatcher=new MutationObserver(tryStart);
+ studyWatcher.observe(doc.body||doc.documentElement,{subtree:true,childList:true});
+ studyTimer=setTimeout(()=>{stopStudyWatcher();if(!completed)studyStatus('La guía no terminó de preparar Piaget. Tocá ▶ Escuchar Piaget cuando esté visible.');},15000);
+ tryStart();
+}
+$('playStudy').addEventListener('click',()=>{
+ if(!studyCommand())return;
+ stopStudyWatcher();
+ try{if(!tryOpenAndListen(true))studyStatus('Esperá a que cargue Piaget y volvé a tocar ▶ Escuchar Piaget.')}
+ catch(e){studyStatus('No se pudo activar la voz desde la tele. Abrí la página y tocá ▶ Escuchar.')}
+});
 function setDisplay(){
  if(!lastState)return;
  const requested=localMode||((lastState.display||{}).mode==='demo'?'demo':'page');
@@ -65,10 +127,13 @@ function setDisplay(){
  $('focusTitle').textContent=requested==='demo'?'Demo Engine V6 · laboratorio original':String(lastState.focus?.title||'Página publicada').slice(0,120);
  $('viewPage').setAttribute('aria-pressed',String(requested==='page'));
  $('viewDemo').setAttribute('aria-pressed',String(requested==='demo'));
+ studyStatus();
+ if(!studyCommand())stopStudyWatcher();
 }
 $('viewPage').addEventListener('click',()=>{localMode='page';setDisplay()});
 $('viewDemo').addEventListener('click',()=>{localMode='demo';setDisplay()});
 $('focus').addEventListener('load',()=>{
+ if(studyCommand()&&lastState.presentation.autoplay===true){prepareStudyPlayback();return;}
  if(activeMode!=='demo'||lastState?.demo?.autoplay!==true)return;
  try{
   const frame=$('focus');
