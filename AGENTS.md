@@ -137,3 +137,9 @@ Agent Runtime / Network coordinate work only. Current / Catalog / Lineage / Rein
 
 ## Prioridad 2026-10-08: ONE TURN
 Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
+
+## 🔥 Fire commands (candidate; not automatically installed)
+Human input starting with `🔥` is a Prometeo convenience alias when the consuming chat/project has the bootstrap configured. See `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`, `.agents/skills/prometeo-fire/SKILL.md` and `coordination/one-turn/v1/FIRE_ROUTER_CONTRACT_V1.md`.
+- `🔥` = safe resync/continue if authorized; `🔥personal`, `🔥libros`, `🔥examen`, `🔥web`, `🔥plan`, `🔥criticar`, `🔥publicar`, `🔥skills`, `🔥estado`, `🔥guardar` route task intent, not execution permissions.
+- This dispatch must never override OBEY-v2 `/o/` entry and active Work Packet. An emoji is not a lease, a security grant, a private data export license, or an autonomous chat wake.
+- For material changes, load context/skills only on demand, validate against current owners, do evidence-based self-critique and retain explicit return/continuity. A GitHub skill is not an installed ChatGPT skill until configured.

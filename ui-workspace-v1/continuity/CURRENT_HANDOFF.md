@@ -24,3 +24,6 @@ No interpreta V15 como source en main ni sustituye Design DNA, Work Graph o el C
 
 ## Prioridad 2026-10-08: ONE TURN
 Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
+
+## IDEA HUMANA NUEVA: FIRE DISPATCH 🔥
+Un símbolo inicial más palabra reemplaza prompts largos en chats configurados. El registro de comandos y tests está en `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`; skill `.agents/skills/prometeo-fire/SKILL.md`. Estado en esta rama: CANDIDATE, sin activación automática en ChatGPT ni efecto en website. Más detalles en FIRE_ROUTER_CONTRACT_V1.md.
