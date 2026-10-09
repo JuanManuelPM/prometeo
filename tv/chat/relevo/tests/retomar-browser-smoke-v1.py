@@ -64,6 +64,7 @@ with sync_playwright() as pw:
   page.set_content(html)
   page.wait_for_function("document.querySelectorAll('#relayRows a').length===3")
   page.wait_for_function("document.querySelector('#liveProofRows').textContent.includes('Archivo servido')")
+  page.locator('.evidence-drawer summary').click()
   return page
  for width in (360,390,844,1440):
   page=make_page(width)
