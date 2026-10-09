@@ -120,6 +120,10 @@ Cada episodio útil debería distinguir:
 
 **Calidad:** el sucesor debe poder desarrollar la pregunta pendiente, explicar el razonamiento y comprobar su procedencia. Para evaluaciones sucesivas, comparar episodios originales, no exclusivamente sus resúmenes. Este mecanismo amplía el historial del relevo, **no crea otra autoridad** de código, ingeniería, trabajos ni vida del organismo.
 
+## Segunda lectura comparativa: delegación, abundancia y calidad de producto
+
+La investigación siguiente está almacenada **sin ejecutarse todavía** en `gh-pages:tv/chat/relevo/VIDEO_2_ESCALA_Y_DELEGACION_V1.md`, con 26 ideas evaluables en `gh-pages:tv/chat/relevo/VIDEO_2_IDEAS_INDEX_V1.json`. Aporta una tensión que toda generación debería conservar: **más cómputo no implica mejor resultado si se divide una tarea muy acoplada**; en ese caso comparar un ejecutor fuerte end-to-end y variantes integrales independientes antes de armar un ejército de subagentes. Para auditorías y trabajos realmente separables, sí probar paralelismo modular. El video del usuario tiene cifras llamativas pero no prueba reproducible; conservar la distinción entre relato y evidencia. Estos son documentos de investigación; no son nuevas skills instaladas ni cambios funcionales de Prometeo.
+
 ## Fuente de control y scope
 1. `gh-pages:tv/chat/AGENT_ENTRY_V1.md`: punto de entrada configurado en el Proyecto.
 2. `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md`: protocolo de relevo con CAS y contador.
