@@ -21,3 +21,6 @@ La idea de plugins extremos sin migraciones manuales NO debe desaparecer por cam
 - `ui-workspace-v1/continuity/evolution-v1/EXECUTION_PLAYBOOK_V1.md`
 - `ui-workspace-v1/continuity/evolution-v1/TAKEOVER_V1.txt`
 No interpreta V15 como source en main ni sustituye Design DNA, Work Graph o el Current owner. El plan está pendiente de ejecución y verificación; no publicar por el mero handoff.
+
+## Prioridad 2026-10-08: ONE TURN
+Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
