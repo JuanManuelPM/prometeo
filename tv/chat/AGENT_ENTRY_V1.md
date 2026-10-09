@@ -2,6 +2,20 @@
 
 **SOURCE, no instalación automática de ChatGPT.** Un nuevo chat con el conector GitHub autorizado puede leer ESTE archivo para resolver pedidos con un solo mensaje. La pantalla en la TV es `https://juanmanuelpm.github.io/prometeo/tv/chat/`.
 
+## 2026-10-09 · Puente de continuidad al trabajo de los PR #71, #72 y #73
+
+Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invocan las instrucciones del Proyecto **persistencia**. **No crea ni instala skills por sí misma.** La tarea humana actual manda. Para evitar olvido entre chats, elegir SÓLO los contratos pertinentes:
+
+- **Bootstrap y catálogo de pendientes**: recuperar `coordination/chat-bootstrap/v1/ENTRY_V1.md`, `ROUTES_V1.json` y, si es relevante, `PENDING_INDEX_V1.json` de la rama candidata **`feature/persistencia-cold-bootstrap-v1-20261009`** (PR #73). El índice contiene 45 EVO y 16 áreas, no las da por implementadas. Leer íntegramente las skills seleccionadas con el GitHub conectado. `ROUTES_V1.json.sources` tiene SHAs de **snapshot histórico**, NO garantiza apuntar al PR #71 vigente: al 2026-10-09 llevaba `52af4aa...`, anterior a la integración TDD del PR #71 (`ed5939ae...`). Para las capacidades nuevas, refrescar el HEAD real de la rama propietaria, NO afirmar que un selector anclado a snapshot ya las cargó.
+- **Desarrollo de widget, página o cambio de comportamiento**: leer además `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md` de la rama candidata **`feature/fire-skill-dispatch-v1-20261009`** (PR #71, nunca suponer merged). Exigir capacidad humana DO/SEE/CHECK → diseño FEATURE/PROOF de demo primero → prueba baseline → mínimo código → GREEN/regresión → Demo Engine V6 sobre **DOM real** → gates de publicación. La demo sintética de Experimentos NO es prueba de widget.
+- **Prueba candidata concreta**: PR #72 en `feature/proof-first-scene-20261009` arregla retención de tarjetas en escena tras JSON inválido, con RED/GREEN local y pruebas Chromium reportadas. **DRAFT**, sin demo V6 real, sin publicación del cambio ni prueba de versión SERVED. No promulgar como arreglo público hasta superar gates, reconciliando `gh-pages` HEAD vigente.
+- **🔥tv / mostrar algo que YA existe**: ruta rápida de este archivo y `state.json`; NO imponer TDD o demo antes de cambiar una escena pública. Siempre recibir UN mensaje humano, ejecutar dentro del turno, registrar recibo verificado y preservar privacidad.
+- **Estado de integración**: los tres PR siguen separados y pendientes de revisión, pruebas/merge autorizados. `main` es autoridad base, `gh-pages` exhibición actual, ramas PR son candidatos. Si otro chat cambió las ramas, recuperar HEAD y reconciliar; jamás actualizar a ciegas ni convertir commits en ejecución/servido.
+- **Dato sensible**: no publicar contenido de voz, mensajes privados, notas de alumnos o clase, credenciales ni el documento privado de Drive. Los respaldos detallados requieren almacenamiento autenticado y ACK.
+- **Pruebas realmente faltantes**: bootstrap frío desde otro chat REAL; configuración/autorización del proyecto verificable; prueba real de Demo V6 sobre escena PR #72; CI Node de PR #73; CI P4 de PR #71 (fallo histórico `missing loadContinueChat`); smoke SERVED de PR #72. Separar verificación de código, CI, publicación y funcionamiento visible.
+
+Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteriores. No exige recrear arquitectura, memoria privada o scheduler.
+
 ## 0. Distinguir las tres intenciones
 - **Rápido, mostrar**: `🔥tv calendario` o `🔥prometeo rápido mostrame la demo`. Sólo cambiar `gh-pages:tv/chat/state.json`, con SHA/lectura independiente. No tocar código del widget.
 - **Generar escena pública de ideas**: `🔥tv ideas` con ideas explícitamente destinadas a exhibición. Editar `tv/chat/scene/scene.json` y apuntar `focus.path` a `/prometeo/tv/chat/scene/`. Jamás volcar mensajes privados completos a GitHub.
