@@ -2,7 +2,8 @@
 from __future__ import annotations
 import base64,gzip,hashlib,json,re
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1]; V5=ROOT/'shared'/'universal-shell'/'v5'; SOURCE=V5/'candidate'/'single-host-source.html'; TEMPLATE=ROOT/'index.html'; OUT=V5/'release-candidate'
+ROOT=Path(__file__).resolve().parents[1]; V5=ROOT/'shared'/'universal-shell'/'v5'; SOURCE=V5/'candidate'/'single-host-source.html'; TEMPLATE=V5/'release-candidate'/'root-index.html'; OUT=V5/'release-candidate'
+# Preserve the existing V5 loader; the current Home v2 root is not a loader.
 
 def replace_once(text,pattern,replacement,label):
     result,count=re.subn(pattern,replacement,text,count=1)
@@ -57,3 +58,4 @@ def main():
     if source_sha not in root_loader or str(len(encoded)) not in root_loader: raise SystemExit('root loader metadata mismatch')
     print(json.dumps(manifest,ensure_ascii=False))
 if __name__=='__main__': main()
+
