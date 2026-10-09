@@ -134,3 +134,6 @@ Do not finish with a plan when the remaining step is software-solvable. After im
 Public worker/network artifacts contain compact coordination metadata only. Never compile private transcripts, Patent payloads, LOCAL context, credentials or access tokens into them.
 
 Agent Runtime / Network coordinate work only. Current / Catalog / Lineage / Reincarnation / Human Accepted / Served remain authoritative in their existing owners.
+
+## Prioridad 2026-10-08: ONE TURN
+Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.

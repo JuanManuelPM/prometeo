@@ -1,0 +1,3 @@
+# One-turn · objetivo humano persistido en la fuente
+2026-10-08. Petición: habilitar uso de Agent Skills para tareas de Prometeo (web/arquitectura/publicación), sin reexplicar jamás el marco EVO-001..EVO-045. Objetivo prioritario: **un solo mensaje del usuario por chat; tras procesarlo el chat se descarta; entrada, resultado, razones y continuidad persisten en la web Prometeo**. Un nuevo chat debe recuperar desde el hilo durable de la página y no preguntar qué pasó antes.
+Este es un **registro público de una decisión de producto**, no almacenamiento privado ni capturador universal de futuras conversaciones. Véanse contrato y plan en `coordination/one-turn/v1/` y skills bajo `.agents/skills/`. No afirmar runtime integrado sin prueba real.

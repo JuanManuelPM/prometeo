@@ -243,3 +243,6 @@ status: "CANDIDATE_UNTIL_INDEPENDENT_VERIFY"
 ## Próxima acción concreta
 Primera tarea material: **P00, P01, P02 y P03** usando el mecanismo de asignación existente y baselines frescos. NO codificar un nuevo kernel sin contratos/candidatos verificados. Sólo después crear P04+ bajo owner autorizado. 
 **Regla final:** una IA nueva debe leer el índice, saber qué está diseñado, qué es verdad del estado actual y cuál es el primer gate no verificado; nunca repetir la historia del chat ni inventar que los pasos ya se ejecutaron.
+
+## Prioridad 2026-10-08: ONE TURN
+Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
