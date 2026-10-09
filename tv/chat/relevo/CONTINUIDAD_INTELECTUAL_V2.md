@@ -2,6 +2,14 @@
 
 **Tipo:** memoria pública técnica de orientación conversacional; NO es un nuevo CURRENT, autoridad de ejecución, copia del chat, instalación de skills ni acceso a recuerdos privados. **Estado:** PREPARADO_PARA_PRUEBA_DE_CHAT_FRÍO, no validado por relevo real. Anclaje: `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md` y estado `tv/chat/relevo/STATE_V1.json`. Refrescar HEAD para hechos dinámicos.
 
+## Corrección humana de prioridad · 2026-10-09 · vigente hasta nueva decisión explícita
+
+**La misión prioritaria es la PERSISTENCIA del organismo y su dirección con varios chats descartables.** No es construir un videojuego, tampoco crear un dashboard. La propuesta anterior de priorizar EMBLEM-001 (arena de autos y pelota) constituyó una **DERIVA POR RECENCIA**: el asistente convirtió un ejemplo creativo llamativo en objetivo central aunque el humano insistía en continuidad, coordinación, memoria compartida y acción mínima desde una interfaz humana. El humano corrigió expresamente esa elección. Mantenerla como **experimento secundario recuperable**, no borrarla ni lanzarla como prerrequisito.
+
+**La siguiente prueba prioritaria:** continuar el salto intelectual 1 ya registrado mediante un nuevo chat frío, verificando contexto/criterio, análisis de una pregunta distinta, escritura duradera, conciliación y sucesor. Usar `gh-pages:tv/chat/relevo/RETOMAR_V1.md` y `gh-pages:tv/chat/relevo/retomar/reentrada.json` para obtener el prompt principal fresco; `STATE_V1.json` es el contador autoritativo de saltos, no un número contenido en la solicitud. Para otros pedidos humanos explícitos, atenderlos sin perder esta prioridad de largo plazo. **Persistencia operativa todavía no equivale a autonomía de ejecución:** los chats no se despiertan solos.
+
+**Falsador:** si un chat que pregunta «¿qué sigue?» recomienda antes el juego o más instrucciones aisladas, ignorando el próximo relevo probado, falló la continuidad de intención aunque haya leído todas las fuentes. Los seis casos de regresión están ahora en `PRUEBA_CONVERSACIONAL_V2.json`; son especificaciones de evaluación, **no una prueba automática ya ejecutada sobre un chat independiente**.
+
 ## La pregunta de fondo
 No se pide crear un asistente que recite la biografía del proyecto. Se pide que otro chat del mismo Proyecto `persistencia` pueda **continuar una conversación intelectual nueva con el mismo rol, contexto, criterio técnico, desacuerdos y preguntas abiertas**, aprovechando GitHub como memoria durable. Lo llamamos coloquialmente «teletransportar el chat», pero no transfiere identidad ni estado mental oculto. Un relevo válido conserva **capacidad para pensar y decidir sobre nuevas ideas**; no equivale a copiar palabras o imitar estilo.
 
