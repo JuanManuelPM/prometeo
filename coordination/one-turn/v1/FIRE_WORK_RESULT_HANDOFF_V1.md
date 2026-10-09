@@ -53,3 +53,6 @@ El humano escribe **UN MENSAJE en la página web de Prometeo**; la página lo gu
 - `coordination/design-dna/INDEX.json`, `coordination/GLOBAL_AGENT_CONSTITUTION_V1.md`
 - PR #71: `https://github.com/JuanManuelPM/prometeo/pull/71`
 No exponer identificadores privados, sesiones ni credenciales en este registro público.
+
+## ADDENDUM VERIFICADO · RESPUESTA DE WORK RECIBIDA 2026-10-09
+Respuesta recibida: 61m29s, PR #70 con 7 commits/54 archivos, 54 pruebas unitarias con dobles y cuatro Actions éxito, source recovery nuevo agente sólo GitHub, nada publicado. Confirmación independiente de ACTIVE Supabase v14 sin ONE TURN; SQL SELECT 1 y list_tables ECONNREFUSED; gestión ACTIVE_HEALTHY. No existe ACK ni RETURN privado. Resultado `DO_NOT_PROMOTE`. Auditoría exhaustiva en `coordination/one-turn/v1/FIRE_POST_WORK_AUDIT_20261009.json`, evaluación de 12 gates. NEXT = restaurar vía autorizada lectura SQL/schema, probar RPC/ACK privado; no merge sin verificación E2E; fotos de diseño todavía pendientes.
