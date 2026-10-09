@@ -1,0 +1,66 @@
+name: Persistencia PR77 candidate HTTP Chromium
+
+# PRE-PUBLISH ONLY: checkout over localhost, never require PR to be on Pages.
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - 'tv/chat/relevo/retomar/index.html'
+      - 'tv/chat/relevo/retomar/reentrada.json'
+      - 'tv/chat/relevo/STATE_V1.json'
+      - 'tv/chat/relevo/tests/retomar-browser-smoke-v1.py'
+      - 'tv/chat/relevo/tests/retomar-http-smoke-v1.mjs'
+      - '.github/workflows/persistencia-pr77-candidate-http-ci-v1.yml'
+  push:
+    branches: [feature/retomar-live-evidence-hop3-20261009]
+    paths:
+      - 'tv/chat/relevo/tests/retomar-browser-smoke-v1.py'
+      - 'tv/chat/relevo/tests/retomar-http-smoke-v1.mjs'
+      - '.github/workflows/persistencia-pr77-candidate-http-ci-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: persistencia-pr77-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate-http-chromium:
+    name: Candidate checkout HTTP + mobile + faults
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned Playwright and representative Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          python3 -m pip install playwright==1.55.0
+          npx playwright install --with-deps chromium
+      - name: Existing versioned DOM fault suite
+        run: |
+          export CHROMIUM_PATH="$(python3 - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as pw:
+              print(pw.chromium.executable_path)
+          PY
+          )"
+          test -x "$CHROMIUM_PATH"
+          python3 tv/chat/relevo/tests/retomar-browser-smoke-v1.py
+      - name: Candidate checkout over local HTTP, mobile screenshots and failure gates
+        run: node tv/chat/relevo/tests/retomar-http-smoke-v1.mjs
+      - name: Upload evidence only (NOT the application)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistencia-pr77-http-candidate-evidence
+          path: artifacts/retomar-pr77-http/
+          if-no-files-found: warn
+          retention-days: 14
