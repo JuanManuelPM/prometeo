@@ -92,7 +92,7 @@ try{
     const response=await page.goto(url,{waitUntil:'domcontentloaded'});
     assert.equal(response.status(),200);
     await page.waitForFunction(()=>document.querySelectorAll('.project').length===5);
-    await page.waitForFunction(()=>document.querySelector('#relayRows a')?.length>=3);
+    await page.waitForFunction(()=>document.querySelectorAll('#relayRows a').length>=3);
     await page.waitForFunction(()=>document.querySelector('#liveProofRows')?.textContent.includes('Archivo servido'));
     assert.equal(await page.locator('.project').count(),5);
     assert.ok((await page.locator('#relayRows').innerText()).includes('Argentina'));
