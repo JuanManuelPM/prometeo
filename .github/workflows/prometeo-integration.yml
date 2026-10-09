@@ -92,3 +92,31 @@ jobs:
           name: real-scene-demo-v6-${{ github.run_id }}
           path: /tmp/prometeo-scene-v6-report/
           if-no-files-found: warn
+
+  served-public-http-readonly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read actual GitHub Pages bytes, without promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://juanmanuelpm.github.io/prometeo"
+          curl --fail --location --silent --show-error --retry 3 --max-time 35 "$base/tv/chat/" -o /tmp/tv-served.html
+          curl --fail --location --silent --show-error --retry 3 --max-time 35 "$base/tv/chat/scene/" -o /tmp/scene-served.html
+          curl --fail --location --silent --show-error --retry 3 --max-time 35 "$base/tv/chat/state.json" -o /tmp/tv-served-state.json
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          paths=['/tmp/tv-served.html','/tmp/scene-served.html','/tmp/tv-served-state.json']
+          for name in paths:
+              data=Path(name).read_bytes()
+              assert data, 'empty published asset '+name
+              print('SERVED_HTTP_BYTES',name,len(data),'SHA256',hashlib.sha256(data).hexdigest())
+          served=Path('/tmp/scene-served.html').read_bytes()
+          candidate=Path('tv/chat/scene/index.html').read_bytes()
+          print('PR72_SCENE_CANDIDATE_SERVED',str(served==candidate).lower())
+          state=json.loads(Path('/tmp/tv-served-state.json').read_text())
+          assert state.get('schema')=='prometeo.tv-from-chat-state/v1'
+          print('SERVED_TV_REVISION',state.get('revision'))
+          PY
