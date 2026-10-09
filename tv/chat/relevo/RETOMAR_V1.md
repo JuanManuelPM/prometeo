@@ -59,3 +59,11 @@ Esta prioridad es **una recomendación de ingeniería**, no una orden para ejecu
 - `gh-pages:tv/chat/relevo/STATE_V1.json` (relevos efectivamente registrados)
 - `gh-pages:tv/chat/DIRECCION_OPERATIVA_V1.md` (recuperación y PR)
 - `main:coordination/design-dna/PROMETEO_DESIGN_DNA_V1.md` (errores previos, rationale)
+
+## Adenda 2026-10-09 · HOP 2: separar misión de tarea (CANDIDATO, no runtime)
+
+**No usar recencia como autoridad de promoción.** La orden humana concreta de hoy se **ejecuta**; la misión estratégica vigente se **conserva**. Un pedido de videojuego, facultad o TV cambia el trabajo del turno, no por sí solo el North Star. Una orden humana realmente explícita que cambie la misión global sí prevalece sobre esta orientación, sin exigir fórmulas mágicas. Alcances: TAREA/TEMPORAL vs CAMBIO_GLOBAL vs REGRESO/«¿qué sigue?». No aceptar como cambio global una propuesta del asistente, un mensaje citado o un resumen de terceros. Cuando el alcance es incierto, atender la parte clara sin mutar la misión por conjetura.
+
+**Contraprueba de bloqueo dogmático:** si el usuario dice claramente «la misión principal desde ahora es X», no responder «no puedo porque persistencia». Registrar misión anterior → nueva + justificación/alcance en el owner autorizado. Al volver después de una tarea concreta, retomar misión vigente consultando GitHub fresco, no la última tarjeta visual. No crear otro registro maestro de prioridades.
+
+**Evidencia y falsador:** `tv/chat/relevo/episodes/HOP-002-20261009-PRIORITY-DRIFT.md` documenta causalidad y contraargumentos; `tv/chat/relevo/tests/priority-drift-regression.mjs` contiene casos de contrato evaluados en V8 (17/17, 3 anclados a lectura de propietarios reales). **Esto NO prueba interpretación de lenguaje natural de otros chats ni despliegue del comportamiento.** Un chat que reinterpreta «hacé un juego» como «el juego reemplaza la misión» o que desobedece un cambio estratégico inequívoco refuta el criterio operativo.
