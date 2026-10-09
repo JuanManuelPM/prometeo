@@ -1,7 +1,8 @@
 import { PROMETEO_MENU } from '../v1/menu-registry.js';
 import { mountPageChangeLoop } from '../../capture/v1/change-loop.js';
 import { VoiceQueue } from '../../prometeo-shell/v1/voice.js';
-import { listNotes, getNote } from '../../prometeo-shell/v1/db.js';
+import { createOneTurnSubmitter, oneTurnNoteId } from '../../capture/v1/one-turn.js';
+import { listNotes, getNote, putNote } from '../../prometeo-shell/v1/db.js';
 import { copyAndOpen as copyContinuePromptAndOpen } from '../../continuity/v1/continue-chat.js';
 
 const CORNERS=['top-left','top-right','bottom-left','bottom-right'];
@@ -85,26 +86,29 @@ function pageMeta(){const f=frameInfo();return{pageId:PAGE_ID,sourcePath:f.path,
 function updatePageRef(){const f=frameInfo();page.href=f.href}
 frame.addEventListener('load',updatePageRef);
 
-let changeLoop=null;
+let oneTurn, changeLoop=null;
 function syncSoon(){clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{try{await changeLoop?.ingestLocal?.()}catch{}try{await changeLoop?.refresh?.()}catch{}},180)}
 const voice=new VoiceQueue({workerURL:new URL('../../prometeo-shell/v1/prometeo-voice-worker-v2.js?v=2',import.meta.url).href,onChange:syncSoon,onRecording:renderRecording});
 await voice.init();
 const adapter={
   getPage:()=>page,
-  listLocalNotes,
+  listLocalNotes:listNotes,
   getLocalNote:getNote,
   recordingState:()=>voice.state(),
   startRecording:()=>startRecording(),
   pauseResumeRecording:()=>voice.pauseResume(),
   saveRecording:()=>voice.save(pageMeta()),
   discardRecording:()=>voice.discard(),
-  createTextCapture:async text=>{const body=String(text||'').trim();if(!body)return null;if(!changeLoop?.client)throw new Error('Notas todavía no está listo');const file=new File([body],`nota-${new Date().toISOString().replace(/[:.]/g,'-')}.txt`,{type:'text/plain;charset=utf-8'});return changeLoop.client.uploadAttachment(file,page)},
+  createTextCapture:async(text,target)=>{const body=String(text||'').trim();if(!body)return null;const request_id=crypto.randomUUID(),page_id=target?.id||page.id;const note={id:await oneTurnNoteId(page_id,request_id),text:body,pageId:page_id,created:Date.now(),status:'done',sourcePath:location.pathname,one_turn:{request_id,page_id,execute:false,state:'LOCAL_ONLY'}};await putNote(note);if(!changeLoop?.client?.hasWorkspace())return note;try{const file=new File([body],`nota-${note.id}.txt`,{type:'text/plain;charset=utf-8'});const remote=await changeLoop.client.uploadAttachment(file,target||page);await putNote({...note,remote_attachment_id:remote?.attachment?.id,one_turn:{...note.one_turn,state:'REMOTE_ATTACHMENT'}});return remote}catch(error){await putNote({...note,one_turn:{...note.one_turn,state:[401,403].includes(error?.status)?'DENIED':'LOCAL_ONLY',error_code:error?.code||'LEGACY_UPLOAD_UNAVAILABLE'}});return note}},
+  submitOneTurn:input=>oneTurn.submit(input),
+  recoverOneTurn:target=>oneTurn.recover(target),
   openLegacyNotes:()=>location.href='./legacy/prometeo-v5/',
   onClose:()=>{},
   navigatePage:async()=>{},
   previewUrl:url=>{if(url)navigate(url)}
 };
 changeLoop=mountPageChangeLoop({adapter});
+oneTurn=createOneTurnSubmitter({store:{getNote,putNote,listNotes},client:changeLoop.client});
 
 async function activate(item){
   if(item.items){stack.push(item);selection.set(item.id,0);renderMenu();navigator.vibrate?.(4);return}
@@ -168,3 +172,4 @@ addEventListener('pagehide',()=>voice.close(),{once:true});
 applyCorner(corner);
 renderMenu();
 try{const last=sessionStorage.getItem(LAST_VIEW_KEY);if(last&&new URL(last).origin===location.origin&&!directLegacy(new URL(last))){frame.hidden=false;home.hidden=true;frame.src=last}}catch{}
+
