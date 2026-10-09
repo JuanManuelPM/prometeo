@@ -18,7 +18,7 @@ Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteri
 
 ## Punto de retorno: nunca volver a perder un gran objetivo
 
-Cuando el humano pregunta «¿qué sigue?», vuelve cansado/después de días, teme olvidar planes o pide que un chat nuevo recuerde TODO el trabajo creativo: leer primero `gh-pages:tv/chat/relevo/RETOMAR_V1.md` y su proyección `gh-pages:tv/chat/relevo/retomar/reentrada.json`, además de los owners de ideas necesarios. Mostrar la **próxima experiencia real** y qué evidencia falta; evitar reemplazar productos por nuevas instrucciones. Pantalla humana read-only: `/prometeo/tv/chat/relevo/retomar/`. No invocar este ritual para órdenes rápidas de TV, ni tratar la proyección como fuente de estado live.
+Cuando el humano pregunta «¿qué sigue?», vuelve cansado/después de días, teme olvidar planes o pide que un chat nuevo recuerde TODO el trabajo creativo, **priorizar la persistencia del cerebro común, no el juego**, y leer primero `gh-pages:tv/chat/relevo/RETOMAR_V1.md` y su proyección `gh-pages:tv/chat/relevo/retomar/reentrada.json`, además de los owners de ideas necesarios. Mostrar la **próxima experiencia real** y qué evidencia falta; evitar reemplazar productos por nuevas instrucciones. Pantalla humana read-only: `/prometeo/tv/chat/relevo/retomar/`. No invocar este ritual para órdenes rápidas de TV, ni tratar la proyección como fuente de estado live.
 
 ## Prueba de relevo entre chats descartables
 

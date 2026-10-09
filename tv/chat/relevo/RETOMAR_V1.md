@@ -15,15 +15,22 @@ Hubo dos ondas de ideas: 24 propiedades sobre el pulpo cerebral (continuidad, me
 
 **Invariante 5: la calidad es resultado humano, no consumo.** No economizar cómputo como objetivo. Trabajar profundo, iterar y verificar. Evitar dividir obras narrativas o físicas con alto acoplamiento entre veinte subagentes; probar agente fuerte integral o variantes completas paralelas. Tareas independientes sí pueden separarse.
 
-## La única acción priorizada recomendada
-**EMBLEM-001 = una experiencia original de autos y pelota, jugable en la web.** Es deliberadamente más ambiciosa que una nueva página de resúmenes; se inspira en la crítica del usuario de haber hablado de un juego estilo arena y terminar construyendo andamios. Objetivo concreto: física entretenida, una partida completa, gol, puntaje, reinicio y controles móviles; sonido y calidad estética reales. El código debe ser original, sin materiales copiados de franquicias. **Estado actual: PROPUESTA, NO LANZADA NI IMPLEMENTADA.** El prompt exacto está en `tv/chat/relevo/retomar/reentrada.json` (campo `next_experiment.exact_prompt`) y en la pantalla de retorno.
+## Prioridad decidida por el humano: PERSISTENCIA, no el juego
 
-**Experimento posterior, no condición de EMBLEM-001:** lanzar varias versiones integrales independientes del mismo brief en ramas aisladas, revisar críticamente con pruebas reales, comparar estética/móvil/funcionalidad, conservar perdedoras y pasar la mejor a otra generación de mejora. Después evaluar costo de handoff de división modular.
+**North Star prioritario:** un cerebro común con continuidad intelectual, operativa y de proyectos, que puedan reconstruir y utilizar chats descartables sin que el humano recuerde rutas, decisiones o el siguiente prompt. Logros observables: un chat independiente recupera ideas, las critica sobre un caso nuevo, persiste un episodio, integra el conocimiento de otros y entrega prompt mínimo al sucesor. Aún no se demostró la continuidad completa de múltiples generaciones ni el despacho automático de chats.
+
+**Acción humana próxima:** el chat que registró el salto 1 se deja terminado; desde otro chat del Proyecto, pegar el `primary_mission.exact_prompt` de `tv/chat/relevo/retomar/reentrada.json`, de modo que pruebe un salto nuevo desde fuentes. **No abrir el mismo relevo en dos chats simultáneos** salvo que se esté testeando explícitamente un conflicto de concurrencia. El ejecutor debe recuperar `last_hop` actual por GitHub y NO fiarse del número del prompt.
+
+**Desviación detectada y corregida:** la recomendación anterior convirtió el minijuego EMBLEM-001 en la misión principal sin confirmación humana. El usuario aclaró que la persistencia es el objetivo rector y el juego sólo un experimento auxiliar. EMBLEM-001 SE CONSERVA como candidato secundario; su prompt exacto está aún en `next_experiment.exact_prompt`, ahora marcado `OPTIONAL_SECONDARY`. No borrarlo ni ejecutarlo como prerrequisito.
+
+**Prioridades en orden:** (1) continuidad comprobable entre chats, (2) coordinación y recuperación de resultados sin usuario como bus, (3) experiencia humana mínima de proyectos recuperables, (4) productos ambiciosos de ejemplo, como juegos, demos y facultad, sin pretender que son el propósito central. Si el mensaje humano solicita explícitamente una tarea de juego o facultad, se la atiende sin exigir siempre el protocolo completo de relevo y se preserva el norte general. *Mantener el norte no significa desobedecer cada tarea nueva.*
+
+**Regresión anti-desvío:** al contestar «¿qué sigue?» priorizar la persistencia salvo evidencia de logro posterior o nueva decisión humana explícita; recuperar primero el estado real y fuentes, no repetir recomendaciones obsoletas. El éxito de un hop no equivale a autonomía permanente ni a un organismo integrado en vivo.
 
 ## Protocolo cuando el humano vuelve cansado o sin recordar nada
 1. Leer este archivo y fuentes de entrada si hace falta; recuperar conector y ref real de Github.
 2. Consultar **sólo lo vigente necesario**: `STATE_V1.json` (saltos), el PR #74 y cualquier owner del experimento activo, más las fuentes indexadas de ideas. NO asumir que la copia estática en la pantalla sea un estado live.
-3. Responder en castellano simple: «qué queríamos», «qué existe realmente», «qué falta», «qué conviene lanzar ahora». Si ya está funcionando EMBLEM-001, cambiar de prioridad **basándose en resultados reales**; no repetir una tarea ya completada.
+3. Responder en castellano simple: «qué queríamos», «qué existe realmente», «qué falta», «qué conviene lanzar ahora». Si el relevo intelectual está pendiente, priorizar el siguiente salto verificable, salvo una nueva orden humana explícita. Si el producto EMBLEM-001 ya está funcionando, conservar evidencia; no confundirlo con el éxito del cerebro persistente.
 4. Presentar una acción humana mínima: un prompt autocontenido listo para pegar, o un enlace a producto realmente servido. Si el trabajo ya está en curso, indicarlo y dar camino de comprobación; no abrir duplicados.
 5. Ante cambios de prioridad, conservar el porqué, la prioridad anterior, la evidencia y la siguiente, sin borrar las 24, 26 o 45 ideas. Actualizar owners pertinentes y, si aporta, la proyección `reentrada.json` con CAS.
 6. La pantalla read-only puede mostrar PR/hop actual si una consulta pública a GitHub funciona; nunca interpretar su cache como evidencia de ejecución actual. Los resultados completos de chats no están automáticamente visibles, sólo las entregas persistidas.
@@ -40,7 +47,8 @@ Hubo dos ondas de ideas: 24 propiedades sobre el pulpo cerebral (continuidad, me
 - En el próximo chat frío: descubrir el punto de retorno desde AGENT_ENTRY; explicar con contexto correcto la prioridad, el porqué y los siguientes experimentos, SIN que el prompt humano enumere las ideas.
 - Comprobar que `reentrada.json` referencia archivos existentes y que los contadores 24/26/45 tienen propietarios, no que las funciones estén terminadas.
 - Comprobar el vínculo de la pantalla, la copia de prompt y la recuperación de errores de lectura. No tratar una URL publicada como garantía de su comportamiento visual sin abrirla realmente.
-- Cuando EMBLEM-001 se ejecute: prueba real de navegación y una ronda completa; comparar luego con otras variantes sólo cuando exista un baseline utilizable.
+- Próximo chat independiente: recuperación de un episodio previo, nueva evaluación crítica, CAS/readback, nueva pregunta y prompt sucesor; no equivale a una prueba de continuidad indefinida.
+- Cuando EMBLEM-001 se ejecute opcionalmente: prueba real de navegación y una ronda completa; comparar sólo con baseline.
 
 ## No decidir por el usuario sin prueba
 Esta prioridad es **una recomendación de ingeniería**, no una orden para ejecutar un juego sin un mensaje de lanzamiento. Si el humano trae otra idea, es válida; preservar la anterior y explicar si se pospone. No publicar cambios de productos sensibles ni considerar autorizada una integración fallida.

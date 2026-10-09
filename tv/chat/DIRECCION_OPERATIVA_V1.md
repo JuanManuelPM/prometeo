@@ -7,7 +7,7 @@ El chat actual funciona como director/editor: conversar, detectar oportunidades,
 
 ## Regreso tras interrupciones y olvido
 
-`gh-pages:tv/chat/relevo/RETOMAR_V1.md` fija la regla antideriva para conversaciones de estrategia, priorización y «¿qué sigue?». Su pantalla `/prometeo/tv/chat/relevo/retomar/` es una lectura humana, NO un nuevo controlador. La prioridad propuesta del próximo producto se encuentra en `reentrada.json`; antes de ejecutarla recuperar el owner actual para comprobar que nadie la completó. **Éxito = artefacto humano verificable, no sólo arquitectura, skills, docs o commits.** Preservar las otras ideas y registrar reemplazos de prioridad.
+`gh-pages:tv/chat/relevo/RETOMAR_V1.md` fija la regla antideriva para conversaciones de estrategia, priorización y «¿qué sigue?». Su pantalla `/prometeo/tv/chat/relevo/retomar/` es una lectura humana, NO un nuevo controlador. La **misión principal es la persistencia del cerebro común**; la siguiente tarea y el prompt de relevo se encuentran en `reentrada.json` → `primary_mission`. La arena de autos de `next_experiment` es **candidata secundaria**, no el objetivo principal. Comprobar siempre el estado real del owner antes de declarar un resultado. **Éxito = artefacto humano verificable, no sólo arquitectura, skills, docs o commits.** Preservar las otras ideas y registrar reemplazos de prioridad.
 
 ## Consulta al comienzo de cada mensaje relacionado con Prometeo
 1. Leer este índice sólo si todavía no se leyó en la sesión, o si se perdió el contexto. **Siempre refrescar** las fuentes dinámicas que interesan a la pregunta actual.
