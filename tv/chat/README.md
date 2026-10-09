@@ -21,3 +21,7 @@ Esta página **no recibe instrucciones ni ejecuta IA**. GitHub Pages es estátic
 - El chat hace un segundo commit con el primer registro no privado `TV_SETUP` al JSON y verifica por fetch GitHub.
 - HTTP servido se comprueba por `https://juanmanuelpm.github.io/prometeo/tv/chat/` cuando esté propagado. Si aún no, declarar SERVED sin verificar.
 - Las tareas futuras sobre calendario, facultad o widgets actualizan el owner correcto y escriben un recibo público mínimo al canal sólo cuando existe resultado verificable.
+
+
+## EXTENSIÓN V6 (2026-10-09)
+Se recuperó la demo EXISTENTE de `JuanManuelPM/Experimentos/demo-engine-v6` y `demo-engine-window-lab-v3`, no se reimplementó. El visor agrega botones PÁGINA / DEMO V6 y estado `display.mode`. El laboratorio es una escena sintética y NO prueba funcionalidades del calendario real. Contrato completo: `tv/chat/DEMO_PROTOCOL_V1.md` y `tv/chat/DEMO_ADAPTER_V1.json`. Asegurar que cada nuevo chat pueda cambiar escena con **un solo mensaje** y un solo commit seguro. La carpeta `tv/ai/` permanece intacta.
