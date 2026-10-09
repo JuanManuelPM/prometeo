@@ -28,3 +28,7 @@ Cada chat refetchea `HEAD` y el estado de `tv/chat/state.json`, produce un commi
 
 ## Estadísticas
 La TV cotidiana sigue mostrando sólo la escena y acciones recientes; telemetría detallada está oculta y puede agregarse como widget cuando existan datos genuinos (nº acciones, durations medidos, errores, resultados por chat). No inventar métricas.
+
+## Private owner actually created (2026-10-09)
+A private Google Doc named **PROMETEO · Bitácora privada de acciones desde chats · V1** was created in the connected user's Google Drive and independently re-fetched after insertion. It holds the original user instruction and activity details for the initial TV+Demo V6 integration. Search by **exact title** through the Google Drive connector and verify owner/document revision before appending. DO NOT put the private document ID or its content in this public repo, GitHub Pages, JSON or TV.
+The presence of one verified entry does not mean future chats auto-archive. To do that, every chat with authorized Google Drive access must: accomplish quick action FIRST; fetch this doc via connected Drive; append a private entry with read-after-write receipt, facts/errors and measured timestamps only. If Drive inaccessible mark `PRIVATE_AUDIT_BLOCKED` and preserve public non-sensitive action receipt separately. This is a log, not the sole canonical task owner or general private memory.
