@@ -29,3 +29,6 @@ This skill can be used through Project instructions or compatible installed Skil
 
 ## TV output without page ingress
 Current read-only display: `https://juanmanuelpm.github.io/prometeo/tv/chat/`. After an actual verified PUBLIC widget/study/code change, load `gh-pages:tv/chat/README.md`, update only public-safe `tv/chat/state.json` with a new revision and actual evidence, and read back. Never place class details, personal calendar notes or user chat text into public GitHub. The TV polls the public state and displays an existing page; neither workers nor Supabase are required for this. A static Github Pages website does not automatically receive ChatGPT tools.
+
+## 2026-10-09 TV + DEMO (SOURCE CANDIDATE)
+For `🔥tv`, `🔥demo` and `🔥prometeo rápido poné ... en la tele`, load `.agents/skills/prometeo-tv-show/SKILL.md` and `gh-pages:tv/chat/AGENT_ENTRY_V1.md`. No Supabase/worker required. TV state changes are rapid, distinct from editing a widget. Universal Demo Engine V6 is in `JuanManuelPM/Experimentos/demo-engine-v6` (CURRENT) and `demo-engine-window-lab-v3` (lab). This generic lab is NOT evidence of changed calendar behavior. Do not publish raw prompt, audio or private student/class data in gh-pages. Normal task takes one human message. Date/elapsed claims must be measured, not invented.
