@@ -9,6 +9,7 @@ const fold=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerC
 export function parseFire(raw) {
   const original=String(raw ?? '');
   const t=original.trimStart();
+  if(t.trim()==='.')return {triggered:true,key:'dot',action:registry.execution_confirmation.action,topic:'',unknown:false,requires_authority:true,requires_prepared_plan:true,skills:['prometeo-one-turn']};
   if(!t.startsWith('🔥'))return {triggered:false};
   // Support optional VS16, spaces and separators before command.
   const rest=t.slice('🔥'.length).replace(/^\uFE0F/,'').replace(/^[\s:/·]+/u,'');
@@ -19,7 +20,7 @@ export function parseFire(raw) {
   const all=[registry.default,...registry.commands];
   const chosen=all.find(x=>(x.aliases||[]).some(a=>fold(a)===token));
   if(chosen){
-    return {triggered:true,key:chosen.key,action:chosen.action||chosen.kind,topic:suffix,unknown:false,requires_authority:true,skills:chosen.skills||['prometeo-one-turn']};
+    return {triggered:true,key:chosen.key,action:chosen.action||chosen.kind,topic:suffix,unknown:false,requires_authority:true,requires_prepared_plan:false,skills:chosen.skills||['prometeo-one-turn']};
   }
   return {triggered:true,key:registry.default.key,action:registry.default.kind,topic:rest.trim(),unknown:!!rest.trim(),requires_authority:true,skills:['prometeo-one-turn']};
 }

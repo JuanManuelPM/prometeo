@@ -57,12 +57,5 @@ Antes de cada cierre material: A) reconstruir criterio de aceptación, B) enumer
 ## Promoción
 Candidato en branch aislado; ejecutar `node scripts/prometeo-fire-router.mjs ...` y `node scripts/verify-prometeo-fire.mjs` + control independiente. Abrir PR/merge contra main **sólo cuando Work no tenga colisiones**. No tocar `gh-pages` ni source current. Verificar acceso desde chat nuevo tras configurar proyecto y precisión de enrute/persistencia real por receipts. Publicación de docs en GitHub no equivale a desplegar web.
 
-## 🌋 Especial: 🔥prometeo = enumerar skills aplicables
-No confundir con `🔥`, que mantiene RESYNC/CONTINUE. `🔥prometeo` ejecuta un INVENTARIO DE CAPACIDADES DE LECTURA SOLAMENTE, no trabajo material.
-1. Identificar tema por palabras posteriores; en ausencia, contexto de la tarea o página actual sin arqueología general ni datos privados innecesarios.
-2. Enumerar **todos los metadatos disponibles** de skills del entorno (herramienta de catálogo si está habilitada) y los del repo Prometeo en el ref permitido. No supone que "skills en GitHub" estén instaladas.
-3. Elegir TODAS las skills plausiblemente útiles, incluso si muchas se usan frecuentemente. Informar por qué, disponibilidad real y dependencias.
-4. Presentar lista numerada en grupos: más pertinentes, complementarias y necesarias pero no disponibles; si no existe tema, mostrar las universales y otras candidatas sin inventar una tarea.
-5. **No autoejecutar** las elegidas, no autoactualizar código ni promover/invocar publicaciones, ni interpretar un emoji como permiso o claim de Work Graph.
-6. Mantener hashes/versión de catálogo y honestidad sobre fuentes no accesibles. Leer contenido completo únicamente de las seleccionadas que sí vayan a ejecutarse posteriormente por autoridad independiente.
-Tests: `🔥` y `🔥p` siguen RESYNC_AND_CONTINUE; `🔥prometeo` y `🔥prometeo libros` activan `ENUMERATE_APPLICABLE_SKILLS`.
+## 🌋 Especial ACTUALIZADO: 🔥prometeo = PREPARAR; '.' = EJECUTAR
+El modo anterior "sólo enumerar" queda **SUPERSEDED** por `FIRE_PREPARE_DOT_CONTRACT_V1.md`. Nunca afirmar que una skill fue usada por sólo aparecer en una lista. `🔥prometeo` / `🔥proneteo` selecciona y LEE instrucciones disponibles, produce ledger verificable, plan/criterios/riesgos/permiso, y espera `.`. El punto aislado sólo ejecuta plan recuperable y vigente; no afecta al one-turn normal de la página. Consultar `FIRE_WORK_RESULT_HANDOFF_V1.md` antes de auditar la respuesta futura de Work. No generar otra UI sin fotos del usuario.

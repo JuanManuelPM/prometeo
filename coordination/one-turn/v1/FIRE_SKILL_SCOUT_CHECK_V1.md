@@ -10,3 +10,6 @@
 - Límite de prueba: no se ejecutó Node directamente sobre un checkout descargado; el contenedor no podía resolver raw.githubusercontent.com. La interpretación se comprobó reproduciendo la lógica exacta del parser JS en entorno V8 con fixtures leídos de GitHub. Prueba e2e de Project/Work y privado `P4 Capture` **PENDIENTE**.
 - `main` y `gh-pages` no fueron modificados. PR #71 permanece en borrador, para no pisar Work.
 - Próximo control antes de integrar: `node scripts/verify-prometeo-fire.mjs` en checkout real, revisión de cambios concurrentes, configuración una vez del launcher/Proyecto, chat fresco con `🔥prometeo libros`, y comparación de skills enumeradas contra catálogo de sesión.
+
+## 2026-10-09 · Revisión del modo de preparación (CANDIDATE)
+La acción anterior `ENUMERATE_APPLICABLE_SKILLS` queda sustituida por `PREPARE_SKILLS_AND_PLAN`; el punto aislado se parsea como `EXECUTE_PREPARED_PLAN` sin interpretar que hay plan disponible. Este texto documenta el cambio, NO un test de ejecución del backend.

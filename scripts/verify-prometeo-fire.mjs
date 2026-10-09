@@ -29,5 +29,17 @@ for(const name of ['prometeo-fire','prometeo-knowledge','prometeo-skill-scout'])
 const catalog=JSON.parse(fs.readFileSync(path.join(base,'SKILLS_CATALOG_V1.json'),'utf8'));
 assert(catalog.skills.some(s=>s.name==='prometeo-fire'),'Router not indexed in skill catalog');
 assert(catalog.skills.some(s=>s.name==='prometeo-skill-scout'),'Skill scout not indexed');
+assert.equal(registry.commands.find(x=>x.key==='prometeo').action,'PREPARE_SKILLS_AND_PLAN');
+assert.equal(registry.execution_confirmation.token,'.');
+assert.equal(parseFire('.').requires_prepared_plan,true);
+assert.equal(parseFire('🔥').action,'RESYNC_AND_CONTINUE');
+assert.equal(parseFire('🔥prometeo').action,'PREPARE_SKILLS_AND_PLAN');
+for(const rel of ['FIRE_PREPARE_DOT_CONTRACT_V1.md','FIRE_WORK_RESULT_HANDOFF_V1.md','FIRE_PREPARED_PLAN_SCHEMA_V1.json'])assert(fs.existsSync(path.join(base,rel)),'Missing '+rel);
+const planSchema=JSON.parse(fs.readFileSync(path.join(base,'FIRE_PREPARED_PLAN_SCHEMA_V1.json'),'utf8'));
+assert(planSchema.required.includes('skill_ledger'));
+assert(planSchema.allowed_states.includes('PREPARED_DURABLE'));
+assert(planSchema.allowed_states.includes('PLAN_NOT_FOUND'));
+const handoff=fs.readFileSync(path.join(base,'FIRE_WORK_RESULT_HANDOFF_V1.md'),'utf8');
+for(const key of ['UN MENSAJE','TELEMETRÍA','PR #71','WORK ACABA DE TERMINAR','FOTOGRAFÍAS PENDIENTES'])assert(handoff.includes(key),'Missing continuity '+key);
 console.log('PASS',suite.tests.length,'router cases,',suite.safety_cases.length,'review-only safety scenarios,',registry.commands.length,'commands');
 console.log('BOUNDARY: safety scenarios are contract expectations, not runtime permission tests');

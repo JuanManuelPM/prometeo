@@ -146,3 +146,7 @@ Human input starting with `🔥` is a Prometeo convenience alias when the consum
 
 ### Especial de inventario 🔥prometeo (candidate, no installed app inference)
 The command `🔥prometeo` (with optional task/topic) is NOT ordinary `🔥` resume. It dispatches to `.agents/skills/prometeo-skill-scout/SKILL.md` and must examine all visible skill metadata, enumerate those relevant to the case with provenance/status and no arbitrary top-N cap. The selection itself is READ ONLY; it never installs, executes, promotes or grants tool authorization.
+
+## 2026-10-09 · RELEVO AL TERMINAR WORK / CRÍTICA DE SKILLS
+La continuidad humana previa/post Work **no debe perderse**: `coordination/one-turn/v1/FIRE_WORK_RESULT_HANDOFF_V1.md` recoge one-turn desde web, 12 packets del ZIP entregados a Work, atlas de libros, UI minimalista/nafta/telemetría opcional, fotos pendientes y siguiente auditoría independiente de la respuesta final de Work. El user informó que Work terminó, pero todavía no se recibió su reporte. NO atribuirle commits o validaciones.
+El registro FIRE candidato distingue `🔥prometeo`/`🔥proneteo` => `PREPARE_SKILLS_AND_PLAN` y un mensaje `.` en chat => `EXECUTE_PREPARED_PLAN` del plan exacto vigente (ver `coordination/one-turn/v1/FIRE_PREPARE_DOT_CONTRACT_V1.md`). Esta revisión por 2 mensajes es OPCIONAL en chat; la web exige UN mensaje humano por tarea y no espera punto. NO diseñar UI antes de fotos.
