@@ -100,6 +100,40 @@ async function loadPageChangeLoop(){
 """
     text=one(text,marker,add,'change loop loader')
 
+    # Keep Continue Chat in the reproducible V5 build. It already exists in the
+    # checked-in candidate, but a clean build previously silently discarded it.
+    menu_anchor="    {id:'notes',label:'Notas',type:'action',action:'notes',icon:'notes'},"
+    text=one(text,menu_anchor,"    {id:'continue-chat',label:'Continuar chat',type:'action',action:'continue-chat',icon:'chat'},\n"+menu_anchor,'continue chat menu')
+    continue_loader="""let continueChatPromise=null;
+async function loadContinueChat(){
+  if(continueChatPromise)return continueChatPromise;
+  const url=location.hostname==='juanmanuelpm.github.io'
+    ?'/prometeo/shared/continuity/v1/continue-chat.js?v=1'
+    :'/shared/continuity/v1/continue-chat.js?v=1';
+  continueChatPromise=import(url).catch(error=>{
+    continueChatPromise=null;
+    backendStatus.set('continue-chat','DEGRADED',String(error?.message||error));
+    return null;
+  });
+  return continueChatPromise;
+}
+"""
+    text=one(text,'let changeLoopPromise=null;',continue_loader+'\nlet changeLoopPromise=null;','continue chat loader')
+    continue_action="""    if(it.action==='continue-chat'){
+      const api=await loadContinueChat();
+      if(!api){showToast('No pude cargar continuidad');return}
+      try{
+        const p=currentPage||window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.()||{id:'prometeo',title:'Prometeo',href:location.href};
+        await api.copyAndOpen({page:p,openChat:true});
+        showToast('Prompt de continuidad copiado');
+      }catch(error){
+        showToast(error?.message||'No pude copiar continuidad');
+      }
+      return;
+    }
+"""
+    text=one(text,"    if(it.action==='notes'){",continue_action+"    if(it.action==='notes'){",'continue chat action')
+
     old_notes="""    if(it.action==='notes'){
       await refreshNotes();
       state.stack.push(buildNotesHome());
@@ -149,7 +183,7 @@ if(requestedPageId){
     ready="backendStatus.set('shell','READY');render();closeSelector(true);requestAnimationFrame(frame);"
     text=one(text,ready,"loadPageChangeLoop().then(loop=>loop?.pollUnread?.()).catch(()=>{});\n"+ready,'startup unread')
 
-    required=['change-loop.js?v=3','prometeo-voice-worker-v2.js?v=2','recordingState:()=>voice.state()','startRecording:async()=>','listLocalNotes:listLocalNotesForChangeLoop','retryLocalTranscription','loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','routeUrl:(pageId,workItemId=null)','launchWorkItem','openResult?.(p,launchWorkItem','suppressNextClosedClick=true']
+    required=['change-loop.js?v=3','prometeo-voice-worker-v2.js?v=2','recordingState:()=>voice.state()','startRecording:async()=>','listLocalNotes:listLocalNotesForChangeLoop','retryLocalTranscription','loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','routeUrl:(pageId,workItemId=null)','launchWorkItem','openResult?.(p,launchWorkItem','suppressNextClosedClick=true','loadContinueChat',"action==='continue-chat'",'continue-chat.js?v=1']
     missing=[x for x in required if x not in text]
     if missing: raise SystemExit(f'missing markers {missing}')
     if text.count("if(it.action==='notes')")!=1 or text.count("if(it.action==='record')")!=1: raise SystemExit('action duplication')
