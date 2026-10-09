@@ -11,12 +11,14 @@ on:
       - 'tv/chat/relevo/tests/retomar-browser-smoke-v1.py'
       - 'tv/chat/relevo/tests/retomar-http-smoke-v1.mjs'
       - '.github/workflows/persistencia-pr77-candidate-http-ci-v1.yml'
+      - 'tv/chat/relevo/tests/retomar-public-baseline-v1.mjs'
   push:
     branches: [feature/retomar-live-evidence-hop3-20261009]
     paths:
       - 'tv/chat/relevo/tests/retomar-browser-smoke-v1.py'
       - 'tv/chat/relevo/tests/retomar-http-smoke-v1.mjs'
       - '.github/workflows/persistencia-pr77-candidate-http-ci-v1.yml'
+      - 'tv/chat/relevo/tests/retomar-public-baseline-v1.mjs'
   workflow_dispatch:
 
 permissions:
@@ -62,5 +64,29 @@ jobs:
         with:
           name: persistencia-pr77-http-candidate-evidence
           path: artifacts/retomar-pr77-http/
+          if-no-files-found: warn
+          retention-days: 14
+
+  public-existing-pages:
+    name: Published gh-pages baseline (NOT PR candidate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium for real public URL
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Real public page bytes + cross-chat state + mobile browser
+        run: node tv/chat/relevo/tests/retomar-public-baseline-v1.mjs
+      - name: Upload PUBLIC baseline screenshots and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistencia-actual-pages-baseline-evidence
+          path: artifacts/retomar-public-baseline/
           if-no-files-found: warn
           retention-days: 14
