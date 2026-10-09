@@ -13,6 +13,10 @@
 **Referencia comparativa:** Hermes Agent plantea agent loop, skills, memoria, delegación y gateway persistente. No decir que las prestaciones de Hermes ya existen en Prometeo ni proponer introducir un scheduler paralelo sin verificar owner.
 **Preferencia humana:** conversación de ideas aquí, trabajo de ingeniería en otros chats y registro durable para que el siguiente recupere sin copiar reportes.
 
+## Actualización intelectual V2 (prioridad para este tipo de relevo)
+
+**Leer además `gh-pages:tv/chat/relevo/CONTINUIDAD_INTELECTUAL_V2.md` y `PRUEBA_CONVERSACIONAL_V2.json`**. La pregunta humana actual se responde **primero, naturalmente**, aplicando criterio recuperado; la tríada histórica de preguntas del paso 3 de V1 es un caso de prueba de respaldo, NO un ritual obligatorio que desplace la pregunta real. Este addendum preserva el CAS y el registro de hops de V1. No incrementar un hop por crear este archivo, sino por ejecutar con éxito el chat sucesor. Evitar que la calidad del relevo se mida sólo por semejanza de estilo o cantidad de palabras.
+
 ## Experimento: cada chat debe pasar el test y entregar sucesor
 Cuando un chat nuevo reciba un prompt que apunte a este archivo:
 1. Recuperar **de verdad** estos archivos y `STATE_V1.json` vía GitHub. Sin acceso, registrar `UNVERIFIED`, no simular memoria.

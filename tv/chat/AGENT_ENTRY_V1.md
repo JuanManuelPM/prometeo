@@ -18,7 +18,7 @@ Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteri
 
 ## Prueba de relevo entre chats descartables
 
-Leer `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md` cuando la tarea sea **recuperar el mismo rol/contexto en un chat nuevo**, no para órdenes rápidas de TV. El estado incremental se conserva en `gh-pages:tv/chat/relevo/STATE_V1.json`. No significa que dos chats sean la misma instancia ni que se compartan memorias privadas.
+Leer `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md` **y `gh-pages:tv/chat/relevo/CONTINUIDAD_INTELECTUAL_V2.md`** cuando la tarea sea **continuar intelectualmente una conversación en un chat nuevo**, no para órdenes rápidas de TV. Aplicar `gh-pages:tv/chat/relevo/PRUEBA_CONVERSACIONAL_V2.json` para distinguir continuidad de recitación. El estado incremental se conserva en `gh-pages:tv/chat/relevo/STATE_V1.json`. No significa que dos chats sean la misma instancia ni que se compartan memorias privadas.
 
 ## Dirección operativa (consulta a cada tarea relacionada con Prometeo)
 
