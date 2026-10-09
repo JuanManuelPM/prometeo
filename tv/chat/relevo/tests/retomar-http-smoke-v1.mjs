@@ -94,6 +94,7 @@ try{
     await page.waitForFunction(()=>document.querySelectorAll('.project').length===5);
     await page.waitForFunction(()=>document.querySelectorAll('#relayRows a').length>=3);
     await page.waitForFunction(()=>document.querySelector('#liveProofRows')?.textContent.includes('Archivo servido'));
+    await page.locator('.evidence-drawer summary').click();
     assert.equal(await page.locator('.project').count(),5);
     assert.ok((await page.locator('#relayRows').innerText()).includes('Argentina'));
     assert.ok((await page.locator('#liveProofRows').innerText()).includes('COINCIDE byte a byte'));
