@@ -24,3 +24,5 @@ description: "Use when a Prometeo task concerns books, reading, bibliography, th
 
 ## Verified book-method evidence
 Apply `coordination/one-turn/v1/PROOF_FIRST_BOOKS_MAPPING_V1.md` when processing TDD/specification/acceptance/demo literature. It extends this existing knowledge capability and does not start a second atlas. Publisher-supported descriptions are SOURCE; Prometeo organ/contract mappings are our INTERPRETATION, and local test claims need a receipt. Previous atlas not located in scoped GitHub/Drive lookup; do not fabricate it.
+
+The build method itself is `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md`: use only for material UI/widget modifications, not for ordinary book study or quick TV requests.
