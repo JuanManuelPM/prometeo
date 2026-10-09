@@ -103,6 +103,23 @@ La respuesta larga anterior presentaba **24 propiedades en seis grupos**, el vid
 - Producir al final el prompt autosuficiente del siguiente chat sin insertar otra vez toda la historia; usar rutas permanentes. No pedir recaps, ni un segundo `.`.
 - Guardar decisiones reales y su contexto donde corresponda; no crear un índice paralelo a Design DNA o a la autoridad de estado de Prometeo. GitHub público no aloja secretos ni recuerdos personales.
 
+## Registro duradero de conversaciones intelectuales, no sólo número de salto
+
+Si durante un relevo surge una contribución técnica sustantiva, **guardar un episodio conceptual público y no sensible**, con nombre único en `tv/chat/relevo/episodes/` (por ejemplo `HOP-001-20261009-<id-corto>.md`), y en el registro del salto de `STATE_V1.json.history` enlazarlo con el campo aditivo opcional `episode_ref`. No reemplazar un episodio anterior. Si el tema es privado, **no** trasladarlo a GitHub: usar almacenamiento privado autorizado con prueba de escritura, o abstenerse de registrar detalles personales.
+
+Cada episodio útil debería distinguir:
+- **Pregunta humana / tema**, formulada de manera pública y general, nunca el mensaje literal.
+- **Posición adoptada** y argumentos; pruebas o fuentes; qué partes son hipótesis.
+- **Objeción fuerte / alternativa**, incluyendo aquello que podría volver falsa la propuesta.
+- **Decisión** solamente si realmente fue adoptada; si no, `OPEN`.
+- **Implicaciones para Design DNA/owners**, sin promover reglas globales silenciosamente.
+- **Preguntas abiertas que el sucesor puede desarrollar**, no sólo tareas burocráticas.
+- **Relación causal con episodios anteriores**, para impedir resúmenes que sustituyan la evidencia histórica.
+
+**Orden de concurrencia:** recuperar `STATE_V1.json` y SHA; escribir un episodio nuevo con nombre no colisionante y verificarlo; insertar el hop mediante actualización con SHA esperado del JSON y verificar lectura posterior. Si falla CAS, no sobrescribir historia: recuperar estado, reconciliar y reintentar cuando sea seguro. Un episodio escrito sin enlace por conflicto permanece como candidato no promovido, nunca como un salto completado. La marca `VERIFIED_READ_WRITE` sólo corresponde al registro de salto confirmado, no a una suposición de aceptación.
+
+**Calidad:** el sucesor debe poder desarrollar la pregunta pendiente, explicar el razonamiento y comprobar su procedencia. Para evaluaciones sucesivas, comparar episodios originales, no exclusivamente sus resúmenes. Este mecanismo amplía el historial del relevo, **no crea otra autoridad** de código, ingeniería, trabajos ni vida del organismo.
+
 ## Fuente de control y scope
 1. `gh-pages:tv/chat/AGENT_ENTRY_V1.md`: punto de entrada configurado en el Proyecto.
 2. `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md`: protocolo de relevo con CAS y contador.
