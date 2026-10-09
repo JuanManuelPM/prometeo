@@ -67,21 +67,27 @@ export function registerCartridge(kernel,raw,module,{resolve,grants}){
     const service=resolve(name);if(!service||!compatible(service.version,range))throw error('CAPABILITY_UNAVAILABLE');
     capabilities[name]=service.api;
   }return {...ctx,capabilities:Object.freeze(capabilities)}}
-  context({});let lifetime=null;
-  const wrapped={...module,css:'',render:()=>`<div data-cartridge-host="${m.id}"></div>`,
-    afterRender(ctx){lifetime?.dispose();lifetime=createLifetime();
-      const host=ctx.root?.querySelector(`[data-cartridge-host="${m.id}"]`);if(!host){lifetime.dispose();return}
+  context({});let mounted=null,renderContext={};
+  const wrapped={...module,css:'',render:ctx=>{renderContext={...ctx,module};return `<div data-cartridge-host="${m.id}"></div>`},
+    afterRender(ctx){mounted?.resources.dispose();mounted=null;const resources=createLifetime();
+      const host=ctx.root?.querySelector(`[data-cartridge-host="${m.id}"]`);if(!host){resources.dispose();return}
       const shadow=host.shadowRoot||host.attachShadow({mode:'open'});
       const style=host.ownerDocument.createElement('style');style.textContent=module.css||'';
       const content=host.ownerDocument.createElement('div');shadow.replaceChildren(style,content);
-      const scoped={...context(ctx),root:content,resources:lifetime};
-      try{content.innerHTML=module.render(scoped);module.afterRender?.(scoped)}catch(e){content.textContent=`Cartucho no disponible: ${e.code||'RENDER_FAILED'}`;lifetime.dispose()}
-      // Native observation only owns cleanup, not task scheduling or liveness.
-      const observer=new MutationObserver(()=>{if(!host.isConnected)lifetime?.dispose()});
-      observer.observe(host.ownerDocument.body,{childList:true,subtree:true});lifetime.own(()=>observer.disconnect());
+      try{
+        const scoped=context({...renderContext,...ctx,module,root:content,resources});
+        content.innerHTML=module.render(scoped);module.afterRender?.(scoped);
+        mounted={...scoped,host};
+        // Each observer owns only its mount, never a subsequent instance.
+        const observer=new MutationObserver(()=>{if(!host.isConnected)resources.dispose()});
+        observer.observe(host.ownerDocument.body,{childList:true,subtree:true});resources.own(()=>observer.disconnect());
+      }catch(e){content.textContent=`Cartucho no disponible: ${e.code||'RENDER_FAILED'}`;resources.dispose();mounted=null}
     },
-    actions:(module.actions||[]).map(a=>({...a,run:ctx=>a.run(context(ctx))})),
-    dispose(){lifetime?.dispose();module.dispose?.()}
+    actions:(module.actions||[]).map(a=>({...a,run:ctx=>{
+      if(!mounted||!mounted.host.isConnected||mounted.resources.signal.aborted)throw error('CARTRIDGE_NOT_MOUNTED');
+      return a.run(context({...renderContext,...ctx,module,root:mounted.root,resources:mounted.resources}));
+    }})),
+    dispose(){mounted?.resources.dispose();mounted=null;module.dispose?.()}
   };
   kernel.registerWidget(wrapped);return wrapped;
 }

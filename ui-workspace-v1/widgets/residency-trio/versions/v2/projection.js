@@ -1,8 +1,31 @@
 // Read-only historical projection. Neither claims nor state labels prove LIVE.
+function declaredDealer(text){
+  const lines=text.split(/\r?\n/),ids=[];
+  for(let i=0;i<lines.length;i++){
+    const match=/^\s*DEALER\s*[=:]\s*([A-Za-z0-9_-]*)\s*$/i.exec(lines[i]);
+    if(match){const id=match[1]||lines[i+1]?.trim();if(!/^[A-Za-z0-9_-]+$/.test(id||''))return null;ids.push(id)}
+  }
+  return ids.length===1?ids[0]:null;
+}
 export function auditDealerBindings(run,handoff,prompt){
   if(!run?.dealer_id||typeof handoff!=='string'||typeof prompt!=='string')return {status:'UNKNOWN'};
-  return {status:handoff.includes(run.dealer_id)&&prompt.includes(run.dealer_id)?'MATCH':'MISMATCH',
-    run_matches_handoff:handoff.includes(run.dealer_id),run_matches_prompt:prompt.includes(run.dealer_id)};
+  const h=declaredDealer(handoff),p=declaredDealer(prompt);
+  return {status:h===run.dealer_id&&p===run.dealer_id?'MATCH':'MISMATCH',
+    run_matches_handoff:h===run.dealer_id,run_matches_prompt:p===run.dealer_id};
+}
+export async function readVerifiedPrompt(fetcher){
+  const api='https://api.github.com/repos/JuanManuelPM/prometeo';
+  const response=await fetcher(api+'/git/ref/heads/exp009-control',{cache:'no-store'});
+  if(!response.ok)throw new Error('CONTROL_REVISION_UNAVAILABLE');
+  const sha=(await response.json()).object?.sha;
+  if(!/^[a-f0-9]{40}$/.test(sha||''))throw new Error('CONTROL_REVISION_INVALID');
+  const base='https://raw.githubusercontent.com/JuanManuelPM/prometeo/'+sha+'/ui-workspace-v1/experiments/allocator-v8/';
+  const texts=await Promise.all(['RUN.json','HANDOFF.md','PROMPT.txt'].map(async name=>{
+    const r=await fetcher(base+name,{cache:'no-store'});if(!r.ok)throw new Error('CONTROL_SOURCE_UNAVAILABLE');return r.text();
+  }));
+  const audit=auditDealerBindings(JSON.parse(texts[0]),texts[1],texts[2]);
+  if(audit.status!=='MATCH')throw new Error('CONTROL_BINDING_MISMATCH');
+  return {prompt:texts[2],revision:sha,audit};
 }
 export function projectResidency(state,index,{slot,observed_at=new Date().toISOString()}={}){
   const number=x=>Number.isSafeInteger(x)&&x>=0?x:null;

@@ -6,10 +6,17 @@ import {join} from 'node:path';
 import {compatible,compileCatalog,readCompatibleState,createLifetime,registerCartridge} from '../ui-workspace-v1/kernel/candidates/one-turn-20261009/cartridges.js';
 import {discover} from '../ui-workspace-v1/kernel/candidates/one-turn-20261009/discover.mjs';
 const manifest=(id='alpha')=>({schema:'prometeo.widget-cartridge/v1',id,version:'1.0.0',widgetApi:'^1.0.0',entry:'./module.js',trust:'TRUSTED_LOCAL',requires:{services:{'ui.layout':'^1.0.0'},plugins:[]},permissions:{network:[],storage:[`widget:${id}`]},state:{currentVersion:1,readableVersions:[1]}});
+function mount(w,renderContext={}){
+  const observers=[];globalThis.MutationObserver=class{constructor(fn){this.fn=fn;observers.push(this)}observe(){}disconnect(){this.disconnected=true}};
+  const document={body:{},createElement:()=>({})},shadow={replaceChildren(...children){this.children=children}};
+  const host={isConnected:true,ownerDocument:document,attachShadow:()=>shadow};
+  w.render(renderContext);w.afterRender({root:{querySelector:()=>host},widgetState:{page:0}});
+  return {host,shadow,observers};
+}
 test('compatible capabilities inherit accepted patches in two existing kernel consumers',()=>{
   let version='1.0.0',delta=1;const wrappers=[],kernel={registerWidget:x=>wrappers.push(x)},resolve=()=>({version,api:{move:()=>delta}});
   for(const id of ['alpha','beta'])registerCartridge(kernel,manifest(id),{id,widgetApi:1,render:()=>'',actions:[{id:'move',run:ctx=>ctx.capabilities['ui.layout'].move()}]},{resolve,grants:{network:[],storage:[`widget:${id}`]}});
-  assert.deepEqual(wrappers.map(w=>w.actions[0].run({})),[1,1]);version='1.1.0';delta=2;assert.deepEqual(wrappers.map(w=>w.actions[0].run({})),[2,2]);
+  wrappers.forEach(w=>mount(w));assert.deepEqual(wrappers.map(w=>w.actions[0].run({})),[1,1]);version='1.1.0';delta=2;assert.deepEqual(wrappers.map(w=>w.actions[0].run({})),[2,2]);
   version='2.0.0';assert.throws(()=>wrappers[0].actions[0].run({}),{code:'CAPABILITY_UNAVAILABLE'});
 });
 test('discovery add/remove changes availability without changing HTML or legacy Current',async()=>{
@@ -40,4 +47,19 @@ test('discovery refuses symlink escape before loading any code',async()=>{
 });
 test('semver boundary handles zero-major APIs conservatively',()=>{
   assert(compatible('1.2.3','^1.0.0'));assert(!compatible('2.0.0','^1.0.0'));assert(!compatible('0.2.0','^0.1.0'));assert(!compatible('0.0.2','^0.0.1'));assert(!compatible('1.0.0-beta','^1.0.0'));
+});
+test('render and actions retain kernel context and mounted content lifetime',()=>{
+  let rendered,acted,cleaned=0;
+  const module={id:'alpha',widgetApi:1,css:'div{}',render:ctx=>{rendered=ctx;return 'content'},afterRender:ctx=>ctx.resources.own(()=>cleaned++),actions:[{run:ctx=>{acted=ctx;return ctx.page.id}}]};
+  const w=registerCartridge({registerWidget(){}},manifest(),module,{resolve:()=>({version:'1.0.0',api:{}}),grants:{network:[],storage:['widget:alpha']}});
+  assert.throws(()=>w.actions[0].run({}),{code:'CARTRIDGE_NOT_MOUNTED'});
+  const a=mount(w,{page:{id:'page-a'},currentConfig:{page_version:15}});
+  assert.equal(rendered.currentConfig.page_version,15);assert.equal(rendered.module,module);assert.equal(w.actions[0].run({root:{}}),'page-a');assert.equal(acted.root,a.shadow.children[1]);assert.equal(acted.resources,rendered.resources);
+  const b=mount(w,{page:{id:'page-b'}});assert.equal(cleaned,1);a.host.isConnected=false;a.observers[0].fn();assert(!rendered.resources.signal.aborted);
+  b.host.isConnected=false;b.observers[0].fn();assert.equal(cleaned,2);assert.throws(()=>w.actions[0].run({}),{code:'CARTRIDGE_NOT_MOUNTED'});w.dispose();assert.equal(cleaned,2);
+});
+test('capability failure during remount aborts resources and denies actions',()=>{
+  let version='1.0.0',resources;
+  const w=registerCartridge({registerWidget(){}},manifest(),{id:'alpha',widgetApi:1,render:ctx=>{resources=ctx.resources;return ''},actions:[{run:()=>true}]},{resolve:()=>({version,api:{}}),grants:{network:[],storage:['widget:alpha']}});
+  mount(w);version='2.0.0';mount(w);assert(resources.signal.aborted);assert.throws(()=>w.actions[0].run({}),{code:'CARTRIDGE_NOT_MOUNTED'});
 });

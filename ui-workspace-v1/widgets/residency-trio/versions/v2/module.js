@@ -1,4 +1,4 @@
-import {projectResidency,auditDealerBindings} from './projection.js';
+import {projectResidency,auditDealerBindings,readVerifiedPrompt} from './projection.js';
 Prometeo.registerWidget({
  id:'residency-trio',name:'RESIDENCY TRIO',version:2,widgetApi:1,defaultHeight:860,
  pages:[{title:'LANZAR'},{title:'OBSERVAR'},{title:'MÓDULOS'},{title:'MÉTRICAS'}],
@@ -61,11 +61,11 @@ Prometeo.registerWidget({
    async function doCopy(b,btn){
      if(mem.binding_audit?.status!=='MATCH'){btn.textContent='CONFIGURACIÓN NO VERIFICADA';return}
      const clicked_at=new Date().toISOString(),launch_id='exp009-'+b+'-'+uuid();
-     save({button:b,clicked_at,launch_id});btn.disabled=true;btn.textContent='copiando…';
+     btn.disabled=true;btn.textContent='verificando…';
      try{
-       let p=await fetch(raw(control,'ui-workspace-v1/experiments/allocator-v8/PROMPT.txt')+'?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('prompt '+r.status);return r.text()});
+       const verified=await readVerifiedPrompt(fetch);let p=verified.prompt;
        p=p.replaceAll('{{LAUNCH_ID}}',launch_id).replaceAll('{{LAUNCH_CLICKED_AT}}',clicked_at).replaceAll('{{LAUNCH_BUTTON}}','TRIO-'+b);
-       await copy(p);btn.textContent='✓ COPIADO '+clock(new Date().toISOString());
+       await copy(p);save({button:b,clicked_at,launch_id,control_revision:verified.revision});btn.textContent='✓ COPIADO '+clock(new Date().toISOString());
      }catch(e){btn.disabled=false;btn.textContent='ERROR AL COPIAR'}
    }
    function launchPage(states){
