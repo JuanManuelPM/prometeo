@@ -1,6 +1,6 @@
 # 🔥 Prometeo · arranque de chat nuevo v1 (candidato)
 
-**No se instala por estar en GitHub.** Entrada verificable para chats del Proyecto persistencia. Fuente: rama `feature/persistencia-cold-bootstrap-v1-20261009`; `main` y PR #71 son fuentes distintas, NO mezclar autoridad. No hay ejecución en segundo plano ni memoria de otros chats por magia.
+**No se instala por estar en GitHub.** Entrada verificable para chats del Proyecto persistencia. Fuente: rama integradora `integration/prometeo-71-72-73-20261009` (candidata, no instalada ni fusionada); `main` y PR #71 son fuentes distintas, NO mezclar autoridad. No hay ejecución en segundo plano ni memoria de otros chats por magia.
 
 1. Con GitHub conectado, leer **este archivo** y `coordination/chat-bootstrap/v1/ROUTES_V1.json` en la rama configurada; chequear `schema` y `version`; refrescar HEAD de `main`, `gh-pages` y rama de destino antes de escribir. Si faltan herramientas, marcar bloqueo, no inventar lectura.
 2. Interpretar el **mensaje humano actual**. Seleccionar skills con las reglas de `ROUTES_V1.json`. **Leer realmente cada SKILL.md seleccionado, completo, desde su `source` y `ref`** (obligatorias `prometeo-one-turn` y `prometeo-verify-release`; `prometeo-fire` sólo para 🔥). Las skills de PR #71 son **candidatas**; leerlas no las instala ni autoriza cambiar código.

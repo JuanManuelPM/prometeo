@@ -18,7 +18,7 @@ This skill is an **entrypoint instruction**, not a worker, scheduler, hot-update
 8. Complete with concise outcome, stored/unstored evidence, Current/Served truth status, and concrete residual. No generic follow-up questions or "send another prompt".
 
 ## Core verbs
-See `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`. `🔥prometeo` and `🔥proneteo` are intentionally distinct from `🔥`: prepare a full executable plan, then wait for `.`. The one-input page flow is unchanged. `🔥` defaults to safe RESYNC and continuation of already-authorized work. `🔥publicar` always requires release gates. `🔥trabajar` never chooses its own task. `🔥skills` can propose compatible updates but cannot silently mutate accepted rules.
+See `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`. `🔥prometeo <tarea>` and `🔥proneteo <tarea>` execute the concrete task in this turn; bare `🔥prometeo` prepares without execution. Only explicit `🔥preparar <tarea>` may use the later `.` gate. Bare `🔥` performs safe RESYNC. The one-input page flow is unchanged. `🔥` defaults to safe RESYNC and continuation of already-authorized work. `🔥publicar` always requires release gates. `🔥trabajar` never chooses its own task. `🔥skills` can propose compatible updates but cannot silently mutate accepted rules.
 
 ## Mandatory references on demand
 - `coordination/one-turn/v1/FIRE_ROUTER_CONTRACT_V1.md`: parsing, trust, self-review, limits

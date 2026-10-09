@@ -1,0 +1,32 @@
+name: Prometeo one-turn integration tests
+on:
+  pull_request:
+    paths:
+      - '.agents/**'
+      - 'coordination/**'
+      - 'scripts/**'
+      - 'shared/universal-shell/**'
+      - 'tv/chat/scene/**'
+      - '.github/workflows/prometeo-integration.yml'
+jobs:
+  integration-node-and-v5:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node FIRE bootstrap and scene acceptance
+        run: |
+          node --check scripts/prometeo-fire-router.mjs
+          node scripts/verify-prometeo-fire.mjs
+          node scripts/verify-prometeo-dot.mjs
+          node scripts/verify-prometeo-proof-first.mjs
+          node --test coordination/chat-bootstrap/v1/select-and-load.test.mjs
+          node tv/chat/scene/tests/verify-scene-regression.mjs tv/chat/scene/index.html
+      - name: V5 reproducible generator and release package
+        run: |
+          python scripts/build-universal-control-v5-change-loop.py
+          python scripts/package-universal-control-v5-change-loop-release.py
+          grep -q 'async function loadContinueChat' shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q "action==='continue-chat'" shared/universal-shell/v5/candidate/change-loop-source.html

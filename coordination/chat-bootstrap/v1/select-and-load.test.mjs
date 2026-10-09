@@ -30,7 +30,7 @@ test('fails closed on broken source or incomplete skill read',async()=>{
  assert.throws(()=>selectForTask('🔥tv',{...cfg,version:99}),/INVALID_BOOTSTRAP/);
 });
 test('no unseen chat authority or publication from source',()=>{
- assert.equal(cfg.status,'CANDIDATE_ISOLATED_BRANCH_NOT_INSTALLED');
+ assert.equal(cfg.status,'CANDIDATE_INTEGRATION_BRANCH_NOT_INSTALLED');
  assert.equal(cfg.sources.pr71.authority,'PR_71_DRAFT_CANDIDATE_NOT_MERGED');
  assert.ok(cfg.mandatory_checks.some(s=>s.includes('No private')));
 });
