@@ -13,7 +13,7 @@ assert.equal(new Set(registry.commands.map(x=>x.id)).size,registry.commands.leng
 const all=[registry.default,...registry.commands],aliases=new Set();
 for(const command of all){
   for(const a of command.aliases){let f=a.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();assert(!aliases.has(f), 'Alias duplicado: '+a);aliases.add(f)}
-  if(command.skills)for(const skill of command.skills)assert(['prometeo-one-turn','prometeo-web-change','prometeo-verify-release','prometeo-fire','prometeo-knowledge','prometeo-skill-scout'].includes(skill),'Unknown skill '+skill);
+  if(command.skills)for(const skill of command.skills)assert(['prometeo-one-turn','prometeo-web-change','prometeo-verify-release','prometeo-fire','prometeo-knowledge','prometeo-skill-scout','prometeo-tv-show'].includes(skill),'Unknown skill '+skill);
 }
 for(const tc of suite.tests){
   const got=parseFire(tc.input);
@@ -22,7 +22,7 @@ for(const tc of suite.tests){
   if(tc.unknown)assert.equal(got.unknown,true,tc.input);
   console.log('PASS',JSON.stringify(tc.input),got.key||'no-command');
 }
-for(const name of ['prometeo-fire','prometeo-knowledge','prometeo-skill-scout']){
+for(const name of ['prometeo-fire','prometeo-knowledge','prometeo-skill-scout','prometeo-tv-show']){
   const file=path.resolve('.agents/skills',name,'SKILL.md'),s=fs.readFileSync(file,'utf8');
   assert(s.startsWith('---\n')&&s.includes('name: '+name)&&s.includes('description:'),'Bad skill '+name);
 }
@@ -34,6 +34,8 @@ assert.equal(registry.execution_confirmation.token,'.');
 assert.equal(parseFire('.').requires_prepared_plan,true);
 assert.equal(parseFire('🔥').action,'RESYNC_AND_CONTINUE');
 assert.equal(parseFire('🔥prometeo').action,'PREPARE_SKILLS_AND_PLAN');
+assert.equal(parseFire('🔥tv demo V6').action,'TV_SHOW_SCENE');
+assert.equal(parseFire('🔥demo calendario').action,'SHOW_OR_PREPARE_DEMO');
 assert.equal(parseFire('🔥prometeo editar widget').action,'EXECUTE_ONE_TURN_SCOPED');
 assert.equal(parseFire('🔥preparar editar widget').action,'PREPARE_SKILLS_AND_PLAN');
 for(const rel of ['FIRE_PREPARE_DOT_CONTRACT_V1.md','FIRE_WORK_RESULT_HANDOFF_V1.md','FIRE_PREPARED_PLAN_SCHEMA_V1.json'])assert(fs.existsSync(path.join(base,rel)),'Missing '+rel);
