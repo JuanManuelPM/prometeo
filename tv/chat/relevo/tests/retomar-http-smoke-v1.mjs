@@ -61,7 +61,7 @@ let browser;
 try{
   const htmlResponse=await fetch(url);
   assert.equal(htmlResponse.status,200);
-  assert.match(await htmlResponse.text(),/Tus proyectos/);
+  assert.match(await htmlResponse.text(),/<title>Prometeo · Proyectos<\/title>/);
   pass('Candidate checkout served via HTTP 200, not Pages production');
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   for(const width of [360,390,844,1440]){
