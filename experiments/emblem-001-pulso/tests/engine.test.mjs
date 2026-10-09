@@ -1,0 +1,12 @@
+import { strict as assert } from 'node:assert';
+import { createGame, step, W, H, GOAL_TOP, GOAL_BOTTOM } from '../engine.mjs';
+const tests=[]; function test(name, fn) {tests.push([name,fn])}
+test('kickoff and directional keyboard force accelerate car inside bounds',()=> {let g=createGame(); assert.equal(g.phase,'ready'); g.phase='playing';g.kickoff=0; const old=g.blue.x;for(let i=0;i<60;i++)step(g,{x:1,y:0,boost:false},1/60);assert(g.blue.x>old+70);assert(g.blue.x<W);});
+test('car hitting ball transfers horizontal momentum',()=> {let g=createGame();g.phase='playing';g.kickoff=0;g.blue.x=400;g.blue.y=H/2;g.blue.vx=260;g.blue.vy=0;g.ball.x=445;g.ball.y=H/2;g.ball.vx=0;g.ball.vy=0;step(g,{x:1,y:0},1/60);assert(g.ball.vx>170,`vx ${g.ball.vx}`);});
+test('blue goal increments blue score on right mouth',()=> {let g=createGame();g.phase='playing';g.kickoff=0;g.ball.x=W+20;g.ball.y=(GOAL_TOP+GOAL_BOTTOM)/2;step(g,{},1/60);assert.equal(g.score.blue,1);assert(g.events.some(e=>e.type==='goal'&&e.team==='blue'));});
+test('rival goal increments orange score on left mouth',()=> {let g=createGame();g.phase='playing';g.kickoff=0;g.ball.x=-25;g.ball.y=H/2;step(g,{},1/60);assert.equal(g.score.orange,1);});
+test('ball rebounds outside open goal mouth',()=> {let g=createGame();g.phase='playing';g.kickoff=0;g.ball.x=W+10;g.ball.y=110;g.ball.vx=500;step(g,{},1/60);assert(g.ball.x<W);assert(g.ball.vx<0);assert.equal(g.score.blue,0);});
+test('time ends, winner computed, reset returns 0-0',()=> {let g=createGame();g.phase='playing';g.kickoff=0;g.score.blue=2;step(g,{},91);assert.equal(g.phase,'finished');assert.equal(g.winner,'blue');let fresh=createGame();assert.deepEqual(fresh.score,{blue:0,orange:0});assert.equal(fresh.remaining,90);});
+test('large frame dt clamped and physics remain finite',()=> {let g=createGame();g.phase='playing';g.kickoff=0;for(let i=0;i<100;i++) step(g,{x:1,y:1,boost:true},5);for(const x of [g.blue,g.orange,g.ball]) for(const k of ['x','y','vx','vy'])assert(Number.isFinite(x[k]));});
+test('AI pursues ball without escaping field',()=> {let g=createGame();g.phase='playing';g.kickoff=0;let d=Math.hypot(g.orange.x-g.ball.x,g.orange.y-g.ball.y);for(let i=0;i<180;i++)step(g,{x:0,y:0},1/60);assert(Math.hypot(g.orange.x-g.ball.x,g.orange.y-g.ball.y)<d);});
+let failed=0; for(const [name,fn] of tests){try{fn();console.log('PASS',name)}catch(e){failed++;console.error('FAIL',name,e.message)}}console.log(`${tests.length-failed}/${tests.length} PASS`);if(failed)process.exitCode=1;
