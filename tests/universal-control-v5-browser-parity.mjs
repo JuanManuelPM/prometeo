@@ -6,6 +6,7 @@ const LEGACY = `${BASE}/shared/universal-shell/v5/candidate/baseline-source.html
 const CANDIDATE_PATH = process.env.V5_CANDIDATE_PATH || 'shared/universal-shell/v5/candidate/favorites-facade-source.html';
 const CANDIDATE = `${BASE}/${CANDIDATE_PATH.replace(/^\//,'')}`;
 const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source') || CANDIDATE_PATH.includes('single-host-source') || CANDIDATE_PATH.includes('change-loop-source');
+const IS_CHANGE_LOOP = CANDIDATE_PATH.includes('change-loop-source');
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
@@ -129,13 +130,47 @@ async function backendStatus(browser, url) {
   return status;
 }
 
+
+function assertPreservedRoot(candidate, legacy, where) {
+  if (!IS_CHANGE_LOOP) {
+    assert.deepEqual(candidate, legacy, where + ' must match Golden Master');
+    return;
+  }
+  // V5 Change Loop adds exactly one permitted root item: Continue Chat.
+  // Every pre-existing root field and the selected Favorites index must survive.
+  const parseCount = value => {
+    const found = String(value).match(/^(\\d+)\\/(\\d+)$/);
+    assert.ok(found, 'root count must be index/size');
+    return found.slice(1).map(Number);
+  };
+  const [legacyIndex, legacyTotal] = parseCount(legacy.count);
+  const [candidateIndex, candidateTotal] = parseCount(candidate.count);
+  assert.equal(candidateIndex, legacyIndex, 'old Favorites position must remain');
+  assert.equal(candidateTotal, legacyTotal + 1, 'exactly one Continue Chat entry is added');
+  assert.deepEqual({...candidate, count:legacy.count}, legacy, where + ' preservation');
+}
+async function verifyContinueChatRoot(browser) {
+  if (!IS_CHANGE_LOOP) return;
+  const context = await browser.newContext({viewport:{width:390,height:844}});
+  const page = await context.newPage();
+  try {
+    await page.goto(CANDIDATE,{waitUntil:'domcontentloaded'});
+    await openControl(page);
+    await page.keyboard.press('ArrowRight'); // Favorites
+    await page.keyboard.press('ArrowRight'); // Continue Chat
+    const label = await page.locator('#labelTextPath').textContent();
+    assert.match(label || '',/Continuar chat/,'real candidate must expose Continue Chat in root');
+  } finally { await context.close(); }
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
   const [legacyRoot, candidateRoot] = await Promise.all([
     rootSnapshot(browser, LEGACY, '[]'),
     rootSnapshot(browser, CANDIDATE, '[]'),
   ]);
-  assert.deepEqual(candidateRoot, legacyRoot, 'candidate online root must match Golden Master');
+  assertPreservedRoot(candidateRoot, legacyRoot, 'candidate online root');
+  await verifyContinueChatRoot(browser);
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
@@ -147,7 +182,7 @@ try {
     rootSnapshot(browser, LEGACY, offlineSeed, { blockExternal: true }),
     rootSnapshot(browser, CANDIDATE, offlineSeed, { blockExternal: true }),
   ]);
-  assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only boot must match Golden Master at the active authority boundary');
+  assertPreservedRoot(candidateOffline, legacyOffline, 'candidate local-only root');
   if (!IS_DURABLE) assert.equal(candidateOffline.label, 'Favoritos · 2');
   assert.deepEqual(candidateOffline.pageErrors, []);
 
