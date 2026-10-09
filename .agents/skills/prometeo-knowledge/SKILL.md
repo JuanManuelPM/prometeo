@@ -21,3 +21,6 @@ description: "Use when a Prometeo task concerns books, reading, bibliography, th
 6. Persist result only to authorized page/notes/library owner with receipt; if local HTML or another chat artifact is unavailable here, don't claim you modified it. Return a portable candidate when actual owner isn't writable.
 
 **Do not** create a second public knowledge authority, publish personal study data automatically, infer editions from artwork alone, or treat AI-generated summaries as evidence of what a book contains if the full text wasn't consulted.
+
+## Verified book-method evidence
+Apply `coordination/one-turn/v1/PROOF_FIRST_BOOKS_MAPPING_V1.md` when processing TDD/specification/acceptance/demo literature. It extends this existing knowledge capability and does not start a second atlas. Publisher-supported descriptions are SOURCE; Prometeo organ/contract mappings are our INTERPRETATION, and local test claims need a receipt. Previous atlas not located in scoped GitHub/Drive lookup; do not fabricate it.

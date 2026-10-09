@@ -16,3 +16,6 @@ description: "One-turn quick display control of public Prometeo TV: 🔥tv, 🔥
 
 ## Private audit after the fast action
 When connected Google Drive is available and the user authorizes preserving the request, search for the native Google Doc by exact title: **PROMETEO · Bitácora privada de acciones desde chats · V1**. This owner was created and successfully read back on 2026-10-09. After completing the real action and its SOURCE/TESTED/SERVED checks, append actual user intent and evidence, errors, elapsed time ONLY if measured, then independently verify the document content/revision. No client-side Pages token required. Do not leak its document ID/body into the public repository. A new chat must actually use the Google Drive connector; this does not happen by itself. If connector missing, mark PRIVATE_AUDIT_BLOCKED, no fake persistence.
+
+## Build-method boundary
+Fast action QUICK_SHOW bypasses website development stages; validate public target, privacy, SHA and readback only. Material scene/page code change must instead load `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md`. See PR #72's functional scene fix and baseline RED→GREEN; it is NOT a real V6 demo or served deployment. Do not switch TV state to advertise an unpublished candidate.

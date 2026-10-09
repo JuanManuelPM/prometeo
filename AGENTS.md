@@ -1,3 +1,7 @@
+
+## Prometeo UI quality method (source candidate on PR #71)
+For a material page/widget build, read `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md` before code and apply proof/demo design → failing acceptance when applicable → minimum fix → green/regression → real-page Demo Engine V6 → release gating → durable receipt. This is NOT a worker runtime and NOT an automatic ChatGPT Project skill installation. Fast show commands (`🔥tv calendario`) retain immediate existing behavior without development overhead. Example PR #72 is TESTED_LOCAL only; no V6/served claims. All 45 EVO entries remain unverified. Follow the owner and authority restrictions below.
+
 # Current worker control-plane entry: OBEY-v2
 
 When a human explicitly authorizes connected tools for Prometeo and invokes the public worker protocol at `/o/`, that protocol is the authoritative entry for the session.

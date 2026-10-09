@@ -32,3 +32,6 @@ Current read-only display: `https://juanmanuelpm.github.io/prometeo/tv/chat/`. A
 
 ## 2026-10-09 TV + DEMO (SOURCE CANDIDATE)
 For `🔥tv`, `🔥demo` and `🔥prometeo rápido poné ... en la tele`, load `.agents/skills/prometeo-tv-show/SKILL.md` and `gh-pages:tv/chat/AGENT_ENTRY_V1.md`. No Supabase/worker required. TV state changes are rapid, distinct from editing a widget. Universal Demo Engine V6 is in `JuanManuelPM/Experimentos/demo-engine-v6` (CURRENT) and `demo-engine-window-lab-v3` (lab). This generic lab is NOT evidence of changed calendar behavior. Do not publish raw prompt, audio or private student/class data in gh-pages. Normal task takes one human message. Date/elapsed claims must be measured, not invented.
+
+## Functional build versus fast dispatch
+`🔥tv calendario` and similar read-only show/scene switches remain immediate via `prometeo-tv-show`, without red-green build or a new `.`, even when build method exists. Only **material page/widget modifications** require `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md` before implementation, with Demo V6 planned first and proven against the actual page before release. The rule is source candidate while PR #71 is draft, not ChatGPT-installed capability.
