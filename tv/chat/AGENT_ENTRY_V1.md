@@ -16,6 +16,10 @@ Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invo
 
 Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteriores. No exige recrear arquitectura, memoria privada o scheduler.
 
+## Dirección operativa (consulta a cada tarea relacionada con Prometeo)
+
+Leer `gh-pages:tv/chat/DIRECCION_OPERATIVA_V1.md` para conocer el mecanismo de encargos entre chats descartables. El archivo sólo referencia owners; **no copia estados dinámicos**. Obtener el estado ACTUAL mediante GitHub PRs, commits, branches y Actions; sólo inspeccionar los PR/tareas pertinentes. La fuente de verdad sobre un trabajo es el PR/ticket y sus recibos, no un resumen conversacional ni esta página. Las órdenes rápidas `🔥tv` mantienen prioridad y no deben bloquearse por revisiones de CI ajenas.
+
 ## 0. Distinguir las tres intenciones
 - **Rápido, mostrar**: `🔥tv calendario` o `🔥prometeo rápido mostrame la demo`. Sólo cambiar `gh-pages:tv/chat/state.json`, con SHA/lectura independiente. No tocar código del widget.
 - **Generar escena pública de ideas**: `🔥tv ideas` con ideas explícitamente destinadas a exhibición. Editar `tv/chat/scene/scene.json` y apuntar `focus.path` a `/prometeo/tv/chat/scene/`. Jamás volcar mensajes privados completos a GitHub.
