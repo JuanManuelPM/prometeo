@@ -12,8 +12,10 @@ on:
       - 'tv/chat/relevo/tests/retomar-http-smoke-v1.mjs'
       - '.github/workflows/persistencia-pr77-candidate-http-ci-v1.yml'
       - 'tv/chat/relevo/tests/retomar-public-baseline-v1.mjs'
+      - 'tv/chat/relevo/tests/retomar-integrated-ux-v1.cjs'
+      - 'ui-workspace-v1/visual-system/duotone-atelier-v1/**'
   push:
-    branches: [feature/retomar-live-evidence-hop3-20261009]
+    branches: [feature/retomar-live-evidence-hop3-20261009, integration/persistencia-visual-77-78-20261009]
     paths:
       - 'tv/chat/relevo/tests/retomar-browser-smoke-v1.py'
       - 'tv/chat/relevo/tests/retomar-http-smoke-v1.mjs'
@@ -88,5 +90,29 @@ jobs:
         with:
           name: persistencia-actual-pages-baseline-evidence
           path: artifacts/retomar-public-baseline/
+          if-no-files-found: warn
+          retention-days: 14
+
+  integrated-visual-http:
+    name: PR77+PR78 same-screen HTTP + mobile visual acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify actual owner UI at mobile widths and Back/Forward
+        run: node tv/chat/relevo/tests/retomar-integrated-ux-v1.cjs
+      - name: Capture real candidate screen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistencia-integrated-visual-candidate
+          path: artifacts/retomar-integrated-ux/
           if-no-files-found: warn
           retention-days: 14
