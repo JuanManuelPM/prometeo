@@ -8,6 +8,7 @@ on:
       - 'shared/universal-shell/**'
       - 'tv/chat/scene/**'
       - '.github/workflows/prometeo-integration.yml'
+      - 'tests/tv-scene-demo-v6-browser.mjs'
 jobs:
   integration-node-and-v5:
     runs-on: ubuntu-latest
@@ -30,3 +31,58 @@ jobs:
           python scripts/package-universal-control-v5-change-loop-release.py
           grep -q 'async function loadContinueChat' shared/universal-shell/v5/candidate/change-loop-source.html
           grep -q "action==='continue-chat'" shared/universal-shell/v5/candidate/change-loop-source.html
+
+  real-scene-v6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install original engine and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+          ORIGIN=/tmp/prometeo-original-demo-engine
+          mkdir -p "$ORIGIN"
+          REF=ebc527665874dfdd025e8ccf3b2db2407491831a
+          files=(
+            demo-engine-v4/demo-engine-v3-base.js
+            demo-engine-v4/demo-engine-v4.js
+            demo-engine-v4/pointer-assets.js
+            demo-engine-v4/gesture-assets.js
+            demo-engine-v5/viewport.js
+            demo-engine-v5/annotation.js
+            demo-engine-v5/camera.js
+            demo-engine-v5/audio.js
+            demo-engine-v5/page-inspector.js
+            demo-engine-v5/recipe.js
+            demo-engine-v5/demo-engine-v5.js
+            demo-engine-v6/audio-v6.js
+            demo-engine-v6/viewport-authority.js
+            demo-engine-v6/annotation-v6.js
+            demo-engine-v6/demo-engine-v6.js
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "$ORIGIN/$(dirname "$file")"
+            curl --fail --location --silent --show-error --retry 3 --max-time 30 "https://raw.githubusercontent.com/JuanManuelPM/Experimentos/$REF/$file" -o "$ORIGIN/$file"
+          done
+      - name: Run V6 against PR72 real scene (not Window Lab)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 > /tmp/v6-scene-http.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:4173/tv/chat/scene/index.html >/dev/null && break; sleep 0.25; done
+          node tests/tv-scene-demo-v6-browser.mjs
+      - name: Preserve V6 receipts and real DOM screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-scene-demo-v6-${{ github.run_id }}
+          path: /tmp/prometeo-scene-v6-report/
+          if-no-files-found: warn
