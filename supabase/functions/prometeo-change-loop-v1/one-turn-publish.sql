@@ -30,12 +30,12 @@ begin
   select * into v_thread from public.prometeo_change_threads
     where workspace_id=p_workspace_id and page_id=p_page_id
       and id=(p_packet->>'thread_id')::uuid for update;
-  if not found then raise exception 'THREAD_NOT_FOUND'; end if;
+  if not found or v_thread.status is distinct from 'OPEN' then raise exception 'THREAD_NOT_FOUND'; end if;
   select * into v_capture from public.prometeo_captures
     where workspace_id=p_workspace_id and page_id=p_page_id
       and id=p_input_receipt->>'capture_id' for share;
-  if not found or v_capture.archive_state<>'ACTIVE' or v_capture.privacy<>'PROJECT'
-     or v_capture.transcript_revision<>1
+  if not found or v_capture.archive_state is distinct from 'ACTIVE' or v_capture.privacy is distinct from 'PROJECT'
+     or v_capture.transcript_revision is distinct from 1
      or v_capture.metadata->>'one_turn_execution' is distinct from 'true'
      or v_capture.transcript_digest is distinct from p_input_receipt->>'digest'
      or v_capture.metadata->>'one_turn_request_id' is distinct from p_input_receipt->>'request_id'
@@ -44,7 +44,7 @@ begin
     where workspace_id=p_workspace_id and capture_id=v_capture.id and revision=1 for share;
   if not found or v_revision.transcript is distinct from v_capture.transcript
      or v_revision.transcript_digest is distinct from v_capture.transcript_digest
-     or v_revision.privacy<>'PROJECT'
+     or v_revision.privacy is distinct from 'PROJECT'
      or v_ref is distinct from ('capture:'||v_capture.id||':rev:1')
   then raise exception 'CAPTURE_ACK_INVALID'; end if;
 
@@ -78,3 +78,59 @@ begin
 end $$;
 revoke all on function public.prometeo_one_turn_publish_packet_v1(uuid,text,jsonb,jsonb) from public, anon, authenticated;
 grant execute on function public.prometeo_one_turn_publish_packet_v1(uuid,text,jsonb,jsonb) to service_role;
+
+-- A retry of a producer RETURN must not roll back independent verification.
+-- Read the CURRENT result under row lock, then reconcile all metadata in one
+-- transaction. This is the same P4 result/thread owner, not another queue.
+create or replace function public.prometeo_one_turn_reconcile_result_v1(
+  p_workspace_id uuid, p_work_item_id text, p_submission_digest text
+) returns jsonb language plpgsql security invoker set search_path = public as $$
+declare
+  v_result public.prometeo_execution_results%rowtype;
+  v_packet public.prometeo_execution_packets%rowtype;
+begin
+  select * into v_result from public.prometeo_execution_results
+    where workspace_id=p_workspace_id and work_item_id=p_work_item_id for update;
+  if not found or v_result.detail->>'submission_digest' is distinct from p_submission_digest
+  then raise exception 'RESULT_ACK_INVALID'; end if;
+  select * into v_packet from public.prometeo_execution_packets
+    where workspace_id=p_workspace_id and work_item_id=p_work_item_id
+      and thread_id=v_result.thread_id for update;
+  if not found or v_packet.snapshot->'intent'->'input_receipt' is null
+  then raise exception 'ONE_TURN_PACKET_NOT_FOUND'; end if;
+
+  -- A producer can reconcile a candidate, failure or block. It cannot lower
+  -- the independently advanced packet status even when a verifier has updated
+  -- its packet before committing the corresponding result update.
+  if v_packet.status not in ('VERIFIED','SERVED')
+     or v_result.status='SERVED'
+     or (v_packet.status='VERIFIED' and v_result.status='VERIFIED')
+  then
+    update public.prometeo_execution_packets
+      set status=v_result.status, candidate_url=v_result.candidate_url,
+          served_url=v_result.served_url, completed_at=v_result.created_at
+      where id=v_packet.id;
+  end if;
+  update public.prometeo_change_threads
+    set last_result_at=greatest(last_result_at,v_result.created_at),updated_at=now()
+    where id=v_result.thread_id and workspace_id=p_workspace_id;
+  if v_result.status in ('CANDIDATE_READY','VERIFIED','SERVED') then
+    update public.prometeo_change_thread_captures set state='METABOLIZED'
+      where workspace_id=p_workspace_id and thread_id=v_result.thread_id
+        and revision_ref=any(v_packet.selected_revision_refs) and state='SUBMITTED';
+    update public.prometeo_change_attachments set state='METABOLIZED'
+      where workspace_id=p_workspace_id and thread_id=v_result.thread_id
+        and id=any(v_packet.selected_attachment_ids) and state='SUBMITTED';
+  elsif v_result.status in ('FAILED','BLOCKED') then
+    update public.prometeo_change_thread_captures set state='PENDING',submitted_at=null
+      where workspace_id=p_workspace_id and thread_id=v_result.thread_id
+        and revision_ref=any(v_packet.selected_revision_refs) and state='SUBMITTED';
+    update public.prometeo_change_attachments set state='PENDING',submitted_at=null
+      where workspace_id=p_workspace_id and thread_id=v_result.thread_id
+        and id=any(v_packet.selected_attachment_ids) and state='SUBMITTED';
+  end if;
+  return jsonb_build_object('result_id',v_result.id,'status',v_result.status,
+    'digest',p_submission_digest);
+end $$;
+revoke all on function public.prometeo_one_turn_reconcile_result_v1(uuid,text,text) from public, anon, authenticated;
+grant execute on function public.prometeo_one_turn_reconcile_result_v1(uuid,text,text) to service_role;

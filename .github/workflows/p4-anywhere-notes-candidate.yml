@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'shared/capture/v1/change-loop.js'
+      - 'shared/capture/v1/one-turn.js'
+      - 'shared/prometeo-home/v2/shell.js'
+      - 'tests/p4-one-turn*.test.mjs'
+      - 'ui-workspace-v1/kernel/candidates/one-turn-20261009/**'
       - 'shared/prometeo-shell/v1/voice.js'
       - 'shared/prometeo-shell/v1/prometeo-voice-worker-v2.js'
       - 'pages/capture/save-session/**'
@@ -24,6 +28,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: One-turn candidate tests (no production ACK)
+        run: |
+          node --check shared/capture/v1/one-turn.js
+          node --check shared/prometeo-home/v2/shell.js
+          node --check supabase/functions/prometeo-change-loop-v1/index.ts
+          node --test tests/p4-one-turn*.test.mjs
       - name: Static JS and contract tests
         run: |
           set -euo pipefail
@@ -61,3 +74,4 @@ jobs:
           grep -q "history.replaceState(null,'',location.pathname)" pages/capture/save-session/index.html
           grep -q 'does not need this ChatGPT transcript' coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md
           ! grep -q 'Activar HACER' shared/capture/v1/change-loop.js
+

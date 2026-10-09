@@ -8,10 +8,11 @@ import {createChangeLoopClient} from '../shared/capture/v1/change-loop.js';
 
 // Exercise the existing handler itself. DB doubles never constitute a private ACK.
 const source=await readFile(new URL('../supabase/functions/prometeo-change-loop-v1/index.ts',import.meta.url),'utf8');
-const handler=source.slice(source.indexOf('async function ingestResult('),source.indexOf('async function publicResult('));
+const verifier=source.slice(source.indexOf('async function maybeGitHubVerification('),source.indexOf('async function executionStatus('));
+const handler=source.slice(source.indexOf('async function reconcileOneTurnResult('),source.indexOf('async function publicResult('));
 function harness(){
-  const tables=new Map(),faults=new Map();
-  const db={from(name){let op='read',row,filters=[];
+  const tables=new Map(),faults=new Map(),rpcCalls=[];
+  const db={async rpc(name,args){rpcCalls.push({name,args});if(faults.has('rpc')){const error=faults.get('rpc');faults.delete('rpc');return{error}}return{data:{},error:null}},from(name){let op='read',row,filters=[];
     const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){filters.push([k,v]);return q},insert(v){op='insert';row=structuredClone(v);return q},update(v){op='update';row=structuredClone(v);return q},upsert(v){op='upsert';row=structuredClone(v);return q},single(){return run()},maybeSingle(){return run()},then(a,b){return run().then(a,b)}};
     async function run(){
       if(faults.has(name)){const error=faults.get(name);faults.delete(name);return{error}}
@@ -22,17 +23,17 @@ function harness(){
         if(rows.some(x=>x.work_item_id===row.work_item_id))return{error:{code:'23505'}};
         row.id='result-fixture';rows.push(row);return{data:structuredClone(row),error:null};
       }
-      if(op==='update'){for(const x of rows.filter(matches))Object.assign(x,row);return{data:null,error:null}}
+      if(op==='update'){for(const x of rows.filter(matches))Object.assign(x,row);return{data:structuredClone(rows.find(matches)||null),error:null}}
       throw new Error('unexpected operation');
     }return q;
   }};
   const ctx=vm.createContext({db,TERMINAL:new Set(['CANDIDATE_READY','VERIFIED','SERVED','BLOCKED','FAILED']),SUCCESS:new Set(['CANDIDATE_READY','VERIFIED','SERVED']),nowISO:()=>new Date().toISOString(),sha:async x=>createHash('sha256').update(JSON.stringify(x)).digest('hex'),fail:(code,status)=>{throw Object.assign(new Error(code),{code,status})}});
-  vm.runInContext(stripTypeScriptTypes(handler),ctx);
+  vm.runInContext(stripTypeScriptTypes(handler+'\n'+verifier),ctx);
   const packet={id:'packet',workspace_id:'ws',thread_id:'thread',page_id:'page',work_item_id:'WI-FIXTURE',selected_revision_refs:['capture:c:rev:1'],selected_attachment_ids:[],return_path:'coordination/executions/WI-FIXTURE/RETURN.json',snapshot:{intent:{input_receipt:{durable:true}},authorization:{delivery_mode:'WORKER_POOL'}}};
   tables.set('prometeo_execution_packets',[structuredClone(packet)]);
   tables.set('prometeo_change_threads',[{id:'thread'}]);
   tables.set('prometeo_change_thread_captures',[{workspace_id:'ws',thread_id:'thread',revision_ref:'capture:c:rev:1',state:'SUBMITTED'}]);
-  return{tables,faults,packet,submit:payload=>ctx.ingestResult(packet,payload,'HTTP_RETURN')};
+  return{tables,faults,rpcCalls,packet,verify:async stale=>{ctx.githubJson=async path=>{Object.assign(tables.get('prometeo_execution_results')[0],{status:'SERVED',served_url:'https://example.test/served'});Object.assign(tables.get('prometeo_execution_packets')[0],{status:'SERVED'});return path.endsWith('VERIFY.json')?{schema:'prometeo.verification-result/v1',work_item_id:packet.work_item_id,result:'PASS',builder_worker_id:'builder',verifier_worker_id:'verifier',evidence:{test:'fixture'}}:{worker_id:path.includes('page-change-verify-')?'verifier':'builder'}};return ctx.maybeGitHubVerification(packet,stale)},submit:payload=>ctx.ingestResult(packet,payload,'HTTP_RETURN')};
 }
 const result={work_item_id:'WI-FIXTURE',status:'CANDIDATE_READY',summary:'Resultado fixture',candidate_url:'https://example.test/candidate',finished_at:'2026-10-09T00:00:00Z'};
 test('same RETURN replay preserves row identity, seen state and original timestamp',async()=>{
@@ -43,10 +44,10 @@ test('conflicting RETURN cannot overwrite previously accepted response',async()=
   const h=harness();await h.submit(result);await assert.rejects(h.submit({...result,summary:'Changed'}),{code:'RESULT_REPLAY_CONFLICT'});
   assert.equal(h.tables.get('prometeo_execution_results')[0].summary.text,result.summary);
 });
-test('replay repairs interrupted metadata updates; first failed update cannot ACK',async()=>{
-  const h=harness();h.faults.set('prometeo_execution_packets',{code:'OFFLINE'});await assert.rejects(h.submit(result));
+test('failed atomic reconciliation cannot ACK; retry keeps the original result',async()=>{
+  const h=harness();h.faults.set('rpc',{code:'OFFLINE'});await assert.rejects(h.submit(result));
   assert.equal(h.tables.get('prometeo_change_thread_captures')[0].state,'SUBMITTED');
-  const ack=await h.submit(result);assert(ack.detail.submission_digest);assert.equal(h.tables.get('prometeo_change_thread_captures')[0].state,'METABOLIZED');
+  const ack=await h.submit(result);assert(ack.detail.submission_digest);assert.equal(h.rpcCalls.length,2);assert.equal(h.tables.get('prometeo_execution_results').length,1);
 });
 test('concurrent identical RETURNs converge to one durable response',async()=>{
   const h=harness(),responses=await Promise.all([h.submit(result),h.submit(result)]);
@@ -58,7 +59,7 @@ test('builder cannot certify its own worker-pool publication',async()=>{
 });
 test('old producer replay preserves independent verification and served identity',async()=>{
   const h=harness();await h.submit(result);Object.assign(h.tables.get('prometeo_execution_results')[0],{status:'SERVED',served_url:'https://example.test/verified'});
-  const r=await h.submit(result);assert.equal(r.status,'SERVED');assert.equal(h.tables.get('prometeo_execution_packets')[0].served_url,r.served_url);
+  const r=await h.submit(result);assert.equal(r.status,'SERVED');assert.equal(r.served_url,'https://example.test/verified');assert.equal(h.rpcCalls.at(-1).name,'prometeo_one_turn_reconcile_result_v1');
 });
 test('denied JSON transport cannot switch to attachment upload',async()=>{
   let calls=0;const client=createChangeLoopClient({storage:{getItem:()=> 'test-capability-'.repeat(4)},fetchImpl:async()=>{calls++;return new Response('{"error":"DENIED"}',{status:403})}});
@@ -68,3 +69,5 @@ test('denied upload cannot switch to JSON transport and exposes status',async()=
   let calls=0;const client=createChangeLoopClient({storage:{getItem:()=> 'test-capability-'.repeat(4)},fetchImpl:async()=>{calls++;return new Response('{"error":"DENIED"}',{status:401})}});
   await assert.rejects(client.uploadAttachment(new File(['x'],'x.txt'),{id:'page'}),{status:401});await assert.rejects(client.workspace(),{code:'TRANSPORT_DENIED'});assert.equal(calls,1);
 });
+
+test('stale independent verifier cannot lower a concurrently served one-turn result',async()=>{const h=harness(),stale=await h.submit(result);const r=await h.verify(stale);assert.equal(r.status,'SERVED');assert.equal(h.tables.get('prometeo_execution_packets')[0].status,'SERVED');});
