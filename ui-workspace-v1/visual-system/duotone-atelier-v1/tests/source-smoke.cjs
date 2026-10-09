@@ -4,7 +4,7 @@ const root=path.join(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'
 const html=read('proof.html'),css=read('skin.css');let done=0;
 function check(ok,name){assert.ok(ok,name);console.log('PASS '+name);done++;}
 check(html.includes('name="viewport"'),'viewport');
-check(html.includes('DATOS DE EJEMPLO'),'truthful fixtures');
+check(html.includes('DATOS ILUSTRATIVOS'),'truthful fixtures');
 check(['home','project','chat'].every(x=>html.includes('data-view="'+x+'"')),'three compositions');
 check(html.includes('history.pushState')&&html.includes('popstate'),'history navigation');
 check(html.includes('data-project')&&html.includes('data-go'),'visual interaction');
