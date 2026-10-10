@@ -60,6 +60,12 @@ Leer `gh-pages:tv/chat/DIRECCION_OPERATIVA_V1.md` para conocer el mecanismo de e
 - Evento/calendario personal: Google Calendar autenticado del usuario cuando disponible; el calendario de Prometeo guarda en localStorage del navegador, NO hay sincronía automática. No incluir horarios privados en TV público.
 - Notas personales: Google Drive privado conectado o almacenamiento local; no subir mensajes, audios, nombres de alumnos ni transcripciones a GitHub.
 
+## Entregas por proyecto en la pantalla única (HOP8, candidato hasta publicación)
+
+La **misma** proyección existente `tv/chat/relevo/retomar/reentrada.json` admite un arreglo opcional `public_receipts` (sin crear un nuevo owner ni registro autoritativo). Cuando un chat nuevo **realmente cambie** Facultad, Widgets, TV o cualquier proyecto, primero debe verificar el commit/PR en el owner; sólo después anexar una entrada sanitaria con `id` único, `project_id` presente en `projects`, `occurred_at_utc` tomado de fuente real, `state` en `REQUEST_CAPTURED/CANDIDATE/TESTED/PUBLISHED/SERVED_VERIFIED/BLOCKED`, `title`, `summary` breve y `source_url` del PR/commit/Issue real. Leer HEAD y blob SHA fresco, preservar todos los proyectos/recibos ajenos con CAS y verificar por segunda lectura. No basta agregar una tarjeta: registrar evidencia material y el estado real.
+
+`SERVED_VERIFIED` exige adicionalmente `version_sha` SHA-40, `served_url` efectivamente consultada y `proof_url` a evidencia independiente; ni GitHub Actions verde ni igualdad de bytes por sí solos prueban interacción. Si no existe evidencia de versión, usar `CANDIDATE`, `TESTED` o `BLOCKED` según corresponda, nunca rotularla como lista. No publicar audio, mensajes privados, nombres propios, horarios ni respuestas completas. La nueva interfaz vuelve a leer esta misma proyección al recuperar foco y cada minuto; los recibos son una **vista pública de fuentes**, no memoria privada ni ejecutor. Si una pregunta o conversación no produjo artefacto público, no fabricar un recibo.
+
 ## 3. Registro y continuidad real
 - GitHub público: sólo acción clasificada, ruta/widget público, cambios SHAs, resultado, evidencia, errores no sensibles y duración si se midió. No publicar tokens, datos personales o raw audio.
 - Privado: cuerpo del mensaje, voz, notas y contexto personal viven en ChatGPT y/o un owner autenticado como Drive SI se guarda explícitamente con recibo. Esta demo aún no implementa subida privada automática.
