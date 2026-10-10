@@ -353,3 +353,44 @@ A revision is not a real improvement unless at least one of these changes materi
 - quality/diversity of reference material.
 
 Changing only labels, alpha, color, jitter, glow, border thickness, or adding modes does not count as meaningful creative progress.
+
+
+## 2026-10-10 · Crítica humana vinculante: referencias artísticas perdidas entre chats
+
+**Alcance:** interfaz humana única de Prometeo, widgets, portadas y otros productos visuales cuando corresponda. Las dos referencias originales fueron entregadas como imágenes en un chat; **sus bytes NO están en este repositorio**. Este registro es una transcripción DESCRIPTIVA de mecanismos visuales para continuidad entre chats, no una afirmación de que nuevos chats hayan visto los píxeles. Si los archivos vuelven a estar disponibles, observarlos directamente y contrastar/actualizar esta descripción. No copiar personajes, imágenes ni marcas de las referencias.
+
+### Referencia A — habitación/viñeta manga monocroma, estética 1-bit
+
+- Escena ilustrada densamente construida: interior nocturno, televisor/monitor CRT voluminoso en primer plano con patrón de estática denso, planta colgante con hojas entrecruzadas, papel o póster con gráfica de videojuego, paredes con divisiones/texturas, persianas/lamas, ventana amplia completamente negra al exterior, luna blanca tramada, pequeñas estrellas, una figura humana de espalda junto a la ventana y pequeños objetos sobre repisas/mesa. Ninguna de esas cosas es un requisito literal para Prometeo: importan **profundidad, historia, oficio y construcción visual**.
+- Lenguaje de grabado manga/impresión: blanco papel y negro pleno, semitonos mediante puntos de distinto paso, patrones de diagonales, líneas paralelas, texturas cruzadas, contornos interrumpidos, agrupación de manchas y **jerarquía explícita de cinco densidades tonales**. El mismo par de tintas puede producir grises ópticos sin recurrir a gradientes CSS.
+- Composición asimétrica y cinematográfica: enorme masa oscura en la ventana, una masa media de ruido visual en pantalla CRT, ritmo de superficies más claras que descansan la vista, detalles densos en lugares seleccionados. Elementos se ocultan entre sí; hay plano cercano, intermedio y fondo. La imagen comunica atmósfera aun sin rótulos.
+- El ruido no es una capa uniforme decorativa: cada material tiene su trama con escala y orientación propias (metal, vidrio, tela, cielo, estática, vegetación, piel). Negros fuertes y zonas casi blancas hacen legibles las texturas.
+- **Transposición al producto**: diseñar una **escena editorial original** que permita reconocer proyectos/resultados reales por imágenes, objetos y materiales. No trasladar literalmente figura, cigarrillo, TV, luna o propiedad intelectual. Una pantalla bonita no puede sacrificar lectura, estados reales, privacidad ni interacción.
+
+### Referencia B — escritorio modular de widgets con paleta limitada
+
+- Fondo claro lila/gris muy pálido, marcado por grilla de líneas finas ortogonales. Encima se disponen módulos oscuros casi negros/navy, bordes redondeados pero consistentes, y separaciones finas claras. No es una multitud de tarjetas repetidas; hay jerarquía por tamaño.
+- Bloque alto de retrato visual a la izquierda; cuatro indicadores circulares simples de acentos suaves organizados 2x2 al centro; módulo ancho y bajo de reloj; módulo grande de música con portada y controles a la derecha; banda inferior con cita, clima y área utilitaria/tareas. Cada bloque tiene un uso distinto y diferente escala visual.
+- La gramática permite widgets modulares, microindicadores, texto con buen contraste, iconografía sobria y proporciones deliberadas. Los acentos azul/lila/verde/ámbar son ornamentales en la referencia, **no obligatorios**. Puede adaptarse a negro/blanco y escala de grises o a dos pigmentos elegidos. El fondo cuadriculado no debe competir con la información.
+- **Transposición al producto**: dos widgets primarios como máximo en la **primera vista móvil** si eso sirve al contenido, por ejemplo **(1) proyectos/resultados con previews visuales auténticos** y **(2) actividad/conversación/versiones agrupadas por pedido**. Acciones, chips, timestamps y previews complementarios no deben convertirse en seis tarjetas vacías. En desktop se puede organizar una constelación más amplia sin multiplicar funciones falsas.
+
+### Autocrítica causal de la versión Prometeo 2026-10-09/10 (PR #78 → #79 → #83)
+
+- Se tradujo “dos colores” como rellenar rectángulos negros y “textura” como SVG procedural con puntos/líneas. Los tres SVG (Notas, Estudio, PULSO) son **geometría editorial simbólica**, no escenas ilustradas con material, profundidad y narración visual. Consultar bytes actuales, no reducir juicio a su etiqueta “arte original”.
+- Aunque se corrigieron bugs reales (navegación, recepción de HOP8, proyección de entregas, móvil, tests V6), estas pruebas **no evalúan ilustración, atmósfera, composición ni comparación sensible contra las referencias**. “38 recibos V6” y SHA servido no son notas de calidad estética.
+- Un carrusel de cinco tarjetas equivalentes con portada/etiqueta, debajo un feed técnico, sigue siendo esencialmente **interfaz de catálogo**, no experiencia visual de oficio. El producto necesita una composición/foco dominante, preview/materialidad y variación controlada de escala, sin perder resultados reales.
+
+### Proceso artístico obligatorio desde ahora cuando el pedido implica estética de alto nivel
+
+1. **Leer las referencias como un director de arte**: describir espacialmente planos, siluetas, masas tonales, fuente y orientación de luz, densidad por zonas, ritmos, texturas por material, tamaños relativos, composición, carga emocional, detalle y espacios libres; y distinguir observación de interpretación. Si no se poseen los píxeles, declarar “reconstrucción textual” y NO inventar que se vieron.
+2. **Separar inspiración de copia**: extraer principios transferibles, construir iconografía/escenas originales; no trasladar personajes ni marcas o assets sin permiso.
+3. **Auditar el producto real**: DOM, capturas móvil y desktop, owner, datos/situaciones reales, interacciones y assets existentes. Escribir cinco errores con causa visual, no “faltan colores”.
+4. **Arte primero, código después**: preparar al menos tres **conceptos artísticos integralmente diferentes** en composiciones estáticas fuertes, anotando grilla/composición focal, balance negro/blanco, textura, jerarquía, widget(s), estado vacío/lleno, densidad móvil, transiciones, costo. No pasar a CSS hasta elegir la opción con criterio explícito.
+5. **Ilustración real / IMAGE-FIRST**: protagonista visual reconocible sin labels, por asset pintado/generado/dibujado o collage licenciado y trabajado. Dibujos geométricos o SVG tramados por patrones automáticos NO bastan si el resultado permanece genérico.
+6. **Comparación ciega**: mirar miniaturas simultáneas a tamaño de celular con textos tapados, preguntar si hay identidad, atmósfera, calidad material, ritmo, enfoque y diferencia de proyecto. Si todas parecen tarjetas de landing page, RECHAZAR y volver a arte.
+7. **UI funcional injertada en la composición**: **una sola página existente**, resultados reales, proyectos, historial, versiones, interacción accesible; no crear un dashboard de muestra paralelo que sólo funciona con placeholders.
+8. **Pruebas separadas**: (a) integridad de datos/DOM/Back/móvil/privacidad/CI, (b) auditoría visual humana de capturas renderizadas. Una no sustituye a la otra. Probar 360/390/844/1440 y al menos modo con datos largos/sin datos/fallo de red. Usar Demo Engine V6 contra DOM real cuando corresponda.
+9. **Persistencia real**: guardar referencia descrita, descartes, comparativas, artwork y autoría/proveniencia, criterios, errores y versión/URL servida en owners existentes. Un chat nuevo debe poder reconstruir la dirección de arte leyendo repo **sin** que el humano vuelva a subir imágenes. La garantía de que el chat las lea depende de instrucciones y herramientas disponibles, no de magia de memoria.
+10. **No promover por silencio**: si no existe validación de calidad visual, registrar “funcional técnicamente, DIRECCIÓN ARTÍSTICA NO APROBADA”. La próxima iteración puede reemplazar totalmente la capa visual, preservando lógica y datos.
+
+**Regla de evaluación:** la implementación es insuficiente si, al ocultar textos/etiquetas, sólo queda una grilla de rectángulos con tramas. Debe haber imagen/mundo/objeto visual significativo, composición y arte reconocido. Mantener la misión principal: continuidad entre chats y resultado real, no estética decorativa sin función.
