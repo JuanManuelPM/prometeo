@@ -31,7 +31,7 @@ try {
   const newSha=(await gh.clone().json()).sha;
   for(let attempt=0;attempt<18;attempt++){
     const b=Buffer.from(await resp.clone().arrayBuffer());
-    const candidate=createHash('sha1').update(Buffer.from('blob '+b.length+'\\0')).update(b).digest('hex');
+    const candidate=createHash('sha1').update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex');
     if(candidate===newSha)break;
     if(attempt===17)throw Error('PAGES_PROPAGATION_TIMEOUT: expected '+newSha+', served '+candidate);
     await new Promise(resolve=>setTimeout(resolve,10000));
