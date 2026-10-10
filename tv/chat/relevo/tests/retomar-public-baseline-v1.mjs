@@ -110,6 +110,10 @@ try {
     assert.match(await page.locator('#workArchive').textContent(),/14:29/);
     assert.match(await page.locator('#workArchive').textContent(),/hora desconocida/);
     assert.equal(await page.locator('#track .project').count(),registry.projects.length);
+    await page.waitForFunction(()=>{
+      const j10=document.querySelector('#track .j10-mobile-cover'),hero=document.querySelector('#atlasImage');
+      return j10?.complete&&j10.naturalWidth===384&&hero?.naturalWidth===384;
+    },null,{timeout:15000});
     const responsive=await page.evaluate(()=>({
       inner:innerWidth,client:document.documentElement.clientWidth,
       visual:visualViewport?.width,scale:visualViewport?.scale,
@@ -126,10 +130,6 @@ try {
     assert.ok(Math.abs(responsive.scale-1)<.01,'Unexpected browser zoom');
     assert.equal(responsive.dark,'rgb(11, 12, 15)','Old light theme remains SERVED');
     assert.equal(responsive.typeCovers,registry.projects.length-1,'Rejected CSS pattern / SVG is still served');
-    await page.waitForFunction(()=>{
-      const j10=document.querySelector('#track .j10-mobile-cover'),hero=document.querySelector('#atlasImage');
-      return j10?.complete&&j10.naturalWidth===384&&hero?.naturalWidth===384;
-    },null,{timeout:15000});
     assert.equal(responsive.imageCovers,2,'Real PR88 and J10 illustrated covers must both survive');
     assert.equal(await page.locator('#track .cover.has-art img').evaluate(img=>img.naturalWidth),256,
       'PR88 original raster was lost');
