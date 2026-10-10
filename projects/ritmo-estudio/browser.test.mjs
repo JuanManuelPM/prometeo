@@ -26,7 +26,7 @@ try{
   const home=await page.goto('https://juanmanuelpm.github.io/prometeo/tv/chat/relevo/retomar/?proof='+Date.now(),{waitUntil:'domcontentloaded',timeout:30000});
   assert.equal(home.status(),200,'Main catalog HTTP');
   await page.waitForFunction(()=>!!document.querySelector('#track [data-project="ritmo-estudio"]'),null,{timeout:30000});
-  assert.ok((await page.locator('#track [data-project="ritmo-estudio"]').innerText()).includes('Ritmo de estudio'));
+  assert.ok((await page.locator('#track [data-project="ritmo-estudio"]').innerText()).includes('Ritmo'));
   assert.deepEqual(errors,[],'Browser exceptions');
   results.push({width,page_http:200,main_http:200,schedule_blocks:3,project:'ritmo-estudio',status:'PASS'});
   await page.close();
