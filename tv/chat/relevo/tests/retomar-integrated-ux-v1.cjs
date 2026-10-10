@@ -120,13 +120,22 @@ for(const width of [360,390,430,844,1440]){
    description:'Proyecto de prueba sintético, exclusivo del test local',
    link:'/prometeo/tv/chat/relevo/retomar/',
    source_path:'tv/chat/relevo/STATE_V1.json',source_branch:'gh-pages'};
-  const extended={...registry,projects:[...registry.projects,extraProject]};
+  const testReceipt={id:'fixture-lab-20261010',project_id:'laboratorio',state:'CANDIDATE',
+   title:'Entrega sintética verificable sólo en test',
+   summary:'No proviene de un chat real ni acredita publicación.',
+   occurred_at_utc:'2026-10-10T14:00:00.000Z',
+   source_url:'https://github.com/JuanManuelPM/prometeo/pull/83'};
+  const extended={...registry,projects:[...registry.projects,extraProject],
+   public_receipts:[...(registry.public_receipts||[]),testReceipt]};
   await page.route('**/prometeo/tv/chat/relevo/retomar/reentrada.json*',r=>r.fulfill({
    status:200,contentType:'application/json',body:JSON.stringify(extended)}));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===6);
   assert.equal(await page.locator('[data-project="facultad"]').getAttribute('aria-pressed'),'true',
    'Project selection lost when public registry changed');
+  await page.waitForFunction(()=>document.querySelector('#activityRows')?.textContent?.includes('Entrega sintética verificable sólo en test'));
+  assert.match(await page.locator('#activityRows').innerText(),/Recibo público · Cambio candidato/);
+  record('SIMULATED per-project candidate receipt is visible with truthful status and GitHub owner');
   assert.equal(await page.locator('[data-project="persistencia"]').count(),1,
    'Concurrent old project vanished');
   await page.locator('[data-project="laboratorio"]').click();
