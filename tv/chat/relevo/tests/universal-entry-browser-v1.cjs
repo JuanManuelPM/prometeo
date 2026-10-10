@@ -38,6 +38,9 @@ const server=createServer(async(req,res)=>{
    const mount=page.locator('#universalEntryMount');
    await mount.locator('[data-demo-id="universal.route.a"]').waitFor();
    assert.equal(await mount.locator('[data-demo-id="universal.graph"]').count(),1);
+   const initialView=(await mount.locator('[data-demo-id="universal.graph"]').getAttribute('viewBox')).split(' ').map(Number);
+   assert.ok(initialView[2] <= (width<600?500:1100),'initial view must be readable, not tiny fit-all overview');
+   await mount.locator('[data-demo-id="universal.graph"]').screenshot({path:path.join(dir,'universal-graph-initial-'+width+'.png')});
    assert.equal(await page.locator('#track .project').count(),5,'existing projects preserved');
    await mount.locator('[data-demo-id="universal.route.b"]').click();
    assert.match(await mount.locator('[data-demo-id="universal.summary"]').innerText(),/ninguna declarada/);
