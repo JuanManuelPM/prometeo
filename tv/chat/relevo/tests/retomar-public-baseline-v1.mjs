@@ -21,12 +21,22 @@ const evidence={suite:'prometeo.retomar.public-BASELINE.v1',candidate_served_cla
 const note=(k,v)=>{evidence[k]=v;console.log(k,JSON.stringify(v))};
 let browser;
 try {
-  const [resp,gh,stateResp,registryResp]=await Promise.all([
+  let [resp,gh,stateResp,registryResp]=await Promise.all([
     fetch(pageUrl,{headers:{'cache-control':'no-cache'}}),
     fetch(apiUrl,{headers:{accept:'application/vnd.github+json','user-agent':'prometeo-ci-readonly'}}),
     fetch(stateUrl,{headers:{'cache-control':'no-cache'}}),
     fetch(registryUrl,{headers:{'cache-control':'no-cache'}})
   ]);
+  // Pages/CDN propagation is asynchronous after the merge. Retry *real* bytes.
+  const newSha=(await gh.clone().json()).sha;
+  for(let attempt=0;attempt<18;attempt++){
+    const b=Buffer.from(await resp.clone().arrayBuffer());
+    const candidate=createHash('sha1').update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex');
+    if(candidate===newSha)break;
+    if(attempt===17)throw Error('PAGES_PROPAGATION_TIMEOUT: expected '+newSha+', served '+candidate);
+    await new Promise(resolve=>setTimeout(resolve,10000));
+    resp=await fetch(pageUrl+'?served-check='+newSha.slice(0,10)+'-'+(attempt+1),{headers:{'cache-control':'no-cache'}});
+  }
   note('http_status',{page:resp.status,github_api:gh.status,state:stateResp.status});
   assert.equal(resp.status,200,'Public page HTTP not 200');
   assert.equal(gh.status,200,'Cannot verify production source SHA from GitHub');
@@ -67,8 +77,8 @@ try {
   evidence.checks.push('HOP8 independent chat episode and PR83 receipt available on PUBLIC Pages');
   evidence.checks.push('Public response 200 + exact byte SHA vs GH Pages source','Public STATE contains persisted cross-chat hops');
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-  for(const width of [390,1440]){
-    const context=await browser.newContext({viewport:{width,height:830},deviceScaleFactor:1});
+  for(const width of [360,390,480,844,1440]){
+    const context=await browser.newContext({viewport:{width,height:width===480?1800:830},deviceScaleFactor:width<=480?2:1,isMobile:width<=480,hasTouch:width<=480});
     const page=await context.newPage();
     const errs=[];
     page.on('pageerror',e=>errs.push(e.message));
@@ -99,6 +109,29 @@ try {
     assert.match(await page.locator('#workArchive').textContent(),/14:29/);
     assert.match(await page.locator('#workArchive').textContent(),/hora desconocida/);
     assert.equal(await page.locator('#track .project').count(),5);
+    const responsive=await page.evaluate(()=>({
+      inner:innerWidth,client:document.documentElement.clientWidth,
+      visual:visualViewport?.width,scale:visualViewport?.scale,
+      dark:getComputedStyle(document.body).backgroundColor,
+      card:document.querySelector('#track .project').getBoundingClientRect().width,
+      typeCovers:document.querySelectorAll('#track .cover-lettering').length,
+      imageCovers:document.querySelectorAll('#track .cover img').length,
+      title:parseFloat(getComputedStyle(document.querySelector('#activityRows article strong')).fontSize),
+      date:parseFloat(getComputedStyle(document.querySelector('#activityRows article time')).fontSize)
+    }));
+    assert.equal(responsive.inner,width,'Actual mobile browser is rendering a shrunk desktop viewport');
+    assert.equal(responsive.client,width,'Layout viewport CSS does not match device');
+    assert.ok(Math.abs(responsive.visual-width)<2,'Visual viewport does not match device');
+    assert.ok(Math.abs(responsive.scale-1)<.01,'Unexpected browser zoom');
+    assert.equal(responsive.dark,'rgb(11, 12, 15)','Old light theme remains SERVED');
+    assert.equal(responsive.typeCovers,4,'Rejected CSS pattern / SVG is still served');
+    assert.equal(responsive.imageCovers,1,'Authentic PR88 raster illustration not served');
+    if(width<=480){
+      assert.ok(responsive.card>=width*.84,'Cards look like mini desktop tiles');
+      assert.ok(responsive.title>=22&&responsive.date>=17,'Activity/date text remains too small');
+    }
+    note('published_PR92_dark_responsive_'+width,responsive);
+    evidence.checks.push(width+'px: SERVED black theme, real viewport & zoom, large cards, authentic raster + four typographic covers');
     // The published baseline may be either the old responsive skin or the
     // future PR91 release. Once PR91 is served, enforce true mobile usability.
     if(await page.locator('.activity-sort-note').count()){
@@ -138,7 +171,7 @@ try {
     const readyImageCount=await page.locator('#track img').evaluateAll(nodes=>nodes.filter(n=>n.complete&&n.naturalWidth>0).length);
     note('ready_public_visual_'+width,{loaded_covers:readyImageCount,history_hop:state.last_hop,events:await page.locator('#activityRows article').count()});
     assert.ok(readyImageCount>=1,'Cover art still blank in public browser');
-    evidence.checks.push(width+'px: PUBLIC loaded real SVG preview and persisted live activity');
+    evidence.checks.push(width+'px: PUBLIC loaded authentic raster preview and persisted live activity');
     assert.ok(await page.getByRole('button',{name:'Persistencia'}).count(),'Missing persistence card');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Public global horizontal overflow');
     if(width===390){
@@ -149,11 +182,20 @@ try {
       evidence.checks.push('390px: PUBLIC browser Back returned to previous project');
     }
     await page.screenshot({path:path.join(dir,'public-existing-'+width+'.png'),fullPage:true});
+    // Bounded visual audit on the actual PUBLIC URL. JPEG chunks allow independent
+    // visual inspection through CI logs, never stand-in generated HTML.
+    if([390,480,1440].includes(width)){
+      const jpeg=await page.screenshot({type:'jpeg',quality:65,fullPage:false});
+      const encoded=jpeg.toString('base64');
+      console.log('PROMETEO_VISUAL_START:'+width+':'+encoded.length);
+      for(let i=0;i<encoded.length;i+=4000)console.log('PROMETEO_VISUAL_'+width+'_'+(i/4000)+':'+encoded.slice(i,i+4000));
+      console.log('PROMETEO_VISUAL_END:'+width);
+    }
     assert.deepEqual(errs,[],'Browser JS errors');
     evidence.checks.push(width+'px: PUBLIC real Chromium DOM, 5 cards, no overflow');
     await context.close();
   }
-  evidence.outcome='PUBLIC_PR88_EXPEDIENTE_SERVED_VERIFIED_REDESIGN_STILL_CANDIDATE';
+  evidence.outcome='PUBLIC_PR92_DARK_MOBILE_SERVED_VERIFIED_PR88_ARTWORK_REMAINS_CANDIDATE';
 } catch(e){
   evidence.outcome='BLOCKED';
   evidence.errors.push(String(e.stack||e));
