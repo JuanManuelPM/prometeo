@@ -60,7 +60,9 @@ body.pwa{background:#f4f2eb;color:#111111}
 .pwa .project p{display:none}
 .pwa .carddate{font-size:14px;line-height:1.3;color:var(--paper);display:block;margin-top:auto}
 .pwa .activity{margin:6px 0 24px}
-.pwa .activity h2{margin:10px 0 12px;font-size:24px}
+.pwa .activity h2{margin:10px 0 5px;font-size:24px}
+.pwa .entry-note{font-size:14px;line-height:1.35;margin:0 0 9px;color:var(--ink);max-width:640px}
+.pwa .watch-note{font-size:13px;line-height:1.3;margin:0 0 10px;color:var(--ink)}
 .pwa .activity .event{display:grid;grid-template-columns:1fr auto;gap:8px;padding:13px 0;border-top:1px solid var(--ink)}
 .pwa .activity .event:last-child{border-bottom:1px solid var(--ink)}
 .pwa .activity .event strong{display:block;font-size:17px;line-height:1.25}
@@ -94,8 +96,9 @@ body.pwa{background:#f4f2eb;color:#111111}
 <body class="pwa">
 <main class="app">
 <header class="bar"><h1>Proyectos</h1><span class="spacer"></span><a href="/prometeo/tv/chat/">TV ↗</a></header>
+<p class="entry-note">Pedí cambios o preguntá en cualquier chat de este Proyecto, con texto o audio transcripto. Acá ves los resultados públicos guardados.</p>
 <nav id="track" class="track rail" aria-label="Proyectos" data-demo-id="projects.rail"></nav>
-<section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
+<section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><p class="watch-note" id="watchStatus" role="status">Recuperando actividad…</p><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
 <section class="below">
 <div class="detail" aria-live="polite">
 <span class="topline" id="selectedTag">Cargando...</span>
@@ -135,9 +138,12 @@ const proof=document.getElementById('liveProof');
 const proofRows=document.getElementById('liveProofRows');
 const proofRefresh=document.getElementById('verifyAgain');
 const relayPanel=document.getElementById('relayHistory'),relayRows=document.getElementById('relayRows');
-let relayRequest=0;
+let relayRequest=0,highestPublicHopSeen=-1;
 function renderRelayHistory(state,turn,i){
  if(selected!==i||turn!==relayRequest)return;
+ // Concurrent requests may finish out of order. Never replace newer durable state with older.
+ if(!Number.isInteger(state?.last_hop)||state.last_hop<highestPublicHopSeen)return;
+ highestPublicHopSeen=state.last_hop;
  relayRows.replaceChildren();
  if(!Array.isArray(state.history)){relayRows.textContent='Historial no verificado: fuente inválida.';return;}
  const records=state.history.slice(-8).reverse().filter(h=>Number.isInteger(h.hop)&&
@@ -277,7 +283,7 @@ function setSelected(i,push=false){
   nodes.copy.disabled=!(primary&&primary.exact_prompt);
   nodes.state.textContent='Consultando último salto...';
   fetch('../STATE_V1.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(j=>{
-   if(selected===i&&relayTurn===relayRequest)nodes.state.textContent='Último registro: relevo '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'.';
+   if(selected===i&&relayTurn===relayRequest&&Number.isInteger(j.last_hop)&&j.last_hop>=highestPublicHopSeen)nodes.state.textContent='Último registro: relevo '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'.';
    renderRelayHistory(j,relayTurn,i);
   }).catch(()=>{if(selected===i&&relayTurn===relayRequest){nodes.state.textContent='Estado de relevo no comprobado. El nuevo chat debe consultarlo.';relayRows.textContent='Historial no verificado: no se pudo leer STATE_V1.json.';}});
  }else{
@@ -288,11 +294,27 @@ function setSelected(i,push=false){
 
 }
 /* Historial público REAL, no mensajes privados ni datos inventados. */
-async function refreshActivity(){
- const root=document.getElementById('activityRows');
+let activityGeneration=0,lastActivitySignature='',lastCommitReload=Date.now();
+async function refreshActivity({refreshCommits=false}={}){
+ if(!items.length)return;
+ const generation=++activityGeneration;
+ const root=document.getElementById('activityRows'),watch=document.getElementById('watchStatus');
+ if(refreshCommits&&Date.now()-lastCommitReload>=900000){
+  commitCache.clear();lastCommitReload=Date.now();
+ }
  const results=await Promise.allSettled([fetch('../STATE_V1.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json();}),...items.map(p=>getProjectCommits(p))]);
+ if(generation!==activityGeneration)return;
  const entries=[];
  const state=results[0];
+ if(state.status!=='fulfilled'||!Array.isArray(state.value?.history)){
+  watch.textContent='Sin actualización verificable. Se conservan los últimos resultados visibles.';
+  return;
+ }
+ watch.textContent='Revisado: '+argentineDate(new Date())+' · Consulta cada minuto; cambios de archivos cada 15 min.';
+ if(selected>=0&&items[selected]?.id==='persistencia'&&Number.isInteger(state.value.last_hop)&&state.value.last_hop>=highestPublicHopSeen){
+  nodes.state.textContent='Último registro: relevo '+state.value.last_hop+' · '+(state.value.history.length?dateLabel(state.value.history.at(-1).date_utc):'sin fecha comprobada')+'.';
+  renderRelayHistory(state.value,relayRequest,selected);
+ }
  if(state.status==='fulfilled'&&Array.isArray(state.value.history)){
   state.value.history.forEach(h=>{
    if(!Number.isInteger(h.hop)||typeof h.episode_ref!=='string'||!h.episode_ref.startsWith('tv/chat/relevo/episodes/')||!h.episode_ref.endsWith('.md')||h.episode_ref.split('/').some(part=>!part||part==='..')||!/^[a-zA-Z0-9_.-]+$/.test(h.episode_ref.split('/').at(-1)))return;
@@ -313,6 +335,9 @@ async function refreshActivity(){
   entries.push({at,title:p.label+' · Archivo actualizado',desc:String(c.commit?.message||'Cambio de fuente').split('\\n')[0].slice(0,140)+' · No implica publicación.',url:c.html_url?.startsWith('https://github.com/JuanManuelPM/prometeo/commit/')?c.html_url:null,kind:'Cambio en GitHub'});
  });
  entries.sort((a,b)=>new Date(b.at).getTime()-new Date(a.at).getTime());
+ const signature=JSON.stringify(entries.slice(0,12).map(e=>[e.at,e.title,e.desc,e.url]));
+ if(signature===lastActivitySignature)return;
+ lastActivitySignature=signature;
  root.replaceChildren();
  if(!entries.length){root.textContent='No hay actividad pública comprobada en este momento.';return;}
  entries.slice(0,12).forEach(e=>{
@@ -371,6 +396,11 @@ nodes.copy.addEventListener('click',async()=>{
  items=d.projects;primary=d.primary_mission;oldGame=d.next_experiment;draw();refreshActivity();
  }catch(e){nodes.tag.textContent='Fuente no disponible';nodes.title.textContent='Consultar continuidad en GitHub';nodes.desc.textContent='No se pudo recuperar la información actual. No se inventa el estado.';nodes.state.textContent='';nodes.copy.disabled=true;nodes.notice.textContent='Abrí RETOMAR_V1.md con GitHub conectado.';}
 })();
+// Same page stays open while other chats publish new public receipts. No server worker or hidden chat runtime.
+function refreshWhenVisible(){if(!document.hidden&&items.length)refreshActivity({refreshCommits:true});}
+document.addEventListener('visibilitychange',refreshWhenVisible);
+window.addEventListener('focus',refreshWhenVisible);
+setInterval(()=>{if(!document.hidden&&items.length)refreshActivity({refreshCommits:true});},60000);
 setInterval(()=>{
  items.forEach((o,i)=>{
   if(o._last){

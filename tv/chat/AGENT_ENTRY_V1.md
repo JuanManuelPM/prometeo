@@ -2,6 +2,18 @@
 
 **SOURCE, no instalación automática de ChatGPT.** Un nuevo chat con el conector GitHub autorizado puede leer ESTE archivo para resolver pedidos con un solo mensaje. La pantalla en la TV es `https://juanmanuelpm.github.io/prometeo/tv/chat/`.
 
+## Intención natural en cualquier chat de este Proyecto (sin invocar comandos)
+
+**El contrato humano es: una única pantalla pública para OBSERVAR y chats nuevos descartables para ORDENAR, CONSULTAR o CONVERSAR.** Un audio que ChatGPT haya transcripto cuenta como mensaje normal. No exigir que la persona copie un prompt de relevo, enumere archivos/PR, escriba `🔥`, ponga `@GitHub`, regrese al chat anterior ni haga de mensajero.
+
+Interpretar por **intención**, no por palabra clave o último proyecto visitado:
+1. **Orden de trabajo** («en Facultad agregá…», «arreglá Widgets…»): identificar owner y tarea, recuperar sólo ese contexto actual desde GitHub conectado, ejecutar en este turno lo razonablemente posible con pruebas, publicación autorizada y readback. Escribir resultado, límites y evidencia pública *sanitizada* en owners existentes; la pantalla única debe poder leer el cambio sin pegar respuesta del chat. Si dice «lo mando y me voy», **no afirmar que el modelo seguirá ejecutando después del cierre**: trabajo terminado y persistido en este turno, o estado parcial verdadero, no background imaginario.
+2. **Pregunta de estado** («¿cómo viene la persistencia?», «¿tenemos el calendario funcionando?», «¿se publicó?»): **consultar HEAD/owner/PR/CI/Pages SERVED frescos según la pregunta**, distinguir implementado/testeado/publicado/servido y bloqueos; contestar directamente en este chat. No ejecutar la próxima tarea, modificar la TV, abrir otro Issue ni cambiar prioridades sólo por la pregunta.
+3. **Conversación, razonamiento o nueva idea** («¿por qué se había decidido…?», «se me ocurrió otra cosa», «quiero hablar de…»): recuperar contexto pertinente si es necesario y conversar; NO crear automáticamente un encargo/commit y NO dirigir todo a persistencia cuando el tema es ajeno. Proponer opciones si corresponde, y registrar en owner durable **sólo cuando el mensaje lo pida o se haya tomado una decisión operativa pública relevante**, sin publicar transcripciones privadas.
+4. **«Qué sigue» / pérdida de continuidad** sin proyecto concreto: recuperar misión y fuentes vigentes, no obligar a copiar `primary_mission.exact_prompt`; diferenciar recomendación de autorización para ejecutar.
+
+**Falsadores**: una pregunta «¿ya funciona X?» respondida con CI anterior sin ver estado real es FAIL; una charla convertida en PR es FAIL; una orden atendida con otro prompt para el humano es FAIL; una página abierta que no consulta cambios nuevos es FAIL; un dato privado convertido en feed público es FAIL. La página `tv/chat/relevo/retomar/` sigue siendo la **misma**; renderiza sólo recibos/proyecciones públicas verificables, no mensajes brutos. Enlaces y marcas de tiempo no equivalen a un chat corriendo por detrás. Evitar duplicar UI, runtime de chats, queue, scheduler, worker o base de datos.
+
 ## 2026-10-09 · Puente de continuidad al trabajo de los PR #71, #72 y #73
 
 Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invocan las instrucciones del Proyecto **persistencia**. **No crea ni instala skills por sí misma.** La tarea humana actual manda. Para evitar olvido entre chats, elegir SÓLO los contratos pertinentes:
