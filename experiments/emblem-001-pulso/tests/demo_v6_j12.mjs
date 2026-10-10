@@ -25,6 +25,7 @@ for(const v of [{width:390,height:844,name:'v6-portrait'},{width:1440,height:900
   document.querySelector('#resume').setAttribute('data-demo-id','pulso.resume');
   document.querySelector('#restart').setAttribute('data-demo-id','pulso.restart');
   document.querySelector('#blueScore').setAttribute('data-demo-id','pulso.score');
+  const overlayPointer=root.querySelector('[data-demo-pointer]');Object.assign(overlayPointer.style,{position:'absolute',left:'0px',top:'0px',width:'48px',height:'48px',pointerEvents:'none',zIndex:'55'});
   const st=document.createElement('style');st.textContent='.j12-v6-harness{position:relative;width:100%;min-height:100vh}.j12-stage{position:relative;min-height:calc(100vh - 35px);overflow:hidden}.j12-scroll{position:relative;min-height:calc(100vh - 35px);overflow:auto}.j12-camera{position:relative;transform-origin:center center}[data-demo-pointer],[data-demo-focus],[data-demo-comment],[data-demo-gesture],[data-demo-spotlight]{position:absolute;z-index:50;pointer-events:none}[data-demo-pointer]{width:48px;height:48px}[data-demo-pointer-img]{width:100%;height:100%}.j12-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:45}[data-demo-controls]{position:relative;min-height:28px;font:12px system-ui;color:#e6f4ec;display:flex;gap:14px;justify-content:center}';document.head.append(st);
  });
  for(const asset of assets)await page.addScriptTag({path:RUNTIME+asset});
@@ -34,7 +35,7 @@ for(const v of [{width:390,height:844,name:'v6-portrait'},{width:1440,height:900
   const pointers={arrow:{src:raw.arrow,hotspot:[9,8],size:48},hand:{src:raw.hand,hotspot:[22,5],size:48}};
   const engine=new DemoEngineV6(root,{title:'J12 PULSO · DEMO',steps:[]},{preset:'FAST',pointerAssets:pointers,abortOnHuman:false,audio:{enabled:false}});
   const bounds=[];const originalAudit=engine._auditOverlayBounds.bind(engine);
-  engine._auditOverlayBounds=(name,el)=>{const br=el?.getBoundingClientRect(),bs=engine.ui.stage.getBoundingClientRect();bounds.push({name,pointer:br&&{x:br.x,y:br.y,w:br.width,h:br.height},stage:{x:bs.x,y:bs.y,w:bs.width,h:bs.height},mode:el?.style.position});originalAudit(name,el);};
+  engine._auditOverlayBounds=(name,el)=>{const br=el?.getBoundingClientRect(),bs=engine.ui.stage.getBoundingClientRect();bounds.push({name,pointer:br&&{x:br.x,y:br.y,w:br.width,h:br.height},stage:{x:bs.x,y:bs.y,w:bs.width,h:bs.height},mode:getComputedStyle(el).position,transform:el?.style.transform});originalAudit(name,el);};
   engine.setRecipe({demo:'J12 · PULSO',preset:'FAST',steps:[
     {show:'pulso.start',method:'look',hold:120},
     {activate:'pulso.start'},
