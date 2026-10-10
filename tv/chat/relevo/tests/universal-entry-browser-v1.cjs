@@ -49,10 +49,13 @@ const server=createServer(async(req,res)=>{
    await mount.getByRole('button',{name:'Acercar'}).click();
    assert.notEqual(await svg.getAttribute('viewBox'),before,'zoom changes real SVG');
    await mount.getByRole('button',{name:'Ver todo'}).click();
-   await mount.locator('[data-demo-id="universal.node.verify"]').click({force:true});
+   await mount.locator('[data-demo-id="universal.steps"]').getByRole('button',{name:/Verificación independiente/}).click();
    assert.match(await mount.locator('[data-demo-id="universal.details"]').innerText(),/Verificación independiente/);
    await mount.getByRole('button',{name:/Modo: humano/}).click();
    assert.match(await mount.locator('[data-demo-id="universal.details"]').innerText(),/Permisos/);
+   await svg.focus();
+   await page.keyboard.press('Home');
+   assert.notEqual(await svg.getAttribute('viewBox'),before,'Home keyboard reset supported');
    await mount.getByRole('button',{name:/Arquitectura: actual/}).click();
    assert.match(await mount.getByRole('button',{name:/Arquitectura: evolución/}).innerText(),/evolución/);
    const bodyWidth=await page.evaluate(()=>document.body.scrollWidth);
