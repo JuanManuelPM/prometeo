@@ -45,6 +45,27 @@ for(const width of [360,390,430,844,1440]){
  assert.equal(await page.locator('#track img').count(),3,'Original art covers absent');
  assert.ok(await page.locator('#track img').evaluateAll(nodes=>nodes.every(img=>img.complete&&img.naturalWidth>0)),'Covers failed HTTP');
  assert.equal(await page.locator('#track .project').count(),5);
+ // FEATURE-01..04: real PR88 owner data appears on the SAME HOP8 page,
+ // never promoted into a fictitious served redesign or synthetic chat timeline.
+ await page.waitForFunction(()=>!document.querySelector('#workArchive')?.hidden);
+ const dossier=page.locator('#workArchive');
+ assert.match(await dossier.innerText(),/Archivo Habitado/);
+ assert.match(await dossier.innerText(),/Ciudad Isométrica/);
+ assert.match(await dossier.innerText(),/Observatorio Monumental/);
+ assert.match(await dossier.innerText(),/NO está publicado ni aprobado/);
+ assert.match(await dossier.innerText(),/256 × 171/);
+ assert.match(await dossier.innerText(),/hora desconocida/);
+ assert.match(await dossier.innerText(),/14:29/);
+ assert.match(await dossier.innerText(),/14:33/);
+ assert.ok(!(await dossier.innerText()).includes('Pedido enviado a las'),'Never invent audio request timestamp');
+ assert.equal(await dossier.locator('.work-alt').count(),3);
+ await page.waitForFunction(()=>{const im=document.querySelector('#workArchive .work-art img');return im&&im.complete&&im.naturalWidth===256&&im.naturalHeight===171});
+ assert.equal(await dossier.locator('a[href="https://github.com/JuanManuelPM/prometeo/pull/88"]').count(),1);
+ assert.equal(await page.locator('#track .project').count(),5,'Candidate creates duplicate top-level project');
+ assert.match(await page.locator('#activityRows').innerText(),/Archivo Habitado/);
+ const pos=await page.evaluate(()=>({activity:document.querySelector('#activityTitle').getBoundingClientRect().top,archive:document.querySelector('#workArchive').getBoundingClientRect().top}));
+ assert.ok(pos.activity<pos.archive,'Project activity must remain above the long archive');
+ record(width+'px: genuine PR88 1-bit PNG + three research options + truthful candidate and Argentina timeline');
  const text=await page.locator('#activityRows').innerText();
  assert.ok(text.includes('Relevo '+owner.last_hop),'Source history not represented');
  assert.ok(text.includes('Argentina'),'Missing AR timestamps');
