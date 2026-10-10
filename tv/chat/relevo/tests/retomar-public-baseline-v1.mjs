@@ -182,6 +182,15 @@ try {
       evidence.checks.push('390px: PUBLIC browser Back returned to previous project');
     }
     await page.screenshot({path:path.join(dir,'public-existing-'+width+'.png'),fullPage:true});
+    // Bounded visual audit on the actual PUBLIC URL. JPEG chunks allow independent
+    // visual inspection through CI logs, never stand-in generated HTML.
+    if([390,480,1440].includes(width)){
+      const jpeg=await page.screenshot({type:'jpeg',quality:65,fullPage:false});
+      const encoded=jpeg.toString('base64');
+      console.log('PROMETEO_VISUAL_START:'+width+':'+encoded.length);
+      for(let i=0;i<encoded.length;i+=4000)console.log('PROMETEO_VISUAL_'+width+'_'+(i/4000)+':'+encoded.slice(i,i+4000));
+      console.log('PROMETEO_VISUAL_END:'+width);
+    }
     assert.deepEqual(errs,[],'Browser JS errors');
     evidence.checks.push(width+'px: PUBLIC real Chromium DOM, 5 cards, no overflow');
     await context.close();
