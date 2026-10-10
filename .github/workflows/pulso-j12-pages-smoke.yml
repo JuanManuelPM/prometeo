@@ -1,0 +1,71 @@
+name: PULSO J12 published Pages smoke
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - 'projects/pulso-j12/**'
+      - '.github/workflows/pulso-j12-pages-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  published-http-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Wait for exact Pages bytes and public project dossier
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,time,urllib.request
+          root='https://juanmanuelpm.github.io/prometeo/'
+          targets=[
+            ('experiments/emblem-001-pulso/PULSO_JUGAR.html','experiments/emblem-001-pulso/PULSO_JUGAR.html'),
+            ('projects/pulso-j12/PROJECT_V1.json','projects/pulso-j12/PROJECT_V1.json')
+          ]
+          out=pathlib.Path('projects/pulso-j12/validation');out.mkdir(parents=True,exist_ok=True)
+          def digest(b):return hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
+          expected={pub:digest(pathlib.Path(local).read_bytes()) for pub,local in targets}
+          observed={}
+          for trial in range(72):
+            try:
+              for public,_ in targets:
+                req=urllib.request.Request(root+public+'?j12='+str(time.time_ns()),headers={'User-Agent':'PULSO-J12-pages-proof','Cache-Control':'no-cache'})
+                with urllib.request.urlopen(req,timeout=20) as response:
+                  got=response.read();code=response.status
+                observed[public]={'status':code,'bytes':len(got),'sha':digest(got)}
+                if code!=200 or digest(got)!=expected[public]:raise ValueError(public+' served byte mismatch')
+              with urllib.request.urlopen(root+'tv/chat/relevo/retomar/reentrada.json?j12='+str(time.time_ns()),timeout=20) as response:
+                data=json.loads(response.read())
+              assert any(p.get('id')=='pulso-j12' for p in data.get('projects',[]))
+              print(json.dumps({'state':'PASS','trial':trial+1,'observed':observed}))
+              (out/'pages-bytes.json').write_text(json.dumps({'state':'PASS','observed':observed,'registry_project':True,'trial':trial+1},indent=2))
+              break
+            except Exception as e:
+              if trial==71:
+                (out/'pages-bytes.json').write_text(json.dumps({'state':'FAIL','observed':observed,'error':str(e)},indent=2))
+                raise
+              time.sleep(8)
+          PY
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Play real remote game on live Pages
+        env:
+          PULSO_ORIGIN: https://juanmanuelpm.github.io/prometeo
+        run: node experiments/emblem-001-pulso/tests/browser_j12.mjs
+      - name: Verify public project on original Prometeo page
+        run: node projects/pulso-j12/tests/public_pages_j12.mjs
+      - name: Keep remote browser proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulso-j12-served-pages-proof
+          path: |
+            projects/pulso-j12/validation/
+            experiments/emblem-001-pulso/validation/j12-ci/
+          if-no-files-found: warn
