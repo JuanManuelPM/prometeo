@@ -133,6 +133,7 @@ let browser;
     await page.evaluate(()=>refreshWhenVisible());
     assert.ok(await page.locator('[data-work-id="m01-delta"]').count(),'Offline refresh lost last valid visible data');
     fixtureStatus=200;
+    fixture={...original,public_receipts:[...(original.public_receipts||[]),...demo]}; // reset this viewport's synthetic late event
     pass('Offline/HTTP 503 retains last verified catalog');
    }
    await ctx.close();
