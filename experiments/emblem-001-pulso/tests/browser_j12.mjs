@@ -19,6 +19,8 @@ for(const v of [{w:390,h:844,name:'portrait',touch:true},{w:844,h:390,name:'land
   await page.waitForFunction(()=>window.__PULSO_TEST__?.artReady?.()===true,null,{timeout:12000});
   check(file+' illustrated arena decoded',await page.evaluate(()=>window.__PULSO_TEST__.artReady()));
   check(file+' fits width',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+  if(v.name==='landscape'){check(file+' unobstructed playing field',await page.locator('.control-copy').evaluate(el=>getComputedStyle(el).display==='none'));check(file+' top pause reachable',await page.locator('#pause').isVisible());}
+
   check(file+' start visible',await page.locator('#play').isVisible());
   if(file==='index.html')await page.screenshot({path:OUT+'/'+v.name+'-menu.png'});
   await page.locator('#play').click();
