@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {planBlocks,formatArgentineDate} from './planner.mjs';
+const start='2026-10-10T23:45:00.000Z';
+const p=planBlocks({startIso:start,rounds:2,focusMinutes:20,breakMinutes:5});
+assert.equal(p.blocks.length,3);
+assert.equal(p.totalMinutes,45);
+assert.equal(p.blocks[0].startUtc,start);
+assert.equal(p.finishUtc,'2026-10-11T00:30:00.000Z');
+assert.equal(p.blocks[1].kind,'pausa');
+assert.match(formatArgentineDate(start),/20:45/);
+assert.equal(planBlocks({startIso:start,rounds:1}).blocks.length,1);
+assert.equal(planBlocks({startIso:start,rounds:3,breakMinutes:0}).blocks.length,3);
+assert.throws(()=>planBlocks({startIso:'bad'}),RangeError);
+assert.throws(()=>planBlocks({startIso:start,rounds:13}),RangeError);
+assert.throws(()=>planBlocks({startIso:start,focusMinutes:4}),RangeError);
+assert.throws(()=>planBlocks({startIso:start,breakMinutes:-1}),RangeError);
+for(let i=1;i<p.blocks.length;i++)assert.equal(p.blocks[i-1].endUtc,p.blocks[i].startUtc);
+console.log('14/14: plan, límites, cadena temporal y huso horario argentino PASS');
