@@ -1,0 +1,284 @@
+{
+  "schema": "prometeo.fire-dot-gate-tests/v1",
+  "base": {
+    "humanAuthored": true,
+    "sameChat": true,
+    "localPlanAttested": true,
+    "verifiedReadBack": false,
+    "actorAuthenticated": true,
+    "ownerMatched": true,
+    "sourceRevisionMatched": true,
+    "scopeConfirmed": true,
+    "permissionsConfirmed": true,
+    "protectedActionRequiresExtraApproval": false,
+    "protectedActionApproved": false,
+    "nowMs": 1000000,
+    "message": ".",
+    "plan": {
+      "plan_id": "PLAN_20261009_SCOUT",
+      "plan_hash": "sha256:fixture",
+      "write_scope": [
+        "example"
+      ],
+      "target_owner": "CANARY_ONLY",
+      "status": "PREPARED_UNSAVED",
+      "expires_at": "2099-01-01T00:00:00Z",
+      "plan_version": "1",
+      "human_intent_ref": "fixture-intent-1",
+      "context_revision": "fixture-context-1",
+      "source_refs": [
+        "fixture:source"
+      ],
+      "required_skill_refs": [
+        "prometeo-one-turn@main"
+      ],
+      "skill_ledger": [
+        {
+          "name": "prometeo-one-turn",
+          "state": "LOADED"
+        }
+      ],
+      "acceptance": [
+        "fixture does not modify production"
+      ],
+      "risk_tests": [
+        "fixture tests"
+      ],
+      "permissions": {
+        "scope": "fixture-only"
+      }
+    },
+    "expectedPlanHash": "sha256:fixture"
+  },
+  "cases": [
+    {
+      "id": "good-same-chat",
+      "overrides": {},
+      "expected": "ELIGIBLE_NEEDS_ATOMIC_CLAIM"
+    },
+    {
+      "id": "good-durable-cross-chat",
+      "overrides": {
+        "sameChat": false,
+        "localPlanAttested": false,
+        "verifiedReadBack": true,
+        "plan": {
+          "status": "PREPARED_DURABLE",
+          "persisted_ack_ref": "private:fixture"
+        }
+      },
+      "expected": "ELIGIBLE_NEEDS_ATOMIC_CLAIM"
+    },
+    {
+      "id": "no-plan",
+      "overrides": {
+        "plan": null
+      },
+      "expected": "PLAN_NOT_FOUND"
+    },
+    {
+      "id": "not-human",
+      "overrides": {
+        "humanAuthored": false
+      },
+      "expected": "NOT_HUMAN_DOT"
+    },
+    {
+      "id": "not-dot",
+      "overrides": {
+        "message": "Sí."
+      },
+      "expected": "NOT_HUMAN_DOT"
+    },
+    {
+      "id": "missing-local-proof",
+      "overrides": {
+        "localPlanAttested": false
+      },
+      "expected": "PLAN_NOT_DURABLE_CROSS_CHAT"
+    },
+    {
+      "id": "cross-chat-unsaved",
+      "overrides": {
+        "sameChat": false
+      },
+      "expected": "PLAN_NOT_DURABLE_CROSS_CHAT"
+    },
+    {
+      "id": "private-ack-not-readback",
+      "overrides": {
+        "plan": {
+          "status": "PREPARED_DURABLE",
+          "persisted_ack_ref": "private:fixture"
+        },
+        "verifiedReadBack": false
+      },
+      "expected": "PRIVATE_PLAN_ACK_NOT_VERIFIED"
+    },
+    {
+      "id": "durable-missing-ack",
+      "overrides": {
+        "plan": {
+          "status": "PREPARED_DURABLE"
+        },
+        "verifiedReadBack": true
+      },
+      "expected": "PRIVATE_PLAN_ACK_NOT_VERIFIED"
+    },
+    {
+      "id": "used-plan",
+      "overrides": {
+        "plan": {
+          "status": "CONSUMED"
+        }
+      },
+      "expected": "ALREADY_CONSUMED"
+    },
+    {
+      "id": "started-plan",
+      "overrides": {
+        "plan": {
+          "status": "EXECUTING"
+        }
+      },
+      "expected": "ALREADY_CONSUMED"
+    },
+    {
+      "id": "stale-source",
+      "overrides": {
+        "sourceRevisionMatched": false
+      },
+      "expected": "REVALIDATION_FAILED"
+    },
+    {
+      "id": "unauthorized-user",
+      "overrides": {
+        "actorAuthenticated": false
+      },
+      "expected": "REVALIDATION_FAILED"
+    },
+    {
+      "id": "different-owner",
+      "overrides": {
+        "ownerMatched": false
+      },
+      "expected": "REVALIDATION_FAILED"
+    },
+    {
+      "id": "missing-scope",
+      "overrides": {
+        "scopeConfirmed": false
+      },
+      "expected": "REVALIDATION_FAILED"
+    },
+    {
+      "id": "missing-permission",
+      "overrides": {
+        "permissionsConfirmed": false
+      },
+      "expected": "REVALIDATION_FAILED"
+    },
+    {
+      "id": "expired",
+      "overrides": {
+        "plan": {
+          "expires_at": "1970-01-01T00:00:00Z"
+        }
+      },
+      "expected": "PLAN_EXPIRED_OR_UNDATED"
+    },
+    {
+      "id": "no-expiry",
+      "overrides": {
+        "plan": {
+          "expires_at": null
+        }
+      },
+      "expected": "PLAN_EXPIRED_OR_UNDATED"
+    },
+    {
+      "id": "malformed-id",
+      "overrides": {
+        "plan": {
+          "plan_id": "!"
+        }
+      },
+      "expected": "PLAN_INCOMPLETE"
+    },
+    {
+      "id": "no-hash",
+      "overrides": {
+        "plan": {
+          "plan_hash": null
+        }
+      },
+      "expected": "PLAN_INCOMPLETE"
+    },
+    {
+      "id": "needs-other-approval",
+      "overrides": {
+        "protectedActionRequiresExtraApproval": true,
+        "protectedActionApproved": false
+      },
+      "expected": "PROTECTED_ACTION_NEEDS_APPROVAL"
+    },
+    {
+      "id": "approval-present",
+      "overrides": {
+        "protectedActionRequiresExtraApproval": true,
+        "protectedActionApproved": true
+      },
+      "expected": "ELIGIBLE_NEEDS_ATOMIC_CLAIM"
+    },
+    {
+      "id": "plan-hash-does-not-match-trusted-ref",
+      "overrides": {
+        "expectedPlanHash": "sha256:other"
+      },
+      "expected": "PLAN_HASH_MISMATCH"
+    },
+    {
+      "id": "trusted-hash-unavailable",
+      "overrides": {
+        "expectedPlanHash": null
+      },
+      "expected": "PLAN_HASH_MISMATCH"
+    },
+    {
+      "id": "missing-exact-skill-ledger",
+      "overrides": {
+        "plan": {
+          "skill_ledger": null
+        }
+      },
+      "expected": "PLAN_INCOMPLETE"
+    },
+    {
+      "id": "empty-write-scope",
+      "overrides": {
+        "plan": {
+          "write_scope": []
+        }
+      },
+      "expected": "PLAN_INCOMPLETE"
+    },
+    {
+      "id": "no-acceptance-gates",
+      "overrides": {
+        "plan": {
+          "acceptance": []
+        }
+      },
+      "expected": "PLAN_INCOMPLETE"
+    },
+    {
+      "id": "no-intent-identity",
+      "overrides": {
+        "plan": {
+          "human_intent_ref": null
+        }
+      },
+      "expected": "PLAN_INCOMPLETE"
+    }
+  ]
+}

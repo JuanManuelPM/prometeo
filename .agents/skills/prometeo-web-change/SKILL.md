@@ -15,3 +15,6 @@ Read Constitution, Design DNA index, `ui-workspace-v1/continuity/evolution-v1/ID
 - Test old functionality, mobile behavior, direct assets, security, offline/staleness, rollback, and served bytes when claiming published. New widget needs CONTEXT, PROMPT, EXAM, messages, references, versions.
 - Return scoped diff, tests, evidence, regression/failure notes and continuity in authorized store.
 
+
+## Required proof-first gate for material UI changes
+Before writing code, load `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md`. Define what the human must DO/SEE/CHECK, design FEATURE→PROOF and V6 demo first, run acceptance RED (if defect), implement minimal GREEN, test preservation, then compile/test REAL page in Demo Engine V6. Synthetic labs do not prove the widget. Leave staged candidate if demo/release gates are unverified. Quick TV switches are explicitly exempt; they use the existing state-owner path and immediate readback.

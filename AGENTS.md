@@ -1,3 +1,7 @@
+
+## Prometeo UI quality method (source candidate on PR #71)
+For a material page/widget build, read `coordination/one-turn/v1/PROOF_FIRST_BUILD_METHOD_V1.md` before code and apply proof/demo design → failing acceptance when applicable → minimum fix → green/regression → real-page Demo Engine V6 → release gating → durable receipt. This is NOT a worker runtime and NOT an automatic ChatGPT Project skill installation. Fast show commands (`🔥tv calendario`) retain immediate existing behavior without development overhead. Example PR #72 is TESTED_LOCAL only; no V6/served claims. All 45 EVO entries remain unverified. Follow the owner and authority restrictions below.
+
 # Current worker control-plane entry: OBEY-v2
 
 When a human explicitly authorizes connected tools for Prometeo and invokes the public worker protocol at `/o/`, that protocol is the authoritative entry for the session.
@@ -137,3 +141,16 @@ Agent Runtime / Network coordinate work only. Current / Catalog / Lineage / Rein
 
 ## Prioridad 2026-10-08: ONE TURN
 Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
+
+## 🔥 Fire commands (candidate; not automatically installed)
+Human input starting with `🔥` is a Prometeo convenience alias when the consuming chat/project has the bootstrap configured. See `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`, `.agents/skills/prometeo-fire/SKILL.md` and `coordination/one-turn/v1/FIRE_ROUTER_CONTRACT_V1.md`.
+- `🔥` = safe resync/continue if authorized; `🔥personal`, `🔥libros`, `🔥examen`, `🔥web`, `🔥plan`, `🔥criticar`, `🔥publicar`, `🔥skills`, `🔥estado`, `🔥guardar` route task intent, not execution permissions.
+- This dispatch must never override OBEY-v2 `/o/` entry and active Work Packet. An emoji is not a lease, a security grant, a private data export license, or an autonomous chat wake.
+- For material changes, load context/skills only on demand, validate against current owners, do evidence-based self-critique and retain explicit return/continuity. A GitHub skill is not an installed ChatGPT skill until configured.
+
+### Especial de inventario 🔥prometeo (candidate, no installed app inference)
+The command `🔥prometeo` (with optional task/topic) is NOT ordinary `🔥` resume. It dispatches to `.agents/skills/prometeo-skill-scout/SKILL.md` and must examine all visible skill metadata, enumerate those relevant to the case with provenance/status and no arbitrary top-N cap. The selection itself is READ ONLY; it never installs, executes, promotes or grants tool authorization.
+
+## 2026-10-09 · RELEVO AL TERMINAR WORK / CRÍTICA DE SKILLS
+La continuidad humana previa/post Work **no debe perderse**: `coordination/one-turn/v1/FIRE_WORK_RESULT_HANDOFF_V1.md` recoge one-turn desde web, 12 packets del ZIP entregados a Work, atlas de libros, UI minimalista/nafta/telemetría opcional, fotos pendientes y siguiente auditoría independiente de la respuesta final de Work. El user informó que Work terminó, pero todavía no se recibió su reporte. NO atribuirle commits o validaciones.
+El registro FIRE candidato distingue `🔥prometeo`/`🔥proneteo` => `PREPARE_SKILLS_AND_PLAN` y un mensaje `.` en chat => `EXECUTE_PREPARED_PLAN` del plan exacto vigente (ver `coordination/one-turn/v1/FIRE_PREPARE_DOT_CONTRACT_V1.md`). Esta revisión por 2 mensajes es OPCIONAL en chat; la web exige UN mensaje humano por tarea y no espera punto. NO diseñar UI antes de fotos.
