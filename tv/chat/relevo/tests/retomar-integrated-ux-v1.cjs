@@ -131,9 +131,9 @@ for(const width of [360,390,430,844,1440]){
    status:200,contentType:'application/json',body:JSON.stringify(extended)}));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===6);
-  await page.waitForFunction(()=>document.querySelector('[data-project="facultad"]')?.getAttribute('aria-pressed')==='true');
-  assert.equal(await page.locator('[data-project="facultad"]').getAttribute('aria-pressed'),'true',
-   'Project selection lost when public registry changed');
+  await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
+  assert.equal(await page.locator('[data-project="persistencia"]').getAttribute('aria-pressed'),'true',
+   'Current Persistencia selection lost when public registry changed');
   await page.waitForFunction(()=>document.querySelector('#activityRows')?.textContent?.includes('Entrega sintética verificable sólo en test'));
   assert.match(await page.locator('#activityRows').innerText(),/Recibo público · Cambio candidato/);
   record('SIMULATED per-project candidate receipt is visible with truthful status and GitHub owner');
@@ -142,7 +142,7 @@ for(const width of [360,390,430,844,1440]){
   await page.locator('[data-project="laboratorio"]').click();
   assert.match(page.url(),/#laboratorio$/);
   await page.goBack({waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>document.querySelector('[data-project="facultad"]')?.getAttribute('aria-pressed')==='true');
+  await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
   record('SIMULATED new project appears without reload; existing projects and Back selection survive');
   // An invalid projection must never discard a previously verified catalog.
   await page.route('**/prometeo/tv/chat/relevo/retomar/reentrada.json*',r=>r.fulfill({
