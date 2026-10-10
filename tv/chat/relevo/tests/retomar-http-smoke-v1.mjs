@@ -99,7 +99,17 @@ try{
     assert.ok((await page.locator('#relayRows').innerText()).includes('Argentina'));
     assert.ok((await page.locator('#liveProofRows').innerText()).includes('COINCIDE byte a byte'));
     assert.ok(!(await page.locator('#liveProofRows').innerText()).includes('Cotejando respuesta'));
-    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Body overflow at '+width);
+    const overflow=await page.evaluate(()=>({
+      vw:innerWidth,scroll:document.documentElement.scrollWidth,
+      offenders:[...document.querySelectorAll('body *')].map(el=>{
+        const r=el.getBoundingClientRect(),c=getComputedStyle(el);
+        return {tag:el.tagName,cl:String(el.className).slice(0,85),id:el.id,
+          right:Math.round(r.right),left:Math.round(r.left),width:Math.round(r.width),
+          display:c.display,overflow:c.overflowX};
+      }).filter(x=>x.right>innerWidth+2&&x.display!=='none').sort((a,b)=>b.right-a.right).slice(0,15)
+    }));
+    if(overflow.scroll>width+1)console.error('J10_OVERFLOW_DIAGNOSTIC',width,JSON.stringify(overflow));
+    assert.ok(overflow.scroll<=width+1,'Body overflow at '+width);
     assert.deepEqual(await page.locator('#track .project h2').allTextContents(),
       reentry.projects.map(p=>p.label),'All catalog projects must be rendered in order');
     if(width<=390){
