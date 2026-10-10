@@ -66,6 +66,20 @@ for(const width of [360,390,430,844,1440]){
   await page.locator('.evidence-drawer summary').click();
   await page.waitForFunction(()=>document.querySelector('#liveProofRows').textContent.includes('NO VERIFICADOS'));
   record('Technical source evidence is expandable and GitHub 403 visible without fake release');
+  // Cold cross-chat recovery using actual public owner bytes, not a fabricated fixture.
+  // UI remains localhost candidate and is NOT mislabelled as the published version.
+  const liveResponse=await fetch('https://juanmanuelpm.github.io/prometeo/tv/chat/relevo/STATE_V1.json',{headers:{'cache-control':'no-cache'}});
+  assert.equal(liveResponse.status,200,'Cannot fetch REAL owner for cross-chat recovery');
+  const liveState=await liveResponse.json();
+  assert.ok(liveState.last_hop>=5&&liveState.history.length>=5,'Real public owner has lost HOP5');
+  assert.ok(liveState.history.some(e=>e.hop===5&&typeof e.episode_ref==='string'),'HOP5 lacks durable owner receipt');
+  await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(liveState)}));
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(hop=>document.querySelector('#activityRows')?.textContent?.includes('Relevo '+hop),liveState.last_hop);
+  assert.equal(await page.locator('#relayRows a').count(),liveState.history.length);
+  await page.screenshot({path:path.join(dir,'cold-crosschat-live-owner-390.png'),fullPage:true});
+  record('REAL gh-pages STATE HOP'+liveState.last_hop+' recovered into candidate via owner HTTP body');
+
  }
  await context.close();
 }
