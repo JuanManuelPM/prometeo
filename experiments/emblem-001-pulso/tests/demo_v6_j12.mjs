@@ -33,6 +33,8 @@ for(const v of [{width:390,height:844,name:'v6-portrait'},{width:1440,height:900
   const root=document.getElementById('j12-v6-harness');const raw=window.DEMO_ENGINE_V4_POINTERS||{};
   const pointers={arrow:{src:raw.arrow,hotspot:[9,8],size:48},hand:{src:raw.hand,hotspot:[22,5],size:48}};
   const engine=new DemoEngineV6(root,{title:'J12 PULSO · DEMO',steps:[]},{preset:'FAST',pointerAssets:pointers,abortOnHuman:false,audio:{enabled:false}});
+  const bounds=[];const originalAudit=engine._auditOverlayBounds.bind(engine);
+  engine._auditOverlayBounds=(name,el)=>{const br=el?.getBoundingClientRect(),bs=engine.ui.stage.getBoundingClientRect();bounds.push({name,pointer:br&&{x:br.x,y:br.y,w:br.width,h:br.height},stage:{x:bs.x,y:bs.y,w:bs.width,h:bs.height},mode:el?.style.position});originalAudit(name,el);};
   engine.setRecipe({demo:'J12 · PULSO',preset:'FAST',steps:[
     {show:'pulso.start',method:'look',hold:120},
     {activate:'pulso.start'},
@@ -45,9 +47,9 @@ for(const v of [{width:390,height:844,name:'v6-portrait'},{width:1440,height:900
   engine.setSpeed(2.5);
   await engine.play(0);
   const q=engine.qualityAudit(),events=engine.observer.export();
-  return {quality:q,actions:events.filter(x=>x.type==='click').map(x=>x.target),events:events.length,phase:window.__PULSO_TEST__.snapshot().phase,recipeSteps:engine.script.steps.length};
+  return {quality:q,actions:events.filter(x=>x.type==='click').map(x=>x.target),events:events.length,phase:window.__PULSO_TEST__.snapshot().phase,recipeSteps:engine.script.steps.length,bounds:bounds.slice(0,16)};
  });
- rec.quality=run.quality.issues;rec.actions=run.actions;rec.events=run.events;
+ rec.quality=run.quality.issues;rec.actions=run.actions;rec.events=run.events;rec.bounds=run.bounds;
  check('V6 actual engine executes full semantic recipe',run.recipeSteps>=7,run);
  check('V6 clicked real game start',run.actions.includes('pulso.start'),run.actions);
  check('V6 clicked real pause',run.actions.includes('pulso.pause'),run.actions);
@@ -61,5 +63,5 @@ for(const v of [{width:390,height:844,name:'v6-portrait'},{width:1440,height:900
  await ctx.close();
 }
 }finally{await browser.close();await fs.writeFile(OUT+'/v6-report.json',JSON.stringify({status:failed?'FAIL':'PASS',records},null,2));}
-console.log(JSON.stringify({status:failed?'FAIL':'PASS',records:records.map(x=>({viewport:x.viewport,checks:x.checks.length,failure:x.failure,actions:x.actions,quality:x.quality}))}));
+console.log(JSON.stringify({status:failed?'FAIL':'PASS',records:records.map(x=>({viewport:x.viewport,checks:x.checks.length,failure:x.failure,actions:x.actions,quality:x.quality,bounds:x.bounds?.slice(0,5)}))}));
 if(failed)process.exitCode=1;
