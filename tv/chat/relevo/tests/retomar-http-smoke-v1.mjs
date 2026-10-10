@@ -106,7 +106,7 @@ try{
         return {tag:el.tagName,cl:String(el.className).slice(0,85),id:el.id,
           right:Math.round(r.right),left:Math.round(r.left),width:Math.round(r.width),
           display:c.display,overflow:c.overflowX};
-      }).filter(x=>x.right>innerWidth+2&&x.display!=='none').sort((a,b)=>b.right-a.right).slice(0,15)
+      }).filter(x=>x.right>innerWidth+2&&x.display!=='none'&&x.right<innerWidth+700).sort((a,b)=>a.right-b.right).slice(0,30)
     }));
     if(overflow.scroll>width+1)console.error('J10_OVERFLOW_DIAGNOSTIC',width,JSON.stringify(overflow));
     assert.ok(overflow.scroll<=width+1,'Body overflow at '+width);
