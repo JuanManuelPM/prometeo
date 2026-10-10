@@ -35,6 +35,20 @@ jobs:
           exit 1
       - name: Test live module imports, touchscreen, UI and offline standalone
         run: node experiments/emblem-001-pulso/tests/browser_j12.mjs
+      - name: Fetch pinned original Demo Engine V6 source
+        run: |
+          python3 - <<'PY'
+          import pathlib,urllib.request
+          base='https://raw.githubusercontent.com/JuanManuelPM/Experimentos/6a497b66cb28abf6015df42255936819260d8ee8/'
+          paths=["demo-engine-v4/demo-engine-v3-base.js","demo-engine-v4/demo-engine-v4.js","demo-engine-v4/pointer-assets.js","demo-engine-v4/gesture-assets.js","demo-engine-v5/viewport.js","demo-engine-v5/annotation.js","demo-engine-v5/camera.js","demo-engine-v5/audio.js","demo-engine-v5/page-inspector.js","demo-engine-v5/recipe.js","demo-engine-v5/demo-engine-v5.js","demo-engine-v6/audio-v6.js","demo-engine-v6/viewport-authority.js","demo-engine-v6/annotation-v6.js","demo-engine-v6/demo-engine-v6.js"]
+          for path in paths:
+            target=pathlib.Path('/tmp/pulso-v6-runtime')/path
+            target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes(urllib.request.urlopen(base+path,timeout=30).read())
+          print('Pinned Demo Engine V6 modules:',len(paths))
+          PY
+      - name: V6 semantic walkthrough against actual game DOM
+        run: node experiments/emblem-001-pulso/tests/demo_v6_j12.mjs
       - name: Upload honest screenshots and checks
         if: always()
         uses: actions/upload-artifact@v4
