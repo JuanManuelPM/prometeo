@@ -104,6 +104,13 @@ for(const width of [360,390,430,480,844,1440]){
    assert.ok(viewport.coverFont>=40,'Typographic cover too small');
    assert.ok(activityCheck.every(e=>e.font>=22&&e.meta>=17),'Activity text/date still miniature');
  }
+ const covers=await page.locator('#track .cover-lettering').evaluateAll(nodes=>nodes.map(n=>({
+   text:n.textContent,visible:n.clientWidth,scroll:n.scrollWidth,
+   lines:getComputedStyle(n).whiteSpace,font:parseFloat(getComputedStyle(n).fontSize)
+ })));
+ assert.ok(covers.every(e=>e.lines==='nowrap'&&e.scroll<=e.visible+1),'Project title cropped/wrapped: '+JSON.stringify(covers));
+ assert.equal(await page.locator('#track .project[aria-pressed="true"]').first().evaluate(el=>getComputedStyle(el).outlineStyle),'none','Selected project has double ring');
+ record(width+'px: no orphan letters, clipped titles or double selection outline');
  record(width+'px: ACTUAL visual/CSS viewport, zoom, dark background and computed text sizes');
  assert.ok(activityCheck.every(e=>Number.isFinite(e.at)&&/Argentina/.test(e.text)),'Each visible activity must include a true Argentina date');
  assert.ok(activityCheck.every((e,i)=>i===0||activityCheck[i-1].at>=e.at),'Activity must be newest-first');
