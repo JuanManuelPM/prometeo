@@ -2,7 +2,8 @@
 from __future__ import annotations
 import base64,gzip,hashlib,json,re
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];V5=ROOT/'shared'/'universal-shell'/'v5';SOURCE=V5/'candidate'/'change-loop-source.html';TEMPLATE=ROOT/'index.html';OUT=V5/'change-loop-release-candidate'
+ROOT=Path(__file__).resolve().parents[1];V5=ROOT/'shared'/'universal-shell'/'v5';SOURCE=V5/'candidate'/'change-loop-source.html';TEMPLATE=V5/'release-candidate'/'root-index.html';OUT=V5/'change-loop-release-candidate'
+# Reuse the preserved V5 loader. Current root is Home v2 and is not a loader.
 
 def repl(t,p,r,label):
     out,n=re.subn(p,r,t,count=1)
@@ -39,3 +40,4 @@ def main():
     if decoded!=html:raise SystemExit('payload mismatch')
     print(json.dumps(m,ensure_ascii=False))
 if __name__=='__main__':main()
+
