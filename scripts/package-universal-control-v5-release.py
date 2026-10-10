@@ -2,7 +2,7 @@
 from __future__ import annotations
 import base64,gzip,hashlib,json,re
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1]; V5=ROOT/'shared'/'universal-shell'/'v5'; SOURCE=V5/'candidate'/'single-host-source.html'; TEMPLATE=ROOT/'index.html'; OUT=V5/'release-candidate'
+ROOT=Path(__file__).resolve().parents[1]; V5=ROOT/'shared'/'universal-shell'/'v5'; SOURCE=V5/'candidate'/'single-host-source.html'; TEMPLATE=V5/'release-candidate'/'index.html'; OUT=V5/'release-candidate'
 
 def replace_once(text,pattern,replacement,label):
     result,count=re.subn(pattern,replacement,text,count=1)

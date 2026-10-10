@@ -1,0 +1,122 @@
+name: Prometeo one-turn integration tests
+on:
+  pull_request:
+    paths:
+      - '.agents/**'
+      - 'coordination/**'
+      - 'scripts/**'
+      - 'shared/universal-shell/**'
+      - 'tv/chat/scene/**'
+      - '.github/workflows/prometeo-integration.yml'
+      - 'tests/tv-scene-demo-v6-browser.mjs'
+jobs:
+  integration-node-and-v5:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node FIRE bootstrap and scene acceptance
+        run: |
+          node --check scripts/prometeo-fire-router.mjs
+          node scripts/verify-prometeo-fire.mjs
+          node scripts/verify-prometeo-dot.mjs
+          node scripts/verify-prometeo-proof-first.mjs
+          node --test coordination/chat-bootstrap/v1/select-and-load.test.mjs
+          node tv/chat/scene/tests/verify-scene-regression.mjs tv/chat/scene/index.html
+      - name: GitHub-only cold bootstrap, real pinned skill reads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node coordination/chat-bootstrap/v1/select-and-load.mjs "🔥prometeo estudiá Piaget" > /tmp/prometeo-cold-gh.json
+          node -e "const r=require('/tmp/prometeo-cold-gh.json'); if(r.plan.mode!=='EXECUTE_THIS_TURN'||!r.skills.some(x=>x.name==='prometeo-fire'&&x.status==='LOADED')||!r.skills.some(x=>x.name==='prometeo-knowledge'&&x.status==='LOADED')||!r.skills.every(x=>x.bytes>100))process.exit(2);console.log('PASS GitHub-only cold process, actual pinned skills',r.skills.map(x=>x.name))"
+      - name: V5 reproducible generator and release package
+        run: |
+          python scripts/build-universal-control-v5-change-loop.py
+          python scripts/package-universal-control-v5-change-loop-release.py
+          grep -q 'async function loadContinueChat' shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q "action==='continue-chat'" shared/universal-shell/v5/candidate/change-loop-source.html
+
+  real-scene-v6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install original engine and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+          ORIGIN=/tmp/prometeo-original-demo-engine
+          mkdir -p "$ORIGIN"
+          REF=ebc527665874dfdd025e8ccf3b2db2407491831a
+          files=(
+            demo-engine-v4/demo-engine-v3-base.js
+            demo-engine-v4/demo-engine-v4.js
+            demo-engine-v4/pointer-assets.js
+            demo-engine-v4/gesture-assets.js
+            demo-engine-v5/viewport.js
+            demo-engine-v5/annotation.js
+            demo-engine-v5/camera.js
+            demo-engine-v5/audio.js
+            demo-engine-v5/page-inspector.js
+            demo-engine-v5/recipe.js
+            demo-engine-v5/demo-engine-v5.js
+            demo-engine-v6/audio-v6.js
+            demo-engine-v6/viewport-authority.js
+            demo-engine-v6/annotation-v6.js
+            demo-engine-v6/demo-engine-v6.js
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "$ORIGIN/$(dirname "$file")"
+            curl --fail --location --silent --show-error --retry 3 --max-time 30 "https://raw.githubusercontent.com/JuanManuelPM/Experimentos/$REF/$file" -o "$ORIGIN/$file"
+          done
+      - name: Run V6 against PR72 real scene (not Window Lab)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 > /tmp/v6-scene-http.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:4173/tv/chat/scene/index.html >/dev/null && break; sleep 0.25; done
+          node tests/tv-scene-demo-v6-browser.mjs
+      - name: Preserve V6 receipts and real DOM screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-scene-demo-v6-${{ github.run_id }}
+          path: /tmp/prometeo-scene-v6-report/
+          if-no-files-found: warn
+
+  served-public-http-readonly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read actual GitHub Pages bytes, without promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://juanmanuelpm.github.io/prometeo"
+          curl --fail --location --silent --show-error --retry 3 --max-time 35 "$base/tv/chat/" -o /tmp/tv-served.html
+          curl --fail --location --silent --show-error --retry 3 --max-time 35 "$base/tv/chat/scene/" -o /tmp/scene-served.html
+          curl --fail --location --silent --show-error --retry 3 --max-time 35 "$base/tv/chat/state.json" -o /tmp/tv-served-state.json
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          paths=['/tmp/tv-served.html','/tmp/scene-served.html','/tmp/tv-served-state.json']
+          for name in paths:
+              data=Path(name).read_bytes()
+              assert data, 'empty published asset '+name
+              print('SERVED_HTTP_BYTES',name,len(data),'SHA256',hashlib.sha256(data).hexdigest())
+          served=Path('/tmp/scene-served.html').read_bytes()
+          candidate=Path('tv/chat/scene/index.html').read_bytes()
+          print('PR72_SCENE_CANDIDATE_SERVED',str(served==candidate).lower())
+          state=json.loads(Path('/tmp/tv-served-state.json').read_text())
+          assert state.get('schema')=='prometeo.tv-from-chat-state/v1'
+          print('SERVED_TV_REVISION',state.get('revision'))
+          PY

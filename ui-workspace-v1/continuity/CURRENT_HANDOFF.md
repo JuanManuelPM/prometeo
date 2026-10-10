@@ -24,3 +24,10 @@ No interpreta V15 como source en main ni sustituye Design DNA, Work Graph o el C
 
 ## Prioridad 2026-10-08: ONE TURN
 Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
+
+## IDEA HUMANA NUEVA: FIRE DISPATCH 🔥
+Un símbolo inicial más palabra reemplaza prompts largos en chats configurados. El registro de comandos y tests está en `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`; skill `.agents/skills/prometeo-fire/SKILL.md`. Estado en esta rama: CANDIDATE, sin activación automática en ChatGPT ni efecto en website. Más detalles en FIRE_ROUTER_CONTRACT_V1.md.
+
+## 2026-10-09 · RELEVO AL TERMINAR WORK / CRÍTICA DE SKILLS
+La continuidad humana previa/post Work **no debe perderse**: `coordination/one-turn/v1/FIRE_WORK_RESULT_HANDOFF_V1.md` recoge one-turn desde web, 12 packets del ZIP entregados a Work, atlas de libros, UI minimalista/nafta/telemetría opcional, fotos pendientes y siguiente auditoría independiente de la respuesta final de Work. El user informó que Work terminó, pero todavía no se recibió su reporte. NO atribuirle commits o validaciones.
+El registro FIRE candidato distingue `🔥prometeo`/`🔥proneteo` => `PREPARE_SKILLS_AND_PLAN` y un mensaje `.` en chat => `EXECUTE_PREPARED_PLAN` del plan exacto vigente (ver `coordination/one-turn/v1/FIRE_PREPARE_DOT_CONTRACT_V1.md`). Esta revisión por 2 mensajes es OPCIONAL en chat; la web exige UN mensaje humano por tarea y no espera punto. NO diseñar UI antes de fotos.

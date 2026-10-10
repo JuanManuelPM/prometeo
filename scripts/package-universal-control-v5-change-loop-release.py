@@ -2,7 +2,7 @@
 from __future__ import annotations
 import base64,gzip,hashlib,json,re
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];V5=ROOT/'shared'/'universal-shell'/'v5';SOURCE=V5/'candidate'/'change-loop-source.html';TEMPLATE=ROOT/'index.html';OUT=V5/'change-loop-release-candidate'
+ROOT=Path(__file__).resolve().parents[1];V5=ROOT/'shared'/'universal-shell'/'v5';SOURCE=V5/'candidate'/'change-loop-source.html';TEMPLATE=V5/'change-loop-release-candidate'/'index.html';OUT=V5/'change-loop-release-candidate'
 
 def repl(t,p,r,label):
     out,n=re.subn(p,r,t,count=1)
