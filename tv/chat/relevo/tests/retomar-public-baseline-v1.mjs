@@ -96,9 +96,33 @@ try {
        img&&img.complete&&img.naturalWidth===256&&img.naturalHeight===171;
     },null,{timeout:30000});
     assert.match(await page.locator('#activityRows').innerText(),/Archivo Habitado/);
-    assert.match(await page.locator('#workArchive').innerText(),/14:29/);
-    assert.match(await page.locator('#workArchive').innerText(),/hora desconocida/);
+    assert.match(await page.locator('#workArchive').textContent(),/14:29/);
+    assert.match(await page.locator('#workArchive').textContent(),/hora desconocida/);
     assert.equal(await page.locator('#track .project').count(),5);
+    // The published baseline may be either the old responsive skin or the
+    // future PR91 release. Once PR91 is served, enforce true mobile usability.
+    if(await page.locator('.activity-sort-note').count()){
+      const layout=await page.evaluate(()=>({
+        rail:document.querySelector('#track').scrollWidth>document.querySelector('#track').clientWidth,
+        cardWidth:document.querySelector('#track .project').getBoundingClientRect().width,
+        feed:[...document.querySelectorAll('#activityRows article')].map(e=>({
+          at:Date.parse(e.dataset.occurredAt),
+          when:e.querySelector('time')?.textContent,
+          titleFont:parseFloat(getComputedStyle(e.querySelector('strong')).fontSize),
+          dateFont:parseFloat(getComputedStyle(e.querySelector('time')).fontSize)
+        })),
+        collapsed:document.querySelector('#workArchive .work-expanded')?.open===false
+      }));
+      assert.ok(layout.rail,'Served project rail is not horizontally swipeable');
+      assert.ok(layout.collapsed,'Served dossier still overwhelms home');
+      assert.ok(layout.feed.length>=5&&layout.feed.every((e,i)=>Number.isFinite(e.at)&&/Argentina/.test(e.when)&&
+        (i===0||layout.feed[i-1].at>=e.at)),'Served activity lacks dates or newest-first order');
+      if(width===390){
+        assert.ok(layout.cardWidth>=width*.78,'Served project card is too small');
+        assert.ok(layout.feed.every(e=>e.titleFont>=18&&e.dateFont>=14),'Served activity uses miniature text');
+      }
+      evidence.checks.push(width+'px: PUBLIC PR91 readability, chronology and expandable dossier');
+    }
     evidence.checks.push(width+'px: PUBLIC PR88 dossier + 1-bit PNG decoded 256x171 + no false publication');
     note('published_pr88_dom_'+width,{visible:true,image_loaded:true,project_count:5});
     evidence.checks.push(width+'px: PUBLIC receipt of PR83 rendered in real Chromium');
