@@ -109,9 +109,49 @@ for(const width of [360,390,430,844,1440]){
   record('SIMULATED future owner event appears on same OPEN page via focus without reload (NOT a real chat)');
   await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.abort('failed'));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
-  await page.waitForFunction(()=>document.querySelector('#watchStatus')?.textContent.includes('Sin actualización verificable'));
+  await page.waitForFunction(()=>document.querySelector('#watchStatus')?.textContent.includes('Relevo sin actualizar'));
   assert.match(await page.locator('#activityRows').innerText(),new RegExp('Relevo '+nextHop));
   record('Offline refresh preserves last verified display with truthful stale status');
+  // The same open URL must discover a project added by ANOTHER chat to the
+  // existing public projection. This future project is explicitly a fixture,
+  // NOT evidence that another chat actually created a product.
+  const registry=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/retomar/reentrada.json'),'utf8'));
+  const extraProject={id:'laboratorio',label:'Laboratorio',tag:'Proyecto',
+   description:'Proyecto de prueba sintético, exclusivo del test local',
+   link:'/prometeo/tv/chat/relevo/retomar/',
+   source_path:'tv/chat/relevo/STATE_V1.json',source_branch:'gh-pages'};
+  const testReceipt={id:'fixture-lab-20261010',project_id:'laboratorio',state:'CANDIDATE',
+   title:'Entrega sintética verificable sólo en test',
+   summary:'No proviene de un chat real ni acredita publicación.',
+   occurred_at_utc:'2026-10-10T14:00:00.000Z',
+   source_url:'https://github.com/JuanManuelPM/prometeo/pull/83'};
+  const extended={...registry,projects:[...registry.projects,extraProject],
+   public_receipts:[...(registry.public_receipts||[]),testReceipt]};
+  await page.route('**/prometeo/tv/chat/relevo/retomar/reentrada.json*',r=>r.fulfill({
+   status:200,contentType:'application/json',body:JSON.stringify(extended)}));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===6);
+  await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
+  assert.equal(await page.locator('[data-project="persistencia"]').getAttribute('aria-pressed'),'true',
+   'Current Persistencia selection lost when public registry changed');
+  await page.waitForFunction(()=>document.querySelector('#activityRows')?.textContent?.includes('Entrega sintética verificable sólo en test'));
+  assert.match(await page.locator('#activityRows').innerText(),/Recibo público · Cambio candidato/);
+  record('SIMULATED per-project candidate receipt is visible with truthful status and GitHub owner');
+  assert.equal(await page.locator('[data-project="persistencia"]').count(),1,
+   'Concurrent old project vanished');
+  await page.locator('[data-project="laboratorio"]').click();
+  assert.match(page.url(),/#laboratorio$/);
+  await page.goBack({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
+  record('SIMULATED new project appears without reload; existing projects and Back selection survive');
+  // An invalid projection must never discard a previously verified catalog.
+  await page.route('**/prometeo/tv/chat/relevo/retomar/reentrada.json*',r=>r.fulfill({
+   status:200,contentType:'application/json',body:JSON.stringify({...extended,
+     projects:[...extended.projects,extraProject]})}));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(()=>document.querySelector('#notice')?.textContent.includes('No se pudo comprobar el catálogo'));
+  assert.equal(await page.locator('#track .project').count(),6);
+  record('Malformed/duplicate registry rejected; previously loaded projects remain available');
 
  }
  await context.close();
