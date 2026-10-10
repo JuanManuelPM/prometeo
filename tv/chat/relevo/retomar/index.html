@@ -138,9 +138,12 @@ const proof=document.getElementById('liveProof');
 const proofRows=document.getElementById('liveProofRows');
 const proofRefresh=document.getElementById('verifyAgain');
 const relayPanel=document.getElementById('relayHistory'),relayRows=document.getElementById('relayRows');
-let relayRequest=0;
+let relayRequest=0,highestPublicHopSeen=-1;
 function renderRelayHistory(state,turn,i){
  if(selected!==i||turn!==relayRequest)return;
+ // Concurrent requests may finish out of order. Never replace newer durable state with older.
+ if(!Number.isInteger(state?.last_hop)||state.last_hop<highestPublicHopSeen)return;
+ highestPublicHopSeen=state.last_hop;
  relayRows.replaceChildren();
  if(!Array.isArray(state.history)){relayRows.textContent='Historial no verificado: fuente inválida.';return;}
  const records=state.history.slice(-8).reverse().filter(h=>Number.isInteger(h.hop)&&
@@ -280,7 +283,7 @@ function setSelected(i,push=false){
   nodes.copy.disabled=!(primary&&primary.exact_prompt);
   nodes.state.textContent='Consultando último salto...';
   fetch('../STATE_V1.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(j=>{
-   if(selected===i&&relayTurn===relayRequest)nodes.state.textContent='Último registro: relevo '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'.';
+   if(selected===i&&relayTurn===relayRequest&&Number.isInteger(j.last_hop)&&j.last_hop>=highestPublicHopSeen)nodes.state.textContent='Último registro: relevo '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'.';
    renderRelayHistory(j,relayTurn,i);
   }).catch(()=>{if(selected===i&&relayTurn===relayRequest){nodes.state.textContent='Estado de relevo no comprobado. El nuevo chat debe consultarlo.';relayRows.textContent='Historial no verificado: no se pudo leer STATE_V1.json.';}});
  }else{
@@ -308,7 +311,7 @@ async function refreshActivity({refreshCommits=false}={}){
   return;
  }
  watch.textContent='Revisado: '+argentineDate(new Date())+' · Consulta cada minuto; cambios de archivos cada 15 min.';
- if(selected>=0&&items[selected]?.id==='persistencia'&&Number.isInteger(state.value.last_hop)){
+ if(selected>=0&&items[selected]?.id==='persistencia'&&Number.isInteger(state.value.last_hop)&&state.value.last_hop>=highestPublicHopSeen){
   nodes.state.textContent='Último registro: relevo '+state.value.last_hop+' · '+(state.value.history.length?dateLabel(state.value.history.at(-1).date_utc):'sin fecha comprobada')+'.';
   renderRelayHistory(state.value,relayRequest,selected);
  }
