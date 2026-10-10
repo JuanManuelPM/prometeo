@@ -109,7 +109,7 @@ for(const width of [360,390,430,844,1440]){
   record('SIMULATED future owner event appears on same OPEN page via focus without reload (NOT a real chat)');
   await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.abort('failed'));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
-  await page.waitForFunction(()=>document.querySelector('#watchStatus')?.textContent.includes('Sin actualización verificable'));
+  await page.waitForFunction(()=>document.querySelector('#watchStatus')?.textContent.includes('Relevo sin actualizar'));
   assert.match(await page.locator('#activityRows').innerText(),new RegExp('Relevo '+nextHop));
   record('Offline refresh preserves last verified display with truthful stale status');
   // The same open URL must discover a project added by ANOTHER chat to the
