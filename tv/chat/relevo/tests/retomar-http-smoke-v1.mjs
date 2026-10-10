@@ -153,3 +153,5 @@ try{
   },null,2));
 }
 console.log('HTTP_CANDIDATE_BROWSER_PASS',checks.length);
+// Independent post-merge Pages readback; separate receipt from localhost proof.
+await import('./j10-pages-readback-v1.mjs');
