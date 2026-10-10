@@ -14,6 +14,8 @@ const record=(x)=>{checks.push(x);console.log('PASS',x)};
 (async()=>{
 await mkdir(dir,{recursive:true});
 const owner=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/STATE_V1.json'),'utf8'));
+const catalog=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/retomar/reentrada.json'),'utf8'));
+const initialProjectCount=catalog.projects.length;
 const server=createServer(async(req,res)=>{
  const pathname=new URL(req.url,'http://127.0.0.1').pathname;
  if(!pathname.startsWith('/prometeo/')){res.writeHead(404);return res.end('Not found');}
@@ -35,7 +37,7 @@ for(const width of [360,390,430,480,844,1440]){
  await page.route('https://api.github.com/repos/JuanManuelPM/prometeo/**',r=>r.fulfill({status:403,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{"message":"No auth in this test"}'}));
  const nav=await page.goto(url,{waitUntil:'domcontentloaded'});
  assert.equal(nav.status(),200);
- await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===5);
+ await page.waitForFunction(n=>document.querySelectorAll('#track .project').length===n,initialProjectCount);
  await page.waitForFunction(()=>document.querySelectorAll('#activityRows article').length>0);
  assert.equal(await page.locator('h1').innerText(),'Proyectos');
  assert.match(await page.locator('.entry-note').innerText(),/cualquier chat de este Proyecto/);
@@ -43,10 +45,10 @@ for(const width of [360,390,430,480,844,1440]){
  assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
  assert.equal(await page.locator('.intro').count(),0,'PowerPoint explanation remains');
  assert.equal(await page.locator('#track img').count(),1,'Only the authentic PR88 raster may be a pictorial cover');
- assert.equal(await page.locator('#track .cover-lettering').count(),4,'The other four projects need accessible typographic covers');
+ assert.equal(await page.locator('#track .cover-lettering').count(),initialProjectCount-1,'All non-raster projects need typographic covers');
  assert.equal(await page.locator('#track img[src$=".svg"]').count(),0,'Rejected geometric SVG cover returned');
  assert.ok(await page.locator('#track img').evaluateAll(nodes=>nodes.every(img=>img.complete&&img.naturalWidth>0)),'Covers failed HTTP');
- assert.equal(await page.locator('#track .project').count(),5);
+ assert.equal(await page.locator('#track .project').count(),initialProjectCount);
  // FEATURE-01..04: real PR88 owner data appears on the SAME HOP8 page,
  // never promoted into a fictitious served redesign or synthetic chat timeline.
  await page.waitForFunction(()=>!document.querySelector('#workArchive')?.hidden);
@@ -66,7 +68,7 @@ for(const width of [360,390,430,480,844,1440]){
  assert.equal(await dossier.locator('.work-alt').count(),3);
  await page.waitForFunction(()=>{const im=document.querySelector('#workArchive .work-art img');return im&&im.complete&&im.naturalWidth===256&&im.naturalHeight===171});
  assert.equal(await dossier.locator('a[href="https://github.com/JuanManuelPM/prometeo/pull/88"]').count(),1);
- assert.equal(await page.locator('#track .project').count(),5,'Candidate creates duplicate top-level project');
+ assert.equal(await page.locator('#track .project').count(),initialProjectCount,'Candidate creates duplicate top-level project');
  assert.match(await page.locator('#activityRows').innerText(),/Archivo Habitado/);
  const pos=await page.evaluate(()=>({activity:document.querySelector('#activityTitle').getBoundingClientRect().top,archive:document.querySelector('#workArchive').getBoundingClientRect().top}));
  assert.ok(pos.activity<pos.archive,'Project activity must remain above the long archive');
@@ -201,7 +203,7 @@ for(const width of [360,390,430,480,844,1440]){
   await page.route('**/prometeo/tv/chat/relevo/retomar/reentrada.json*',r=>r.fulfill({
    status:200,contentType:'application/json',body:JSON.stringify(extended)}));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
-  await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===6);
+  await page.waitForFunction(n=>document.querySelectorAll('#track .project').length===n,initialProjectCount+1);
   await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
   assert.equal(await page.locator('[data-project="persistencia"]').getAttribute('aria-pressed'),'true',
    'Current Persistencia selection lost when public registry changed');
@@ -221,7 +223,7 @@ for(const width of [360,390,430,480,844,1440]){
      projects:[...extended.projects,extraProject]})}));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await page.waitForFunction(()=>document.querySelector('#notice')?.textContent.includes('No se pudo comprobar el catálogo'));
-  assert.equal(await page.locator('#track .project').count(),6);
+  assert.equal(await page.locator('#track .project').count(),initialProjectCount+1);
   record('Malformed/duplicate registry rejected; previously loaded projects remain available');
 
  }
