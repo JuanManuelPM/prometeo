@@ -47,6 +47,23 @@ try {
   assert.ok(registry.projects?.length>=5&&hop8Receipt?.source_url==='https://github.com/JuanManuelPM/prometeo/pull/83',
    'PR83 delivery not represented by real public project receipt');
   note('published_hop8_receipt',{id:hop8Receipt.id,status:hop8Receipt.state,project_id:hop8Receipt.project_id,source_url:hop8Receipt.source_url});
+  // PR89: verify the actual served public projection, not a local fixture.
+  // This publishes the PR88 dossier, NOT the unapproved PR88 redesign.
+  const artisticReceipt=registry.public_receipts?.find(r=>r.id==='widgets-archivo-habitado-pr88-tested-20261010');
+  const dossiers=registry.work_dossiers?.filter(w=>w.work_id==='archivo-habitado-pr88')||[];
+  assert.equal(registry.projects.length,5,'Project history unexpectedly replaced or duplicated');
+  assert.equal(dossiers.length,1,'Public PR88 dossier absent or duplicated');
+  assert.equal(artisticReceipt?.state,'TESTED','Candidate cannot claim published artifact');
+  assert.equal(artisticReceipt?.project_id,'widgets');
+  assert.equal(dossiers[0].state,'TESTED');
+  assert.equal(dossiers[0].art?.width,256);
+  assert.equal(dossiers[0].art?.height,171);
+  assert.equal(dossiers[0].request_at_utc,null,'No reliable original message timestamp');
+  assert.equal(dossiers[0].chat_started_at_utc,null);
+  assert.equal(dossiers[0].chat_ended_at_utc,null);
+  note('published_pr88_dossier',{id:dossiers[0].work_id,project_id:dossiers[0].project_id,state:dossiers[0].state,
+    image_dimensions:[dossiers[0].art.width,dossiers[0].art.height],raw_chat_timestamps:'UNKNOWN',redesign_served:false});
+  evidence.checks.push('PR88 real candidate dossier and truthful TESTED receipt available from PUBLIC JSON');
   evidence.checks.push('HOP8 independent chat episode and PR83 receipt available on PUBLIC Pages');
   evidence.checks.push('Public response 200 + exact byte SHA vs GH Pages source','Public STATE contains persisted cross-chat hops');
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
@@ -68,6 +85,22 @@ try {
       const feed=document.querySelector('#activityRows');
       return !!feed&&feed.textContent.includes('La pantalla detecta proyectos nuevos');
     },null,{timeout:30000});
+    await page.waitForFunction(()=>{
+      const panel=document.querySelector('#workArchive');
+      const img=panel?.querySelector('.work-art img');
+      return panel&&!panel.hidden&&
+       panel.textContent.includes('Archivo Habitado')&&
+       panel.textContent.includes('Ciudad Isométrica')&&
+       panel.textContent.includes('Observatorio Monumental')&&
+       panel.textContent.includes('NO está publicado ni aprobado')&&
+       img&&img.complete&&img.naturalWidth===256&&img.naturalHeight===171;
+    },null,{timeout:30000});
+    assert.match(await page.locator('#activityRows').innerText(),/Archivo Habitado/);
+    assert.match(await page.locator('#workArchive').innerText(),/14:29/);
+    assert.match(await page.locator('#workArchive').innerText(),/hora desconocida/);
+    assert.equal(await page.locator('#track .project').count(),5);
+    evidence.checks.push(width+'px: PUBLIC PR88 dossier + 1-bit PNG decoded 256x171 + no false publication');
+    note('published_pr88_dom_'+width,{visible:true,image_loaded:true,project_count:5});
     evidence.checks.push(width+'px: PUBLIC receipt of PR83 rendered in real Chromium');
     await page.waitForFunction(()=>{
       const cover=document.querySelector('#track .project .cover img');
@@ -96,7 +129,7 @@ try {
     evidence.checks.push(width+'px: PUBLIC real Chromium DOM, 5 cards, no overflow');
     await context.close();
   }
-  evidence.outcome='BASELINE_SERVED_VERIFIED';
+  evidence.outcome='PUBLIC_PR88_EXPEDIENTE_SERVED_VERIFIED_REDESIGN_STILL_CANDIDATE';
 } catch(e){
   evidence.outcome='BLOCKED';
   evidence.errors.push(String(e.stack||e));
