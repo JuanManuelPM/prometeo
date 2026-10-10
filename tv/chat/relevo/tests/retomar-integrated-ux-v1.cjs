@@ -104,7 +104,7 @@ for(const width of [360,390,430,844,1440]){
   await page.waitForFunction(hop=>document.querySelector('#activityRows')?.textContent.includes('Relevo '+hop),nextHop);
   assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
   await page.waitForFunction(hop=>document.querySelector('#relayRows')?.textContent.includes('Salto '+hop),nextHop,{timeout:5000});
-  assert.ok((await page.locator('#relayRows').innerText()).includes('Salto '+nextHop),
+  assert.ok((await page.locator('#relayRows').textContent()).includes('Salto '+nextHop),
    'Selected project did not receive fresh public owner state');
   record('SIMULATED future owner event appears on same OPEN page via focus without reload (NOT a real chat)');
   await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.abort('failed'));
