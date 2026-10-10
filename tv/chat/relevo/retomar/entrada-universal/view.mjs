@@ -16,10 +16,11 @@ async function render(g){
  mount.replaceChildren();
  let active=g.routes[0],chosen=g.nodes[0],technical=false,evolution=false;
  const head=elm('header','ue-head'),hgroup=elm('div'),kicker=elm('div','ue-kicker','PERSISTENCIA / ENTRADA UNIVERSAL / CANDIDATO'),title=elm('h2','', 'El mapa de decisiones'),intro=elm('p','','Explorá qué ocurre desde un mensaje hasta un resultado durable. Las rutas A–E son ejemplos de prueba, no chats ejecutándose en vivo.');
- hgroup.append(kicker,title,intro);head.append(hgroup);
+ const comparisonNote=elm('p','ue-mode-note','ACTUAL · módulos existentes visibles; candidatos y dependencias faltantes atenuados.');
+ hgroup.append(kicker,title,intro,comparisonNote);head.append(hgroup);
  const controls=elm('div','ue-buttons');
  const explain=button('Modo: humano',()=>{technical=!technical;explain.textContent=technical?'Modo: técnico':'Modo: humano';inspect();},controls);
- const compare=button('Arquitectura: actual',()=>{evolution=!evolution;compare.textContent=evolution?'Arquitectura: evolución':'Arquitectura: actual';compare.setAttribute('aria-pressed',String(evolution));drawGraph();inspect();},controls);
+ const compare=button('Arquitectura: actual',()=>{evolution=!evolution;compare.textContent=evolution?'Arquitectura: evolución':'Arquitectura: actual';compare.setAttribute('aria-pressed',String(evolution));comparisonNote.textContent=evolution?'EVOLUCIÓN PROPUESTA · cartuchos candidatos y bloqueos visibles, sin afirmar implementación.':'ACTUAL · módulos existentes visibles; candidatos y dependencias faltantes atenuados.';drawGraph();inspect();},controls);
  head.append(controls);mount.append(head);
  const scenes=elm('nav','ue-scenes');scenes.setAttribute('aria-label','Escenarios de entrada');mount.append(scenes);
  const summary=elm('div','ue-summary');summary.dataset.demoId='universal.summary';const summaryKind=elm('span','ue-kicker'),summaryTitle=elm('strong'),summaryText=elm('p'),summaryStatus=elm('p');summary.append(summaryKind,summaryTitle,summaryText,summaryStatus);mount.append(summary);
@@ -70,7 +71,7 @@ async function render(g){
    const path=svgEl('path',{d:'M '+x+' '+y+' C '+(x+bend)+' '+y+' '+(xx-bend)+' '+yy+' '+xx+' '+yy,class:'ue-link '+(edgeSet.has(e.from+'>'+e.to)?'active':'muted')});links.append(path);
   }
   g.nodes.forEach((n,i)=>{
-   const group=svgEl('g',{class:'ue-node '+n.status+(chosen.id===n.id?' selected':'')+(!illuminated.has(n.id)&&!evolution?' ue-muted':''),transform:'translate('+n.x+' '+n.y+')',tabindex:'0',role:'button','aria-label':n.title+', '+g.status_legend[n.status]});
+   const group=svgEl('g',{class:'ue-node '+n.status+(chosen.id===n.id?' selected':'')+(!evolution&&(!['verified','implemented'].includes(n.status)||!illuminated.has(n.id))?' ue-muted':''),transform:'translate('+n.x+' '+n.y+')',tabindex:'0',role:'button','aria-label':n.title+', '+g.status_legend[n.status]});
    group.dataset.node=n.id;group.dataset.demoId='universal.node.'+n.id;
    group.append(svgEl('rect',{width:205,height:90,rx:3}));
    group.append(svgEl('rect',{class:'strip',width:205,height:9}));
