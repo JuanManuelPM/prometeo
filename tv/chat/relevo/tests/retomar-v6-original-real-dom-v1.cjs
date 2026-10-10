@@ -77,7 +77,7 @@ async function run(){
      ]){
        const node=document.createElement(element);node.setAttribute(attr,'');
        if(attr==='data-demo-pointer'){
-         node.style.cssText='position:absolute;z-index:1000;width:32px;height:32px;border:3px solid #111111;border-radius:50%;pointer-events:none;';
+         node.style.cssText='position:absolute;left:0;top:0;z-index:1000;width:32px;height:32px;border:3px solid #111111;border-radius:50%;pointer-events:none;';
          node.hidden=true;
        }else if(attr==='data-demo-focus'){
          node.style.cssText='position:absolute;z-index:998;border:2px solid #111111;pointer-events:none;';
