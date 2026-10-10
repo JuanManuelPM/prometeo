@@ -258,6 +258,32 @@ body.pwa{--ink:#f6f4ed;--paper:#0b0c0f;background:#0b0c0f;color:#f6f4ed;font-siz
  .pwa .cover-lettering{font-size:57px}
 }
 
+
+/* Encargos debajo de la página: read model de recibos GitHub, no liveness sintética. */
+.pwa .intent-ledger{margin:38px 0 8px;padding:25px 0 12px;border-top:1px solid #6a7180}
+.pwa .intent-ledger>h2{font-size:clamp(29px,4vw,39px);line-height:1.12;letter-spacing:-.04em;color:#fff;margin:0 0 9px}
+.pwa .intent-ledger>p{font-size:16px;line-height:1.5;color:#cdd3dd;margin:0 0 20px}
+.pwa .intent-card{border:1px solid #535a69;border-radius:16px;background:#191d25;padding:22px;margin:0 0 17px;min-width:0;overflow-wrap:anywhere}
+.pwa .intent-card h3{font-size:clamp(23px,3.1vw,29px);line-height:1.22;margin:0 0 11px;color:#fff}
+.pwa .intent-card .intent-request{font-size:18px;line-height:1.5;color:#dce1e9;margin:8px 0 14px}
+.pwa .intent-card .intent-label{font-size:14px;color:#bdc4d0;font-weight:730;letter-spacing:.025em;margin:6px 0}
+.pwa .intent-card .intent-state{display:flex;align-items:center;gap:9px;font-size:17px;line-height:1.4;font-weight:720;margin:13px 0;padding:8px 0;border-block:1px solid #424b5a}
+.pwa .intent-card .intent-state[data-state="success"]{color:#97e0b8}
+.pwa .intent-card .intent-state[data-state="waiting"]{color:#f6ce83}
+.pwa .intent-card .intent-state[data-state="error"]{color:#ff9d9e}
+.pwa .intent-card .intent-dot{font-size:20px;width:24px;text-align:center;flex:none}
+.pwa .intent-card .intent-steps{list-style:none;margin:15px 0 12px;padding:0}
+.pwa .intent-card .intent-steps li{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid #323a47;font-size:17px;line-height:1.37;color:#d2d7df}
+.pwa .intent-card .intent-steps li:first-child{border-top:0}
+.pwa .intent-card .intent-step-icon{font-size:19px;line-height:1.3;min-width:24px;text-align:center;color:#a5acb9}
+.pwa .intent-card .intent-steps li[data-done="true"] .intent-step-icon{color:#97e0b8}
+.pwa .intent-card .intent-steps small{display:block;font-size:14px;color:#afb9c7;margin-top:3px}
+.pwa .intent-card .intent-result{border-top:1px solid #515766;padding-top:14px;margin-top:14px;font-size:17px;line-height:1.47;color:#e8ecf1}
+.pwa .intent-card a{color:#f1cb92;font-size:17px;min-height:48px;display:inline-flex;align-items:center;word-break:break-word}
+.pwa .intent-card .intent-spin{display:inline-block;animation:intent-turn 1.8s linear infinite}
+@keyframes intent-turn{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.pwa .intent-card .intent-spin{animation:none}}
+@media(max-width:639px){.pwa .intent-ledger{margin-top:34px}.pwa .intent-card{padding:19px 17px}.pwa .intent-card .intent-steps li{font-size:18px}.pwa .intent-ledger>p{font-size:17px}}
 </style>
 </head>
 <body class="pwa">
@@ -278,6 +304,11 @@ body.pwa{--ink:#f6f4ed;--paper:#0b0c0f;background:#0b0c0f;color:#f6f4ed;font-siz
 <p id="notice" class="notice" role="status"></p>
 </div>
 <footer>Las fechas indican la última modificación comprobada de archivos de referencia, no la disponibilidad de una versión lista. No inicia chats ni conserva aprobaciones privadas. Todo progreso real debe verificarse en su propietario de GitHub.</footer>
+</section>
+<section id="intentJournal" class="intent-ledger" aria-label="Encargos recientes" data-demo-id="delivery.intent-journal" hidden>
+<h2>Encargos recientes</h2>
+<p>Lo que entendieron los chats, sus etapas y resultados verificables. Los nuevos aparecen al final. No es una transcripción privada ni actividad inventada.</p>
+<div id="intentJournalRows" aria-live="polite"></div>
 </section>
 </main>
 <script>
@@ -666,6 +697,75 @@ function renderWorkDossiers(dossiers,projectIds){
  }
 }
 
+
+/* Vista inferior de encargos, derivada exclusivamente de public_receipts.
+   Nada de inferir que ChatGPT sigue abierto o que existe un worker vivo. */
+const journal=document.getElementById('intentJournal'),journalRows=document.getElementById('intentJournalRows');
+let lastJournalReceipts=[],lastJournalProjects=[];
+function renderWorkIntents(receipts,projects){
+ lastJournalReceipts=receipts;lastJournalProjects=projects;
+ const groups=new Map();
+ const projectNames=new Map(projects.map(p=>[p.id,p.label]));
+ for(const r of receipts){
+  if(!/^[a-z0-9][a-z0-9-]{4,95}$/.test(r.work_id||'')||!projectNames.has(r.project_id))continue;
+  if(typeof r.intent_summary!=='string'&&r.state==='REQUEST_CAPTURED')continue;
+  let g=groups.get(r.work_id);
+  if(!g){g={workId:r.work_id,projectId:r.project_id,events:[]};groups.set(r.work_id,g)}
+  if(g.projectId===r.project_id)g.events.push(r);
+ }
+ const entries=[...groups.values()].filter(g=>g.events.some(e=>e.state==='REQUEST_CAPTURED'&&typeof e.intent_summary==='string'))
+  .map(g=>{g.events.sort((a,b)=>Date.parse(a.occurred_at_utc)-Date.parse(b.occurred_at_utc));return g})
+  .sort((a,b)=>Date.parse(a.events[0].occurred_at_utc)-Date.parse(b.events[0].occurred_at_utc)).slice(-20);
+ journal.hidden=!entries.length;journalRows.replaceChildren();
+ for(const g of entries){
+  const initial=g.events.find(e=>e.state==='REQUEST_CAPTURED'&&typeof e.intent_summary==='string');
+  const latest=g.events[g.events.length-1];
+  const stageEvidence=[
+   initial,
+   g.events.find(e=>['CANDIDATE','TESTED','PUBLISHED','SERVED_VERIFIED'].includes(e.state)||e.work_signal==='WORK_STARTED'||e.work_signal==='PROGRESS'),
+   g.events.find(e=>['TESTED','SERVED_VERIFIED'].includes(e.state)),
+   g.events.find(e=>e.state==='SERVED_VERIFIED')
+  ];
+  const realSignal=[...g.events].reverse().find(e=>(e.work_signal==='WORK_STARTED'||e.work_signal==='PROGRESS')&&
+    typeof e.work_signal_at_utc==='string'&&Number.isFinite(Date.parse(e.work_signal_at_utc))&&
+    Date.parse(e.work_signal_at_utc)<=Date.now()+120000);
+  const freshSignal=realSignal&&Date.now()-Date.parse(realSignal.work_signal_at_utc)<30*60000;
+  let color='waiting',label='Pedido interpretado · sin ejecución confirmada',symbol='◷';
+  if(latest.state==='BLOCKED'){color='error';label='Bloqueo o error informado';symbol='!'}
+  else if(latest.state==='SERVED_VERIFIED'){color='success';label='Publicado y verificado';symbol='✓'}
+  else if(latest.state==='TESTED'){label='Pruebas registradas · publicación pendiente'}
+  else if(latest.state==='PUBLISHED'){label='Publicación informada · falta verificar sitio'}
+  else if(freshSignal){label='Trabajo informado recientemente';symbol='↻'}
+  else if(realSignal){label='Sin señal reciente · no implica fallo';symbol='?'}
+  else if(latest.state==='CANDIDATE'){label='Trabajo candidato guardado · sin cierre verificado'}
+  const card=document.createElement('article');card.className='intent-card';card.dataset.workId=g.workId;card.dataset.state=latest.state;
+  const eyebrow=document.createElement('p');eyebrow.className='intent-label';eyebrow.textContent=projectNames.get(g.projectId)+' · '+argentineDate(initial.occurred_at_utc);
+  const title=document.createElement('h3');title.textContent=initial.title;
+  const request=document.createElement('p');request.className='intent-request';request.textContent=initial.intent_summary.slice(0,320);
+  const state=document.createElement('p');state.className='intent-state';state.dataset.state=color;
+  const sym=document.createElement('span');sym.className='intent-dot';sym.textContent=symbol;
+  if(freshSignal&&!['BLOCKED','SERVED_VERIFIED','PUBLISHED','TESTED'].includes(latest.state))sym.classList.add('intent-spin');
+  const status=document.createElement('span');status.textContent=label;state.append(sym,status);
+  const steps=document.createElement('ol');steps.className='intent-steps';
+  const labels=Array.isArray(initial.plan_branches)&&initial.plan_branches.length===4&&initial.plan_branches.every(s=>typeof s==='string'&&s.length<=90)
+    ?initial.plan_branches:['Pedido interpretado','Trabajo material','Verificación','Entrega pública'];
+  for(let i=0;i<4;i++){
+   const li=document.createElement('li');li.dataset.done=stageEvidence[i]?'true':'false';
+   const icon=document.createElement('span');icon.className='intent-step-icon';icon.textContent=stageEvidence[i]?'✓':'○';icon.setAttribute('aria-hidden','true');
+   const body=document.createElement('div');body.textContent=labels[i];
+   if(stageEvidence[i]){const time=document.createElement('small');time.textContent=argentineDate(stageEvidence[i].occurred_at_utc);body.append(time)}
+   li.append(icon,body);steps.append(li);
+  }
+  const result=document.createElement('p');result.className='intent-result';
+  result.textContent='Resultado: '+(latest===initial?'Todavía no hay una entrega comprobada.':latest.summary.slice(0,350));
+  card.append(eyebrow,title,request,state,steps,result);
+  const link=document.createElement('a');
+  link.href=latest.source_url;link.textContent='Ver fuente verificada ↗';
+  link.rel='noopener noreferrer';link.target='_blank';card.append(link);
+  journalRows.append(card);
+ }
+}
+
 function safeReceipt(r,projectIds){
  if(!r||typeof r.id!=='string'||!/^[a-zA-Z0-9_-]{4,96}$/.test(r.id)||
     !projectIds.has(r.project_id)||!receiptStates.has(r.state)||
@@ -710,7 +810,7 @@ async function refreshProjectRegistry(){
    const receipts=Array.isArray(d.public_receipts)
       ?d.public_receipts.slice(-100).filter(r=>safeReceipt(r,projectIds)):[];
 
-   if(nextSignature===registrySignature)return false;
+   if(nextSignature===registrySignature){renderWorkIntents(publicReceipts,items);return false;}
    const previous=new Map(items.map(p=>[p.id,p]));
    items=d.projects.map(p=>{
     const old=previous.get(p.id);
@@ -719,6 +819,7 @@ async function refreshProjectRegistry(){
    });
    primary=d.primary_mission;oldGame=d.next_experiment;publicReceipts=receipts;
    renderWorkDossiers(d.work_dossiers,projectIds);
+   renderWorkIntents(receipts,items);
    registrySignature=nextSignature;
    // Selection lives in browser history; draw() recovers it without a new UI.
    draw();inspectViewport();
