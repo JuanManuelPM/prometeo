@@ -99,6 +99,26 @@ async function run(){
        {activate:'projects.persistencia'},
        {show:'activity.feed',method:'look',hold:140}
      ]});
+     // V6 public API resolves vertical scroll; horizontal project rail needs a page adapter.
+     // This is actual scrollLeft on the real rail, observed by the original engine, not a mocked interaction.
+     engine.registerAction('revealHorizontal',async(step)=>{
+       const card=engine.target(step.target),rail=root.querySelector('#track');
+       if(!card||!rail)throw Error('Missing real horizontal target '+step.target);
+       const before=card.getBoundingClientRect(),bounds=rail.getBoundingClientRect();
+       rail.scrollLeft+=before.left-bounds.left-14;
+       await new Promise(resolve=>setTimeout(resolve,120));
+       const after=card.getBoundingClientRect();
+       if(after.left<bounds.left-3||after.right>bounds.right+3)throw Error('Card not visible after real horizontal scroll');
+       engine.observer.emit('horizontal_scroll_end',{target:step.target,scrollLeft:rail.scrollLeft});
+     });
+     const recipeSteps=[...engine.script.steps];
+     engine.setScript({...engine.script,steps:[
+       recipeSteps[0],
+       {action:'revealHorizontal',target:'projects.facultad'},
+       recipeSteps[1],recipeSteps[2],
+       {action:'revealHorizontal',target:'projects.persistencia'},
+       recipeSteps[3],recipeSteps[4]
+     ]});
      const manifest=engine.inspectPage();
      const missing=['projects.rail','projects.facultad','projects.persistencia','activity.feed'].filter(
        target=>!manifest.targets.some(x=>x.id===target)
@@ -118,6 +138,7 @@ async function run(){
    assert.equal(result.final_selected,'true','V6 actions did not change real project state');
    assert.ok(result.events.some(e=>e.type==='run_complete'),'No complete runtime receipt');
    assert.ok(result.events.filter(e=>e.type==='click').length>=2,'Missing real click receipts');
+   assert.ok(result.events.filter(e=>e.type==='horizontal_scroll_end').length>=2,'Missing actual horizontal scroll receipts');
    assert.ok(result.events.some(e=>e.type==='viewport_authority'&&e.owner==='ENGINE'));
    assert.equal(result.viewport_owner,'FREE');
    assert.ok(result.last_hop,'Lost persisted actual history');
