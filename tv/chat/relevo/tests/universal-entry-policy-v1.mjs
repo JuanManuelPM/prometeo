@@ -51,6 +51,12 @@ const cases=[
 ['42 compatible patch accepted',()=>assert.equal(compatible({id:'x',version:'1.0.0',output:'a'},{id:'x',version:'1.0.1',output:'a'}).ok,true)],
 ['43 injection cannot grant from structured signal',()=>assert.equal(signal(['intellectual_conversation'],['<script>']).needs_authorization,false)],
 ['44 missing tool must degrade',()=>assert.equal(g.boundary.chat_recovery,'AUTHENTICATED_CONNECTOR_OR_CONTEXT')],
-['45 real two-chat proof not implied',()=>assert.equal(g.boundary.cross_chat_proof,'NOT_ATTESTED_BY_FIXTURES')]
+['45 real two-chat proof not implied',()=>assert.equal(g.boundary.cross_chat_proof,'NOT_ATTESTED_BY_FIXTURES')],
+['46 status + execution needs both routes',()=>assert.deepEqual(signal(['status_question','execute']).subroutes,['status_question','work'])],
+['47 conversation + execution is compound',()=>assert.equal(signal(['intellectual_conversation','execute']).kind,'compound')],
+['48 question + creation still checks duplicate',()=>assert.ok(signal(['status_question','create_project'],['Psicología Evolutiva']).blocked.includes('DUPLICATE_REVIEW'))],
+['49 idea + product does not lose authorization',()=>assert.equal(signal(['idea_unapproved','create_product']).needs_authorization,true)],
+['50 question + global priority needs authorization',()=>assert.equal(signal(['status_question','explicit_global_priority']).priority_change,true)],
+['51 ambiguous compound cannot execute',()=>assert.equal(signal(['status_question','execute','ambiguous_reference'],[],['referente']).kind,'ambiguous')]
 ];
 cases.forEach(([name,fn])=>test(name,fn));
