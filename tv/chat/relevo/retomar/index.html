@@ -112,14 +112,61 @@ body.pwa{background:#f4f2eb;color:#111111}
 .pwa .work-unknown{font-weight:600}
 @media(min-width:720px){.pwa .work-intro{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}.pwa .work-art{margin:4px 0}}
 
+
+/* Móvil vertical: escala táctil legible, información antes que miniaturas. */
+.pwa main.app{width:min(900px,100%);max-width:900px}
+.pwa .project.card{scroll-snap-align:start}
+.pwa .activity .event{min-width:0}
+.pwa .activity .event time{display:block;font-variant-numeric:tabular-nums}
+.pwa .activity-sort-note,.pwa .rail-hint{font-size:15px;line-height:1.4;font-weight:650;margin:6px 0 10px;color:var(--ink)}
+.pwa .rail-hint{margin-bottom:4px}
+.pwa .work-expanded{border-top:1px solid var(--ink);margin-top:14px;padding-top:4px}
+.pwa .work-expanded>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-weight:800;text-decoration:underline;text-underline-offset:4px;font-size:17px}
+.pwa .work-expanded>summary:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+@media(max-width:600px){
+  .pwa main.app{padding:16px 18px 56px}
+  .pwa header.bar{margin-bottom:14px}
+  .pwa header h1{font-size:29px}
+  .pwa .entry-note{font-size:16px;line-height:1.45;margin-bottom:12px}
+  .pwa .track.rail{margin-inline:-18px;padding:7px 18px 15px;gap:15px;scroll-padding-inline:18px;-webkit-overflow-scrolling:touch}
+  .pwa .project.card{flex:0 0 min(82vw,350px);min-height:292px;max-height:none;height:292px;border-radius:10px}
+  .pwa .cover{height:178px;min-height:178px}
+  .pwa .project-foot{padding:12px 15px;gap:4px}
+  .pwa .project h2{font-size:26px;line-height:1.12}
+  .pwa .project .tag{font-size:15px}
+  .pwa .carddate{font-size:16px;line-height:1.28}
+  .pwa .activity{margin:12px 0 22px}
+  .pwa .activity h2{font-size:27px;margin:15px 0 3px}
+  .pwa .watch-note{font-size:14px;line-height:1.4;margin-bottom:13px}
+  .pwa .activity .event{display:flex;flex-direction:column;gap:10px;padding:17px 15px;margin:0 0 12px;border:1px solid var(--ink);border-radius:9px;background:var(--paper)}
+  .pwa .activity .event:last-child{border-bottom:1px solid var(--ink)}
+  .pwa .activity .event strong{font-size:19px;line-height:1.28}
+  .pwa .activity .event p{font-size:16px;line-height:1.45;margin:7px 0}
+  .pwa .activity .event time{font-size:15px;line-height:1.45;margin-top:9px}
+  .pwa .activity .event a{font-size:17px;font-weight:750;align-self:flex-start;min-height:44px}
+  .pwa .work-panel{padding:15px 16px;margin-top:10px}
+  .pwa .work-panel h2{font-size:25px;line-height:1.18;overflow-wrap:anywhere}
+  .pwa .work-panel h3{font-size:19px;line-height:1.35}
+  .pwa .work-panel p,.pwa .work-panel li,.pwa .work-panel time{font-size:16px;line-height:1.5}
+  .pwa .work-art figcaption{font-size:14px}
+  .pwa .work-alt strong{font-size:17px}
+  .pwa .detail p{font-size:16px;line-height:1.45}
+  .pwa .detail h3{font-size:24px}
+}
+@media(min-width:601px){
+  .pwa .activity .event{grid-template-columns:minmax(0,1fr) 80px}
+  .pwa .activity .event time{font-size:15px}
+}
+
 </style>
 </head>
 <body class="pwa">
 <main class="app">
 <header class="bar"><h1>Proyectos</h1><span class="spacer"></span><a href="/prometeo/tv/chat/">TV ↗</a></header>
 <p class="entry-note">Pedí cambios o preguntá en cualquier chat de este Proyecto, con texto o audio transcripto. Acá ves los resultados públicos guardados.</p>
+<p class="rail-hint">Deslizá hacia la derecha para ver más proyectos →</p>
 <nav id="track" class="track rail" aria-label="Proyectos" data-demo-id="projects.rail"></nav>
-<section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><p class="watch-note" id="watchStatus" role="status">Recuperando actividad…</p><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
+<section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><p class="activity-sort-note">Más recientes primero · horario argentino</p><p class="watch-note" id="watchStatus" role="status">Recuperando actividad…</p><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
 <section id="workArchive" class="work-panel" aria-label="Entregas y encargos recuperados" data-demo-id="delivery.archive" hidden></section>
 <section class="below">
 <div class="detail" aria-live="polite">
@@ -379,7 +426,7 @@ async function refreshActivity({refreshCommits=false}={}){
  entries.slice(0,12).forEach(e=>{
   const row=document.createElement('article');row.className='event';
   const left=document.createElement('div'),title=document.createElement('strong'),paragraph=document.createElement('p'),meta=document.createElement('time');
-  title.textContent=e.title;paragraph.textContent=e.desc;meta.textContent=e.kind+' · '+dateLabel(e.at);meta.dateTime=e.at||'';
+  title.textContent=e.title;paragraph.textContent=e.desc;meta.textContent=e.kind+' · '+argentineDate(e.at);meta.dateTime=e.at||'';row.dataset.occurredAt=e.at||'';
   left.append(title,paragraph,meta);row.append(left);
   if(e.url){const a=document.createElement('a');a.href=e.url;a.textContent='Ver ↗';row.append(a);}
   root.append(row);
@@ -468,27 +515,31 @@ function renderWorkDossiers(dossiers,projectIds){
   figure.append(img);archiveText(figure,'figcaption','PNG 1-bit · 256 × 171 px · fuente original en PR #88. No hay versión full-res comprobada.');
   archiveLink(figure,'Inspeccionar archivo de arte ↗',w.art.source_url);
   intro.append(desc,figure);archiveNode.append(intro);
-  archiveText(archiveNode,'h3','Tres caminos de investigación');
+  const expanded=document.createElement('details');expanded.className='work-expanded';
+  const toggle=document.createElement('summary');
+  toggle.textContent='Ver investigación, fechas y pruebas';
+  expanded.append(toggle);archiveNode.append(expanded);
+  archiveText(expanded,'h3','Tres caminos de investigación');
   if(Array.isArray(w.alternatives))for(const alt of w.alternatives.slice(0,3)){
    const block=document.createElement('div');block.className='work-alt';
    archiveText(block,'strong',alt.title+(alt.chosen?' · elegida como candidata':''));
    archiveText(block,'p','A favor: '+alt.benefit);archiveText(block,'p','Límite: '+alt.risk);
-   archiveNode.append(block);
+   expanded.append(block);
   }
-  archiveText(archiveNode,'h3','Qué quedó hecho y cómo se comprobó');
-  const list=document.createElement('ul');for(const item of (w.delivered||[]).slice(0,6))archiveText(list,'li',item);archiveNode.append(list);
-  archiveText(archiveNode,'p',w.proof);
-  archiveText(archiveNode,'h3','Fechas comprobables, Argentina');
+  archiveText(expanded,'h3','Qué quedó hecho y cómo se comprobó');
+  const list=document.createElement('ul');for(const item of (w.delivered||[]).slice(0,6))archiveText(list,'li',item);expanded.append(list);
+  archiveText(expanded,'p',w.proof);
+  archiveText(expanded,'h3','Fechas comprobables, Argentina');
   const timeline=document.createElement('ul');timeline.className='work-timeline';
   for(const t of (w.timeline||[]).slice(0,8))if(Number.isFinite(Date.parse(t.at_utc)))archiveText(timeline,'li',t.kind+': '+argentineDate(t.at_utc));
-  archiveNode.append(timeline);
-  archiveText(archiveNode,'p','Pedido original, inicio y fin del chat: hora desconocida (no se guarda un timestamp fiable).','work-unknown');
-  archiveText(archiveNode,'h3','Qué falta y qué sigue');
-  archiveText(archiveNode,'p',w.limitations);archiveText(archiveNode,'p',w.next);
+  expanded.append(timeline);
+  archiveText(expanded,'p','Pedido original, inicio y fin del chat: hora desconocida (no se guarda un timestamp fiable).','work-unknown');
+  archiveText(expanded,'h3','Qué falta y qué sigue');
+  archiveText(expanded,'p',w.limitations);archiveText(expanded,'p',w.next);
   const actions=document.createElement('div');actions.className='work-actions';
   archiveLink(actions,'Ver PR y archivos ↗',w.source_url);
   archiveLink(actions,'Ver pruebas CI y capturas ↗',w.proof_url);
-  archiveNode.append(actions);
+  expanded.append(actions);
  }
 }
 
