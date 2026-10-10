@@ -36,7 +36,7 @@ Fuentes comparadas: https://stately.ai/docs/invoke · https://stately.ai/docs/ac
 
 ## Ejecución y pruebas
 
-`node --test tv/chat/relevo/tests/universal-entry-policy-v1.mjs` ejercita 45 casos **locales**; `node tv/chat/relevo/tests/universal-entry-browser-v1.cjs` usa Chromium sobre el checkout candidato en HTTP real, 360/390/844/1440, con GitHub REST 403 **simulado y etiquetado**. El workflow existente `persistencia-pr77-candidate-http-ci-v1.yml` conserva las suites de HOP8, pruebas DOM y **Demo Engine V6 original sobre la página real**. Un PASS CI no es equivalente a aprobación independiente ni a URL servida del candidato.
+`node --test tv/chat/relevo/tests/universal-entry-policy-v1.mjs` ejercita 51 casos **locales**; `node tv/chat/relevo/tests/universal-entry-browser-v1.cjs` usa Chromium sobre el checkout candidato en HTTP real, 360/390/844/1440, con GitHub REST 403 **simulado y etiquetado**. El workflow existente `persistencia-pr77-candidate-http-ci-v1.yml` conserva las suites de HOP8, pruebas DOM y **Demo Engine V6 original sobre la página real**. Un PASS CI no es equivalente a aprobación independiente ni a URL servida del candidato.
 
 ### Recorrido exacto y advertencias A–F
 
