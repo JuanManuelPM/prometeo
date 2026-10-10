@@ -60,7 +60,7 @@ Leer `gh-pages:tv/chat/DIRECCION_OPERATIVA_V1.md` para conocer el mecanismo de e
 - Evento/calendario personal: Google Calendar autenticado del usuario cuando disponible; el calendario de Prometeo guarda en localStorage del navegador, NO hay sincronía automática. No incluir horarios privados en TV público.
 - Notas personales: Google Drive privado conectado o almacenamiento local; no subir mensajes, audios, nombres de alumnos ni transcripciones a GitHub.
 
-## Entregas por proyecto en la pantalla única (HOP8, candidato hasta publicación)
+## Entregas por proyecto en la pantalla única (HOP8 publicado, G5 pendiente)
 
 La **misma** proyección existente `tv/chat/relevo/retomar/reentrada.json` admite un arreglo opcional `public_receipts` (sin crear un nuevo owner ni registro autoritativo). Cuando un chat nuevo **realmente cambie** Facultad, Widgets, TV o cualquier proyecto, primero debe verificar el commit/PR en el owner; sólo después anexar una entrada sanitaria con `id` único, `project_id` presente en `projects`, `occurred_at_utc` tomado de fuente real, `state` en `REQUEST_CAPTURED/CANDIDATE/TESTED/PUBLISHED/SERVED_VERIFIED/BLOCKED`, `title`, `summary` breve y `source_url` del PR/commit/Issue real. Leer HEAD y blob SHA fresco, preservar todos los proyectos/recibos ajenos con CAS y verificar por segunda lectura. No basta agregar una tarjeta: registrar evidencia material y el estado real.
 
