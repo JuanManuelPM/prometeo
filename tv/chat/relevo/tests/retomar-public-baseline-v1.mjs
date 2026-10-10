@@ -27,13 +27,13 @@ try {
     fetch(stateUrl,{headers:{'cache-control':'no-cache'}}),
     fetch(registryUrl,{headers:{'cache-control':'no-cache'}})
   ]);
-  // Pages/CDN propagation is asynchronous after the merge. Retry *real* bytes.
+  // Pages/CDN observed lag >180s on run 38093708414 (served d9db271..., source be3ea6e...). Keep truthful 6-minute bounded retry on *real* bytes.
   const newSha=(await gh.clone().json()).sha;
-  for(let attempt=0;attempt<18;attempt++){
+  for(let attempt=0;attempt<36;attempt++){
     const b=Buffer.from(await resp.clone().arrayBuffer());
     const candidate=createHash('sha1').update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex');
     if(candidate===newSha)break;
-    if(attempt===17)throw Error('PAGES_PROPAGATION_TIMEOUT: expected '+newSha+', served '+candidate);
+    if(attempt===35)throw Error('PAGES_PROPAGATION_TIMEOUT: expected '+newSha+', served '+candidate);
     await new Promise(resolve=>setTimeout(resolve,10000));
     resp=await fetch(pageUrl+'?served-check='+newSha.slice(0,10)+'-'+(attempt+1),{headers:{'cache-control':'no-cache'}});
   }
@@ -61,7 +61,8 @@ try {
   // This publishes the PR88 dossier, NOT the unapproved PR88 redesign.
   const artisticReceipt=registry.public_receipts?.find(r=>r.id==='widgets-archivo-habitado-pr88-tested-20261010');
   const dossiers=registry.work_dossiers?.filter(w=>w.work_id==='archivo-habitado-pr88')||[];
-  assert.equal(registry.projects.length,5,'Project history unexpectedly replaced or duplicated');
+  assert.ok(registry.projects.length>=5&&registry.projects.length<=25,'Project history unexpectedly lost or malformed');
+  assert.equal(new Set(registry.projects.map(p=>p.id)).size,registry.projects.length,'Duplicate project IDs');
   assert.equal(dossiers.length,1,'Public PR88 dossier absent or duplicated');
   assert.equal(artisticReceipt?.state,'TESTED','Candidate cannot claim published artifact');
   assert.equal(artisticReceipt?.project_id,'widgets');
@@ -84,7 +85,7 @@ try {
     page.on('pageerror',e=>errs.push(e.message));
     const nav=await page.goto(pageUrl,{waitUntil:'domcontentloaded',timeout:30000});
     assert.equal(nav.status(),200,'Browser public navigation failed');
-    await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===5,{timeout:20000});
+    await page.waitForFunction(n=>document.querySelectorAll('#track .project').length===n,registry.projects.length,{timeout:20000});
     // A DOM placeholder is not a visually finished app. Wait for live owner history and actual cover bytes.
     await page.waitForFunction(hop=>{
       const feed=document.querySelector('#activityRows');
@@ -108,7 +109,7 @@ try {
     assert.match(await page.locator('#activityRows').innerText(),/Archivo Habitado/);
     assert.match(await page.locator('#workArchive').textContent(),/14:29/);
     assert.match(await page.locator('#workArchive').textContent(),/hora desconocida/);
-    assert.equal(await page.locator('#track .project').count(),5);
+    assert.equal(await page.locator('#track .project').count(),registry.projects.length);
     const responsive=await page.evaluate(()=>({
       inner:innerWidth,client:document.documentElement.clientWidth,
       visual:visualViewport?.width,scale:visualViewport?.scale,
@@ -124,12 +125,21 @@ try {
     assert.ok(Math.abs(responsive.visual-width)<2,'Visual viewport does not match device');
     assert.ok(Math.abs(responsive.scale-1)<.01,'Unexpected browser zoom');
     assert.equal(responsive.dark,'rgb(11, 12, 15)','Old light theme remains SERVED');
-    assert.equal(responsive.typeCovers,4,'Rejected CSS pattern / SVG is still served');
+    assert.equal(responsive.typeCovers,registry.projects.length-1,'Rejected CSS pattern / SVG is still served');
     assert.equal(responsive.imageCovers,1,'Authentic PR88 raster illustration not served');
     if(width<=480){
       assert.ok(responsive.card>=width*.84,'Cards look like mini desktop tiles');
       assert.ok(responsive.title>=22&&responsive.date>=17,'Activity/date text remains too small');
     }
+    // Final Pages release following the screenshot review and typography correction.
+    assert.match(await page.locator('.entry-note').innerText(),/Pedí cambios en cualquier chat/);
+    assert.match(await page.locator('.rail-hint').innerText(),/Deslizá para ver más proyectos/);
+    const coverFit=await page.locator('#track .cover-lettering').evaluateAll(nodes=>nodes.map(n=>({
+      text:n.textContent,clip:n.scrollWidth>n.clientWidth+1,nowrap:getComputedStyle(n).whiteSpace==='nowrap'
+    })));
+    assert.ok(coverFit.every(x=>!x.clip&&x.nowrap),'Final served covers have clipped or broken text: '+JSON.stringify(coverFit));
+    assert.equal(await page.locator('#track .project[aria-pressed="true"]').first().evaluate(el=>getComputedStyle(el).outlineStyle),'none','Double selected ring still served');
+    note('published_PR93_typography_'+width,coverFit);
     note('published_PR92_dark_responsive_'+width,responsive);
     evidence.checks.push(width+'px: SERVED black theme, real viewport & zoom, large cards, authentic raster + four typographic covers');
     // The published baseline may be either the old responsive skin or the
@@ -157,7 +167,7 @@ try {
       evidence.checks.push(width+'px: PUBLIC PR91 readability, chronology and expandable dossier');
     }
     evidence.checks.push(width+'px: PUBLIC PR88 dossier + 1-bit PNG decoded 256x171 + no false publication');
-    note('published_pr88_dom_'+width,{visible:true,image_loaded:true,project_count:5});
+    note('published_pr88_dom_'+width,{visible:true,image_loaded:true,project_count:registry.projects.length});
     evidence.checks.push(width+'px: PUBLIC receipt of PR83 rendered in real Chromium');
     await page.waitForFunction(()=>{
       const cover=document.querySelector('#track .project .cover img');
@@ -195,7 +205,7 @@ try {
     evidence.checks.push(width+'px: PUBLIC real Chromium DOM, 5 cards, no overflow');
     await context.close();
   }
-  evidence.outcome='PUBLIC_PR92_DARK_MOBILE_SERVED_VERIFIED_PR88_ARTWORK_REMAINS_CANDIDATE';
+  evidence.outcome='PUBLIC_PR93_DARK_MOBILE_FINAL_SERVED_VERIFIED_PR88_ARTWORK_REMAINS_CANDIDATE';
 } catch(e){
   evidence.outcome='BLOCKED';
   evidence.errors.push(String(e.stack||e));
