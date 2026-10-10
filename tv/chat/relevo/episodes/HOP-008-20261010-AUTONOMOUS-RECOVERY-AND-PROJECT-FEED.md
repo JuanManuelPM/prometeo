@@ -23,3 +23,15 @@ Esto demuestra **recuperación de contexto público guardado entre chats y acci�
 
 ## Siguiente gate material
 Cerrar CI último HEAD PR #83 (incluido V6 y móvil), reconciliar base `gh-pages` concurrente, revisión independiente, fusionar sólo si no hay fallos y autorización efectiva, verificar GitHub Pages por URL, SHA de blob y Chromium. Si hay bloqueo, conservar PR como CANDIDATE y el error concreto. El siguiente chat debe probar una orden diferente y comprobar que su recibo de proyecto aparece en la **misma URL abierta**, sin reusar una fixture.
+
+## Cierre de publicación comprobada (10 oct, 12:55:42 UTC)
+
+**El candidato superó sus controles posteriores**: PR #83 fusionado en `292da85e322c8ebec56bfc8d985de4758b9d1e48`, Actions de desarrollo https://github.com/JuanManuelPM/prometeo/actions/runs/38053502977 SUCCESS (Chromium HTTP local móvil/escritorio + Demo Engine V6 ORIGINAL sobre DOM real + pruebas adversariales). El despliegue https://github.com/JuanManuelPM/prometeo/actions/runs/38053626394 terminó SUCCESS. Una segunda rama PR #84 ejecutó **el sitio público real** con Actions https://github.com/JuanManuelPM/prometeo/actions/runs/38053727694 SUCCESS:
+
+- HTTP 200 `/prometeo/tv/chat/relevo/retomar/` y JSON `STATE_V1.json`/`reentrada.json`.
+- SHA-1 de objeto Git calculado con bytes reales: `db2cef7605a2468b6eb863efef3824136c7f79ba`, igual al blob `gh-pages` para el HTML.
+- STATE servido contenía **HOP8**, 8 episodios; registro público de PR #83 en `public_receipts`.
+- Chromium sobre **URL Pages**, 390 y 1440 CSS px, 3 portadas cargadas, 12 eventos, recibo visible, navegación Atrás y sin overflow ni excepciones.
+- PR #84 de verificación se integró por separado en `f6cb871b7221374ada77dfa66c6a3c4cc99d5ff9`.
+
+Resultado del código UI: **SERVED_VERIFIED para esta versión específica**, no sólo CI; se publicó además un segundo recibo con referencia a esta prueba. **No se comprobó móvil físico**, persistencia privada, ni ingreso autónomo G5. El ensayo entre chats queda limitado a la recuperación real A(HOP7)→B(HOP8) de propietarios GitHub y producto nuevo verificado, no a leer conversaciones privadas ni a una C iniciada sin intervención humana.
