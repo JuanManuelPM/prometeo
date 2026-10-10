@@ -29,11 +29,13 @@ async function render(g){
  const legend=elm('div','ue-legend');for(const [state,desc] of Object.entries(g.status_legend)){if(['verified','implemented','candidate','blocked','unknown'].includes(state)){const tag=elm('span',state);tag.append(elm('i','ue-dot'),document.createTextNode(desc));legend.append(tag);}}dashboard.append(legend);mount.append(dashboard);
  const lower=elm('div','ue-lower'),panel=elm('section','ue-inspect'),steps=elm('section','ue-steps');panel.dataset.demoId='universal.details';steps.dataset.demoId='universal.steps';lower.append(panel,steps);mount.append(lower);
  const boundary=elm('p','ue-boundary');boundary.append(elm('strong','','Límite de verdad'));boundary.append(document.createTextNode('Los nodos dibujados no ejecutan tareas. GitHub requiere permisos, ChatGPT no se inicia desde Pages y la publicación necesita gate independiente.'));mount.append(boundary);
- let cam={x:0,y:0,w:1070,h:760},gesture=new Map(),pointerStart=null;
+ const narrow=window.matchMedia?.('(max-width:600px)').matches===true;
+ let cam=narrow?{x:8,y:175,w:440,h:415}:{x:0,y:160,w:1040,h:495},gesture=new Map(),pointerStart=null;
+ const aspect=()=>svg.clientHeight/Math.max(1,svg.clientWidth)||1;
  function box(){svg.setAttribute('viewBox',[cam.x,cam.y,cam.w,cam.h].join(' '));}
- function fitAll(){cam={x:0,y:-8,w:2310,h:710};box();}
- function zoom(factor){const cx=cam.x+cam.w/2,cy=cam.y+cam.h/2;cam.w=Math.max(280,Math.min(2800,cam.w*factor));cam.h=cam.w*760/1070;cam.x=cx-cam.w/2;cam.y=cy-cam.h/2;box();}
- function center(n){cam.w=690;cam.h=490;cam.x=n.x-230;cam.y=n.y-210;box();}
+ function fitAll(){cam={x:0,y:-8,w:2310,h:2310*aspect()};box();toolCaption.textContent='VISTA GENERAL · tocá + para leer cada cartucho';}
+ function zoom(factor){const cx=cam.x+cam.w/2,cy=cam.y+cam.h/2;cam.w=Math.max(280,Math.min(2800,cam.w*factor));cam.h=cam.w*aspect();cam.x=cx-cam.w/2;cam.y=cy-cam.h/2;box();}
+ function center(n){cam.w=narrow?430:750;cam.h=cam.w*aspect();cam.x=n.x+100-cam.w/2;cam.y=n.y+45-cam.h/2;box();toolCaption.textContent='CARTUCHO EN FOCO · desplazá para continuar';}
  button('−',()=>zoom(1.25),mapActions).setAttribute('aria-label','Alejar');
  button('+',()=>zoom(.8),mapActions).setAttribute('aria-label','Acercar');
  button('Ver todo',fitAll,mapActions);
