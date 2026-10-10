@@ -1,0 +1,44 @@
+name: PULSO J12 browser acceptance
+on:
+  push:
+    branches:
+      - feature/emblem-001-pulso-20261009
+    paths:
+      - 'experiments/emblem-001-pulso/**'
+      - '.github/workflows/pulso-j12-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run pure physics tests
+        run: node experiments/emblem-001-pulso/tests/engine.test.mjs
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve real source through HTTP
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/pulso-j12-http.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8765/experiments/emblem-001-pulso/index.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/pulso-j12-http.log
+          exit 1
+      - name: Test live module imports, touchscreen, UI and offline standalone
+        run: node experiments/emblem-001-pulso/tests/browser_j12.mjs
+      - name: Upload honest screenshots and checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulso-j12-browser-proof
+          path: experiments/emblem-001-pulso/validation/j12-ci/
+          if-no-files-found: warn
