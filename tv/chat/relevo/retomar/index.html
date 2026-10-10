@@ -91,6 +91,27 @@ body.pwa{background:#f4f2eb;color:#111111}
 .pwa footer{display:none}
 @media(max-width:530px){.pwa main.app{padding-inline:17px}.pwa .track.rail{margin-inline:-17px;padding-inline:17px}.pwa .project.card{flex-basis:min(72vw,260px)}}
 @media(prefers-reduced-motion:reduce){.pwa *{transition:none!important;scroll-behavior:auto!important}}
+
+/* Expediente público: lectura derivada HOP8. No publica el rediseño PR88. */
+.pwa .work-panel{margin:8px 0 25px;padding:16px;border:2px solid var(--ink);background:var(--paper)}
+.pwa .work-panel h2{font-size:25px;letter-spacing:-.035em;line-height:1.1;margin:3px 0 9px}
+.pwa .work-panel h3{font-size:17px;margin:18px 0 5px}
+.pwa .work-panel p,.pwa .work-panel li,.pwa .work-panel time{font-size:15px;line-height:1.45}
+.pwa .work-panel p{margin:6px 0}
+.pwa .work-panel ul{padding-left:20px;margin:7px 0}
+.pwa .work-panel a{color:var(--ink);text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere;display:inline-flex;min-height:44px;align-items:center}
+.pwa .work-status{font-weight:750;border-block:1px solid var(--ink);padding:10px 0;margin:10px 0!important}
+.pwa .work-art{display:block;margin:12px 0}
+.pwa .work-art img{display:block;width:100%;max-width:512px;height:auto;image-rendering:pixelated;border:1px solid var(--ink);background:#fff}
+.pwa .work-art figcaption{font-size:13px;line-height:1.35;margin:6px 0}
+.pwa .work-alt{border-top:1px solid var(--ink);padding:8px 0}
+.pwa .work-alt strong{font-size:15px}
+.pwa .work-actions{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0}
+.pwa .work-timeline{list-style:none;padding:0!important}
+.pwa .work-timeline li{padding:5px 0;border-bottom:1px solid var(--ink)}
+.pwa .work-unknown{font-weight:600}
+@media(min-width:720px){.pwa .work-intro{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}.pwa .work-art{margin:4px 0}}
+
 </style>
 </head>
 <body class="pwa">
@@ -99,6 +120,7 @@ body.pwa{background:#f4f2eb;color:#111111}
 <p class="entry-note">Pedí cambios o preguntá en cualquier chat de este Proyecto, con texto o audio transcripto. Acá ves los resultados públicos guardados.</p>
 <nav id="track" class="track rail" aria-label="Proyectos" data-demo-id="projects.rail"></nav>
 <section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><p class="watch-note" id="watchStatus" role="status">Recuperando actividad…</p><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
+<section id="workArchive" class="work-panel" aria-label="Entregas y encargos recuperados" data-demo-id="delivery.archive" hidden></section>
 <section class="below">
 <div class="detail" aria-live="polite">
 <span class="topline" id="selectedTag">Cargando...</span>
@@ -409,6 +431,67 @@ nodes.copy.addEventListener('click',async()=>{
 // Do not create project cards from private chats or unverified activity.
 let registrySignature='',registryInFlight=null,publicReceipts=[];
 const receiptStates=new Set(['REQUEST_CAPTURED','CANDIDATE','TESTED','PUBLISHED','SERVED_VERIFIED','BLOCKED']);
+
+/* Archivo derivado de owners GitHub; las cadenas externas sólo entran como texto. */
+const archiveNode=document.getElementById('workArchive');
+function archiveText(parent,tag,value,cls){
+ const node=document.createElement(tag);if(cls)node.className=cls;
+ node.textContent=String(value??'');parent.append(node);return node;
+}
+function archiveLink(parent,label,url){
+ if(typeof url!=='string'||!/^https:\/\/github\.com\/JuanManuelPM\/prometeo\/(pull|blob|actions)\/[A-Za-z0-9_./-]+$/.test(url))return;
+ const a=document.createElement('a');a.textContent=label;a.href=url;
+ a.target='_blank';a.rel='noopener noreferrer';parent.append(a);
+}
+function renderWorkDossiers(dossiers,projectIds){
+ archiveNode.replaceChildren();archiveNode.hidden=true;
+ if(!Array.isArray(dossiers))return;
+ const seen=new Set();
+ for(const w of dossiers.slice(0,12)){
+  if(!w||w.work_id!=='archivo-habitado-pr88'||seen.has(w.work_id)||!projectIds.has(w.project_id)||
+     w.state!=='TESTED'||!w.art||w.art.format!=='PNG 1-bit'||w.art.width!==256||w.art.height!==171||
+     typeof w.art.base64!=='string'||w.art.base64.length>12000||
+     !/^[a-zA-Z0-9+/]+={0,2}$/.test(w.art.base64))continue;
+  seen.add(w.work_id);
+  archiveNode.hidden=false;
+  archiveText(archiveNode,'p','ENTREGA RECUPERADA · '+w.project_group,'topline');
+  archiveText(archiveNode,'h2',w.title+' · '+w.version);
+  archiveText(archiveNode,'p',w.publication,'work-status');
+  const intro=document.createElement('div');intro.className='work-intro';
+  const desc=document.createElement('div');
+  archiveText(desc,'h3','Qué se pidió y qué se decidió');
+  archiveText(desc,'p',w.objective);archiveText(desc,'p',w.decision);
+  const figure=document.createElement('figure');figure.className='work-art';
+  const img=document.createElement('img');img.alt='Ilustración candidata de Archivo Habitado: arquitectura y textura 1-bit';img.width=256;img.height=171;
+  img.src='data:image/png;base64,'+w.art.base64;img.loading='lazy';
+  img.onerror=()=>{img.remove();archiveText(figure,'p','Vista previa no disponible. El archivo original puede consultarse en GitHub.')};
+  figure.append(img);archiveText(figure,'figcaption','PNG 1-bit · 256 × 171 px · fuente original en PR #88. No hay versión full-res comprobada.');
+  archiveLink(figure,'Inspeccionar archivo de arte ↗',w.art.source_url);
+  intro.append(desc,figure);archiveNode.append(intro);
+  archiveText(archiveNode,'h3','Tres caminos de investigación');
+  if(Array.isArray(w.alternatives))for(const alt of w.alternatives.slice(0,3)){
+   const block=document.createElement('div');block.className='work-alt';
+   archiveText(block,'strong',alt.title+(alt.chosen?' · elegida como candidata':''));
+   archiveText(block,'p','A favor: '+alt.benefit);archiveText(block,'p','Límite: '+alt.risk);
+   archiveNode.append(block);
+  }
+  archiveText(archiveNode,'h3','Qué quedó hecho y cómo se comprobó');
+  const list=document.createElement('ul');for(const item of (w.delivered||[]).slice(0,6))archiveText(list,'li',item);archiveNode.append(list);
+  archiveText(archiveNode,'p',w.proof);
+  archiveText(archiveNode,'h3','Fechas comprobables, Argentina');
+  const timeline=document.createElement('ul');timeline.className='work-timeline';
+  for(const t of (w.timeline||[]).slice(0,8))if(Number.isFinite(Date.parse(t.at_utc)))archiveText(timeline,'li',t.kind+': '+argentineDate(t.at_utc));
+  archiveNode.append(timeline);
+  archiveText(archiveNode,'p','Pedido original, inicio y fin del chat: hora desconocida (no se guarda un timestamp fiable).','work-unknown');
+  archiveText(archiveNode,'h3','Qué falta y qué sigue');
+  archiveText(archiveNode,'p',w.limitations);archiveText(archiveNode,'p',w.next);
+  const actions=document.createElement('div');actions.className='work-actions';
+  archiveLink(actions,'Ver PR y archivos ↗',w.source_url);
+  archiveLink(actions,'Ver pruebas CI y capturas ↗',w.proof_url);
+  archiveNode.append(actions);
+ }
+}
+
 function safeReceipt(r,projectIds){
  if(!r||typeof r.id!=='string'||!/^[a-zA-Z0-9_-]{4,96}$/.test(r.id)||
     !projectIds.has(r.project_id)||!receiptStates.has(r.state)||
@@ -448,7 +531,7 @@ async function refreshProjectRegistry(){
    if(!validRegistry(d))throw Error('Registro público inválido');
    // The signature covers the full public projection, not just project IDs:
    // changing a label, destination or continuation instruction is observable.
-   const nextSignature=JSON.stringify({projects:d.projects,primary:d.primary_mission,game:d.next_experiment,receipts:d.public_receipts});
+   const nextSignature=JSON.stringify({projects:d.projects,primary:d.primary_mission,game:d.next_experiment,receipts:d.public_receipts,dossiers:d.work_dossiers});
    const projectIds=new Set(d.projects.map(p=>p.id));
    const receipts=Array.isArray(d.public_receipts)
       ?d.public_receipts.slice(-100).filter(r=>safeReceipt(r,projectIds)):[];
@@ -461,6 +544,7 @@ async function refreshProjectRegistry(){
       ?{...p,_last:old._last}:{...p};
    });
    primary=d.primary_mission;oldGame=d.next_experiment;publicReceipts=receipts;
+   renderWorkDossiers(d.work_dossiers,projectIds);
    registrySignature=nextSignature;
    // Selection lives in browser history; draw() recovers it without a new UI.
    draw();
