@@ -560,11 +560,36 @@ async function refreshActivity({refreshCommits=false}={}){
  });
 }
 
+/* Imagen original J10 servida desde la misma rama. WebP real, con prueba de decodificación.
+   Si falla, conservar el raster público PR88 o la composición tipográfica. */
+let j10SceneSrc=null,j10SceneFailed=false,j10SceneLoading=null;
+function installJ10Scene(){
+ const figure=document.getElementById('atlasFigure'),img=document.getElementById('atlasImage');
+ if(!figure||!img)return;
+ if(j10SceneSrc){img.src=j10SceneSrc;figure.dataset.art='j10';figure.hidden=false;return;}
+ if(j10SceneFailed||j10SceneLoading)return;
+ j10SceneLoading=(async()=>{
+  const response=await fetch('./art/j10-atlas-384.webp.b64',{cache:'force-cache'});
+  if(!response.ok)throw Error('Arte HTTP '+response.status);
+  const encoded=(await response.text()).trim();
+  if(encoded.length!==11512||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw Error('Arte inválido');
+  const data='data:image/webp;base64,'+encoded;
+  const probe=new Image();probe.src=data;await probe.decode();
+  if(probe.naturalWidth!==384||probe.naturalHeight!==256)throw Error('Dimensiones de arte inesperadas');
+  j10SceneSrc=data;
+  img.src=data;img.alt='Ilustración original en tinta de una biblioteca nocturna con libros, ventanas y ciudad al fondo';
+  img.width=384;img.height=256;
+  figure.querySelector('figcaption').textContent='Archivo nocturno · ilustración original J10';
+  figure.dataset.art='j10';figure.hidden=false;
+ })().catch(()=>{j10SceneFailed=true;}).finally(()=>{j10SceneLoading=null;});
+}
+
 function draw(){
  const atlasFigure=document.getElementById('atlasFigure'),atlasImage=document.getElementById('atlasImage');
  const publicArtwork=document.querySelector('#workArchive .work-art img');
  if(publicArtwork?.src?.startsWith('data:image/png;base64,')){atlasImage.src=publicArtwork.src;atlasFigure.hidden=false;}
  else{atlasFigure.hidden=true;atlasImage.removeAttribute('src');}
+ installJ10Scene();
  nodes.track.replaceChildren();
  items.forEach((o,i)=>{
   const b=document.createElement('button');b.type='button';b.className='project';b.setAttribute('aria-pressed','false');
