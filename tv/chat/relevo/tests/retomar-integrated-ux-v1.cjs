@@ -38,6 +38,9 @@ for(const width of [360,390,430,844,1440]){
  await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===5);
  await page.waitForFunction(()=>document.querySelectorAll('#activityRows article').length>0);
  assert.equal(await page.locator('h1').innerText(),'Proyectos');
+ assert.match(await page.locator('.entry-note').innerText(),/cualquier chat de este Proyecto/);
+ assert.match(await page.locator('.entry-note').innerText(),/audio transcripto/);
+ assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
  assert.equal(await page.locator('.intro').count(),0,'PowerPoint explanation remains');
  assert.equal(await page.locator('#track img').count(),3,'Original art covers absent');
  assert.ok(await page.locator('#track img').evaluateAll(nodes=>nodes.every(img=>img.complete&&img.naturalWidth>0)),'Covers failed HTTP');
@@ -86,6 +89,28 @@ for(const width of [360,390,430,844,1440]){
   assert.equal(await page.locator('#relayRows a').count(),Math.min(8,liveState.history.length));
   await page.screenshot({path:path.join(dir,'cold-crosschat-live-owner-390.png'),fullPage:true});
   record('REAL gh-pages STATE HOP'+liveState.last_hop+' recovered into candidate via owner HTTP body');
+  // This is an explicitly synthetic FUTURE owner event: proving refresh behavior,
+  // never claiming a second human chat actually submitted it.
+  const nextHop=liveState.last_hop+1;
+  const future={...liveState,last_hop:nextHop,history:[...liveState.history,{
+   hop:nextHop,date_utc:'2026-10-10T03:00:00.000Z',
+   result:'FUTURE_PUBLIC_FIXTURE_NOT_REAL_CHAT',
+   lesson:'Evento público sintético exclusivo del test de actualizaciones',
+   episode_ref:'tv/chat/relevo/episodes/TEST-FUTURE-OWNER-ONLY.md'
+  }]};
+  await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.fulfill({
+   status:200,contentType:'application/json',body:JSON.stringify(future)}));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(hop=>document.querySelector('#activityRows')?.textContent.includes('Relevo '+hop),nextHop);
+  assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
+  assert.ok((await page.locator('#relayRows').innerText()).includes('Salto '+nextHop),
+   'Selected project did not receive fresh public owner state');
+  record('SIMULATED future owner event appears on same OPEN page via focus without reload (NOT a real chat)');
+  await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.abort('failed'));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(()=>document.querySelector('#watchStatus')?.textContent.includes('Sin actualización verificable'));
+  assert.match(await page.locator('#activityRows').innerText(),new RegExp('Relevo '+nextHop));
+  record('Offline refresh preserves last verified display with truthful stale status');
 
  }
  await context.close();
