@@ -47,8 +47,34 @@ try {
     const nav=await page.goto(pageUrl,{waitUntil:'domcontentloaded',timeout:30000});
     assert.equal(nav.status(),200,'Browser public navigation failed');
     await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===5,{timeout:20000});
+    // A DOM placeholder is not a visually finished app. Wait for live owner history and actual cover bytes.
+    await page.waitForFunction(hop=>{
+      const feed=document.querySelector('#activityRows');
+      return feed && feed.querySelectorAll('article').length>=5 &&
+        feed.textContent.includes('Relevo '+hop);
+    },state.last_hop,{timeout:30000});
+    await page.waitForFunction(()=>{
+      const cover=document.querySelector('#track .project .cover img');
+      return !!cover && cover.complete && cover.naturalWidth>0 && cover.naturalHeight>0;
+    },null,{timeout:30000});
+    assert.ok(await page.evaluate(()=>{
+      const title=document.querySelector('main h1');
+      const feed=document.querySelector('#activityRows');
+      return title?.textContent.trim()==='Proyectos' && feed.querySelectorAll('article').length>=5;
+    }),'Public project screen still loading or wrong title');
+    const readyImageCount=await page.locator('#track img').evaluateAll(nodes=>nodes.filter(n=>n.complete&&n.naturalWidth>0).length);
+    note('ready_public_visual_'+width,{loaded_covers:readyImageCount,history_hop:state.last_hop,events:await page.locator('#activityRows article').count()});
+    assert.ok(readyImageCount>=1,'Cover art still blank in public browser');
+    evidence.checks.push(width+'px: PUBLIC loaded real SVG preview and persisted live activity');
     assert.ok(await page.getByRole('button',{name:'Persistencia'}).count(),'Missing persistence card');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Public global horizontal overflow');
+    if(width===390){
+      await page.locator('#track [data-project="facultad"]').click();
+      assert.match(page.url(),/#facultad$/,'Public project navigation missing');
+      await page.goBack({waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
+      evidence.checks.push('390px: PUBLIC browser Back returned to previous project');
+    }
     await page.screenshot({path:path.join(dir,'public-existing-'+width+'.png'),fullPage:true});
     assert.deepEqual(errs,[],'Browser JS errors');
     evidence.checks.push(width+'px: PUBLIC real Chromium DOM, 5 cards, no overflow');
