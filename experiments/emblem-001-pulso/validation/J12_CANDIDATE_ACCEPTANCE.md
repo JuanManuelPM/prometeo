@@ -26,3 +26,13 @@ CI inicial del producto: [77 comprobaciones, Chromium HTTP, 0 errores](https://g
 Estado: **CANDIDATE**. La ilustración original fue revisada en capturas pero no por otro chat crítico independiente. Falta Demo Engine V6 operando en DOM real con su receta/puntero y aceptación; no atribuir las pruebas Playwright al motor V6. Falta QA manual físico de Android y publicación/smoke de GitHub Pages. No declarar SERVED antes de comprobar URL, bytes, carga, juego, experiencia visual, recuperación y concurrencia. Conservar PR draft hasta gates.
 
 El botón de reinicio no guarda partidas: la demo no requiere cuentas, cookies ni almacenamiento remoto. La fuente de verdad de esta entrega es la rama del PR #75 y su evidencia, no el catálogo público.
+
+## Publicación web J12 demostrada · 2026-10-10 (ART UTC−03)
+- Release merge git: `1f00380b50285d9208b073fb2062a201e3af3e24`.
+- Pages probado: https://juanmanuelpm.github.io/prometeo/experiments/emblem-001-pulso/PULSO_JUGAR.html
+- Contenido exacto: HTTP 200, **46.550 bytes**, blob SHA `af35726605e3a8379e4787b6890ca35db2dcf111`.
+- Recorrido externo: https://github.com/JuanManuelPM/prometeo/actions/runs/38096513509 · 87/87 pruebas Chromium (390×844, 844×390, 1440×900), cero errores JavaScript.
+- Browser de catálogo: tarjeta `pulso-j12` visible y seleccionable; enlaza a juego verificado.
+- Demo Engine V6 real sobre DOM original (separado del Pages smoke): https://github.com/JuanManuelPM/prometeo/actions/runs/38096262945 · 16/16, cero issues.
+- Limitaciones sin ocultar: no hubo prueba manual en teléfono físico ni crítica de un segundo chat distinto. La imagen compacta WebP está en GitHub; el original en alta resolución no se logró guardar en Library por límite de almacenamiento, no declarar preservación de ese original.
+- Registro durable: `gh-pages:projects/pulso-j12/PROJECT_V1.json` más recibo público SERVED_VERIFIED en reentrada.json.

@@ -17,6 +17,10 @@ try {
   check('project selected and history state kept',await card.getAttribute('aria-pressed')==='true');
   const link=page.locator('a[href="/prometeo/experiments/emblem-001-pulso/PULSO_JUGAR.html"]');
   check('published game is the project destination',await link.count()>0);
+  const publicRegistry=await page.evaluate(async()=>{const response=await fetch('./reentrada.json?proof='+Date.now(),{cache:'no-store'});if(!response.ok)throw Error('registry HTTP '+response.status);return response.json();});
+  const verified=publicRegistry.public_receipts?.find(r=>r.id==='j12_pulso_served_20261010_v1');
+  check('public SERVED_VERIFIED receipt present',verified?.state==='SERVED_VERIFIED',verified);
+  check('served blob SHA anchored to exact bytes',verified?.version_sha==='af35726605e3a8379e4787b6890ca35db2dcf111',verified?.version_sha);
   check('no browser exceptions',proof.errors.length===0,proof.errors);
   await page.screenshot({path:out+'/catalog-mobile.png',fullPage:false});
   proof.state='PASS';
