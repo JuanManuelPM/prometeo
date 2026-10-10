@@ -60,8 +60,11 @@ const server=createServer(async(req,res)=>{
    await svg.focus();
    await page.keyboard.press('Home');
    assert.notEqual(await svg.getAttribute('viewBox'),before,'Home keyboard reset supported');
+   assert.match(await mount.locator('[data-demo-id="universal.node.interpret"]').getAttribute('class'),/ue-muted/,'candidate must be de-emphasized in actual architecture');
    await mount.getByRole('button',{name:/Arquitectura: actual/}).click();
    assert.match(await mount.getByRole('button',{name:/Arquitectura: evolución/}).innerText(),/evolución/);
+   assert.doesNotMatch(await mount.locator('[data-demo-id="universal.node.interpret"]').getAttribute('class'),/ue-muted/,'proposed architecture reveals candidate');
+   assert.match(await mount.innerText(),/EVOLUCIÓN PROPUESTA/);
    const bodyWidth=await page.evaluate(()=>document.body.scrollWidth);
    assert.ok(bodyWidth<=width+12,'unexpected horizontal overflow '+bodyWidth+' at '+width);
    assert.deepEqual(errors,[],'no page errors');
