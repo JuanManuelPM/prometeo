@@ -130,6 +130,15 @@ try {
       assert.ok(responsive.card>=width*.84,'Cards look like mini desktop tiles');
       assert.ok(responsive.title>=22&&responsive.date>=17,'Activity/date text remains too small');
     }
+    // Final Pages release following the screenshot review and typography correction.
+    assert.match(await page.locator('.entry-note').innerText(),/Pedí cambios en cualquier chat/);
+    assert.match(await page.locator('.rail-hint').innerText(),/Deslizá para ver más proyectos/);
+    const coverFit=await page.locator('#track .cover-lettering').evaluateAll(nodes=>nodes.map(n=>({
+      text:n.textContent,clip:n.scrollWidth>n.clientWidth+1,nowrap:getComputedStyle(n).whiteSpace==='nowrap'
+    })));
+    assert.ok(coverFit.every(x=>!x.clip&&x.nowrap),'Final served covers have clipped or broken text: '+JSON.stringify(coverFit));
+    assert.equal(await page.locator('#track .project[aria-pressed="true"]').first().evaluate(el=>getComputedStyle(el).outlineStyle),'none','Double selected ring still served');
+    note('published_PR93_typography_'+width,coverFit);
     note('published_PR92_dark_responsive_'+width,responsive);
     evidence.checks.push(width+'px: SERVED black theme, real viewport & zoom, large cards, authentic raster + four typographic covers');
     // The published baseline may be either the old responsive skin or the
@@ -195,7 +204,7 @@ try {
     evidence.checks.push(width+'px: PUBLIC real Chromium DOM, 5 cards, no overflow');
     await context.close();
   }
-  evidence.outcome='PUBLIC_PR92_DARK_MOBILE_SERVED_VERIFIED_PR88_ARTWORK_REMAINS_CANDIDATE';
+  evidence.outcome='PUBLIC_PR93_DARK_MOBILE_FINAL_SERVED_VERIFIED_PR88_ARTWORK_REMAINS_CANDIDATE';
 } catch(e){
   evidence.outcome='BLOCKED';
   evidence.errors.push(String(e.stack||e));
