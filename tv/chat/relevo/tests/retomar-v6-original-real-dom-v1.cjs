@@ -50,6 +50,8 @@ async function run(){
  let browser;
  try {
   const owner=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/STATE_V1.json'),'utf8'));
+   const catalog=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/retomar/reentrada.json'),'utf8'));
+   const projectCount=catalog.projects.length;
   assert.ok(owner.history.length>=4);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   for(const width of [390,1440]){
@@ -60,7 +62,7 @@ async function run(){
      route.fulfill({status:403,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{}'}));
    const response=await page.goto(base+'/prometeo/tv/chat/relevo/retomar/',{waitUntil:'domcontentloaded'});
    assert.equal(response.status(),200);
-   await page.waitForFunction(()=>document.querySelectorAll('#track [data-demo-id]').length===5);
+   await page.waitForFunction(n=>document.querySelectorAll('#track [data-demo-id]').length===n,projectCount);
    await page.waitForFunction(()=>document.querySelectorAll('#activityRows article').length>=4);
    for(const asset of steps){
     // Load actual V3-V6 scripts from the ORIGINAL remote engine, in dependency order.
