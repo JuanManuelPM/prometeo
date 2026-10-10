@@ -93,7 +93,7 @@ for(const width of [360,390,430,844,1440]){
  assert.ok(numbers.scroll<=width+1,'Global horizontal overflow: '+JSON.stringify(numbers));
  assert.ok(numbers.meta>=14,'Metadata too small');
  if(width===390){const visible=numbers.client/(numbers.card+12);
- assert.ok(visible>=1.2&&visible<=1.6,'Expected approx 1.2–1.5 cards, saw '+visible);
+ assert.ok(visible>=1.08&&visible<=1.3,'Expected one dominant mobile project with a peek of the next card, saw '+visible);
  assert.ok(numbers.activityY<850,'No activity in first screen');}
  await page.screenshot({path:path.join(dir,'integrated-'+width+'.png'),fullPage:true});
  record(width+'px: real HTTP + PR78 art + source activity + mobile hierarchy');
