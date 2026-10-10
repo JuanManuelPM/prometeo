@@ -28,6 +28,10 @@ Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invo
 
 Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteriores. No exige recrear arquitectura, memoria privada o scheduler.
 
+## Dirección artística universal · corrección humana 2026-10-10
+
+Cuando la tarea involucre **estética, imágenes, widgets, composición, portadas, juegos, visuales o interfaces** (aunque el usuario nunca diga Prometeo ni elija skill), cargar **desde `main` vigente** `visuals/VISUAL_PROTOCOL_V1.md`, `visuals/VISUAL_FEEDBACK_LOG_V1.md` (sección «2026-10-10 · Crítica humana vinculante») y `visuals/EXECUTION_CHECKLIST_V1.md`, además del owner de producto. Ahí están **las descripciones persistidas de dos imágenes de referencia que NO están alojadas en GitHub**, la crítica a las tarjetas SVG geométricas y el procedimiento exigido de dirección artística. No fingir que se vieron archivos ausentes; usar su descripción recuperable y analizar los originales si se vuelven a adjuntar. **La prueba técnica en Chromium/V6 no sustituye el juicio visual**. Priorizar composición/arte primero, uno o dos widgets protagonistas cuando convenga, y evitar modificar la única pantalla antes de elegir y comprobar una dirección superior. No crear un controlador ni una app paralela por esta corrección.
+
 ## Descubrimiento autónomo de herramientas y entrega por cualquier chat
 
 Ante cualquier tarea concreta en este Proyecto, **no exigir que el usuario escriba `@`, `🔥`, nombre de skill ni un prompt perfecto**. Consultar `gh-pages:tv/chat/relevo/CHATGPT_CAPACIDADES_Y_ENTREGA_V1.md` para recuperar contrato de autodescubrimiento, ampliación profesional, ejecución, pruebas, estado durable de entrega, privacidad y proyección de versiones por proyecto. `@GitHub` y `+` son accesos opcionales a apps conectadas cuando están disponibles, no condiciones de continuidad. Una skill guardada en GitHub no equivale a skill nativa instalada. **La persistencia del organismo es el objetivo estratégico; cumplir la tarea humana actual es la responsabilidad del turno.**
