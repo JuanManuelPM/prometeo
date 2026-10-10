@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ritmo de estudio · Prometeo</title>
+<meta name="description" content="Armá bloques de estudio y descanso con horarios argentinos, sin cuentas ni servidores.">
+<style>
+:root{color-scheme:light dark;font-family:system-ui,sans-serif}
+body{margin:0;padding:clamp(1rem,4vw,2rem);font-size:clamp(18px,2vw,21px);line-height:1.55}
+main{max-width:800px;margin:auto}
+fieldset{display:grid;gap:1rem;padding:1rem;border-radius:0.5rem}
+label{display:grid;gap:0.35rem}
+input,button{font:inherit;padding:.65rem;min-height:44px;max-width:100%}
+button{cursor:pointer}
+li{padding:.65rem 0}
+#result{margin-top:2rem}
+small{font-size:.85em}
+</style>
+</head>
+<body>
+<main>
+<a href="/prometeo/tv/chat/relevo/retomar/">← Proyectos de Prometeo</a>
+<h1>Ritmo de estudio</h1>
+<p>Organizá tus próximos bloques de enfoque y descanso. Los horarios se muestran en Argentina. Los valores 25/5 son orientativos, no una recomendación médica o académica universal.</p>
+<form id="planner">
+<fieldset>
+<legend>Nuevo plan</legend>
+<label>Sesiones de enfoque (1 a 12)
+<input name="rounds" type="number" min="1" max="12" step="1" value="4" required></label>
+<label>Minutos por sesión (5 a 120)
+<input name="focusMinutes" type="number" min="5" max="120" step="1" value="25" required></label>
+<label>Descanso entre sesiones, en minutos (0 a 60)
+<input name="breakMinutes" type="number" min="0" max="60" step="1" value="5" required></label>
+<button type="submit">Armar plan desde ahora</button>
+</fieldset>
+</form>
+<section id="result" aria-live="polite" aria-labelledby="resultTitle">
+<h2 id="resultTitle">Tu plan</h2>
+<p id="status">Completá los valores y tocá «Armar plan».</p>
+<ol id="blocks"></ol>
+</section>
+<details id="projectLog">
+<summary>Ideas, investigación, decisiones, resultados y versiones del proyecto</summary>
+<div id="projectHistory" aria-live="polite"><p>Recuperando historia desde el owner público…</p></div>
+</details>
+<p><small>Los cálculos se hacen en tu dispositivo. No se envían horarios ni datos a un servidor. Código y decisiones: <a href="https://github.com/JuanManuelPM/prometeo/blob/gh-pages/projects/ritmo-estudio/PROJECT_V1.json">fuente verificable del proyecto</a>.</small></p>
+</main>
+<script type="module">
+import { planBlocks, formatArgentineDate } from './planner.mjs';
+const form=document.getElementById('planner');
+const status=document.getElementById('status');
+const list=document.getElementById('blocks');
+form.addEventListener('submit',event=>{
+  event.preventDefault();
+  list.replaceChildren();
+  try{
+    const data=new FormData(form);
+    const plan=planBlocks({
+      startIso:new Date().toISOString(),
+      rounds:Number(data.get('rounds')),
+      focusMinutes:Number(data.get('focusMinutes')),
+      breakMinutes:Number(data.get('breakMinutes'))
+    });
+    for(const block of plan.blocks){
+      const li=document.createElement('li');
+      li.textContent=(block.kind==='enfoque'?'Enfoque':'Descanso')+
+        ' · bloque '+block.session+' · '+formatArgentineDate(block.startUtc)+
+        ' → '+formatArgentineDate(block.endUtc);
+      list.append(li);
+    }
+    status.textContent=plan.totalMinutes+' min en total · termina '+formatArgentineDate(plan.finishUtc)+'.';
+  }catch(error){
+    status.textContent='No se pudo generar: '+error.message;
+  }
+});
+
+// La historia visible viene del owner real, no de respuestas privadas ni tarjetas inventadas.
+async function renderOwner(){
+  const root=document.getElementById('projectHistory');
+  try{
+    const response=await fetch('./PROJECT_V1.json',{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const owner=await response.json();
+    if(owner.id!=='ritmo-estudio')throw new Error('Identidad de proyecto inválida');
+    root.replaceChildren();
+    const groups=[
+      ['Ideas','ideas',x=>x.text],
+      ['Investigación','research',x=>x.text],
+      ['Decisiones','decisions',x=>x.choice+' · '+x.reason],
+      ['Resultados','results',x=>x.state+' · '+x.detail+(x.when_utc?' · '+formatArgentineDate(x.when_utc):'')],
+      ['Versiones','versions',x=>x.version+' · '+x.state+(x.created_at_utc?' · '+formatArgentineDate(x.created_at_utc):'')+' · '+x.note]
+    ];
+    for(const [title,key,toText] of groups){
+      const h=document.createElement('h3');h.textContent=title;root.append(h);
+      const ul=document.createElement('ul');
+      for(const item of (owner[key]||[])){
+        const li=document.createElement('li');
+        li.textContent=toText(item);
+        ul.append(li);
+      }
+      root.append(ul);
+    }
+  }catch(error){
+    root.textContent='No se pudo verificar la historia: '+error.message+'. Consultá el owner en GitHub.';
+  }
+}
+renderOwner();
+
+</script>
+</body>
+</html>

@@ -83,3 +83,12 @@ Si faltan requisitos esenciales que aún pueden satisfacerse con herramientas di
 
 ## E. Cómo no convertir el contrato en otra pieza huérfana
 Este documento entra por la entrada GitHub ya configurada en Proyecto, no por una skill instalada que el usuario debe invocar. Su cumplimiento NO está probado por escribirlo: en el próximo chat hay que efectuar **pruebas frías adversariales**, recoger recibos y cotejar qué podía hacer el agente. El próximo desarrollo productivo debe terminar en un artefacto humano real. Evitar duplicar las mismas reglas en muchos archivos; las demás rutas enlazan aquí.
+
+
+## Alta verificable de proyectos nuevos en cualquier chat (2026-10-10)
+
+Cuando la persona dice naturalmente «creá un proyecto» (texto o audio transcripto), sin exigir invocación: leer esta entrada y `gh-pages:tv/chat/relevo/retomar/reentrada.json`, recuperar HEAD actual y comprobar si ya existe el mismo proyecto. Mantener **un solo catálogo**, `projects[]` de ese JSON. El propietario real del proyecto debe ser un módulo existente adecuado o, si es verdaderamente nuevo, `projects/<slug>/PROJECT_V1.json` con `ideas`, `research`, `decisions`, `results`, `versions`, `artifacts` y `verification`; incluir un artefacto realmente ejecutable y pruebas cuando se pide funcionalidad. Usar ids estables y rutas públicas verificables; no crear un sistema paralelo.
+
+Abrir rama/PR aislado y revalidar HEAD, escribir pruebas y resultados en el owner; **recién después** añadir con CAS el nuevo `projects[]` y `public_receipts[]` al JSON de la pantalla, sin borrar los elementos de otros chats. `source_path` debe existir realmente en GitHub, `link` debe apuntar a una ruta permitida por `safePublicLink`, la fecha debe derivar de evento UTC real y los estados reflejar pruebas disponibles. Si hay revisión o bloqueo, usar TESTED/CANDIDATE/BLOCKED; `PUBLISHED` sólo al confirmar integración en `gh-pages`, `SERVED_VERIFIED` sólo con HTTP/browser y prueba versionada. Nunca emitir un recibo de una ficción.
+
+Al cerrar: releer el owner + catálogo por GitHub desde cero; comprobar recuento e ids antiguos, prueba reproducible, commit, resultado de PR y página servida si las herramientas permiten HTTP. El chat sucesor empieza con `AGENT_ENTRY_V1.md`, lee el catálogo y encuentra el módulo por id, sin copiar contestaciones antiguas. **Eso no sustituye una prueba de otro chat real** ni instala automáticamente memoria en ChatGPT. No transferir contenido privado al repositorio público, no editar UI/portadas del otro chat salvo autorización explícita.

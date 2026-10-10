@@ -19,7 +19,7 @@ const artifacts=path.join(root,'artifacts/retomar-pr77-http');
 await mkdir(artifacts,{recursive:true});
 const reentry=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/retomar/reentrada.json'),'utf8'));
 const state=JSON.parse(await readFile(path.join(root,'tv/chat/relevo/STATE_V1.json'),'utf8'));
-assert.equal(reentry.projects.length,5,'Expect exactly the five real owner mappings');
+assert.ok(reentry.projects.length>=5,'The five founding owner mappings must remain');
 assert.ok(state.history?.length>=3,'Cross-chat history absent from checked out owner');
 const sources=new Map();
 for(const p of reentry.projects){
@@ -91,17 +91,17 @@ try{
     });
     const response=await page.goto(url,{waitUntil:'domcontentloaded'});
     assert.equal(response.status(),200);
-    await page.waitForFunction(()=>document.querySelectorAll('.project').length===5);
+    await page.waitForFunction(n=>document.querySelectorAll('.project').length===n,reentry.projects.length);
     await page.waitForFunction(()=>document.querySelectorAll('#relayRows a').length>=3);
     await page.waitForFunction(()=>document.querySelector('#liveProofRows')?.textContent.includes('Archivo servido'));
     await page.locator('.evidence-drawer summary').click();
-    assert.equal(await page.locator('.project').count(),5);
+    assert.equal(await page.locator('.project').count(),reentry.projects.length);
     assert.ok((await page.locator('#relayRows').innerText()).includes('Argentina'));
     assert.ok((await page.locator('#liveProofRows').innerText()).includes('COINCIDE byte a byte'));
     assert.ok(!(await page.locator('#liveProofRows').innerText()).includes('Cotejando respuesta'));
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Body overflow at '+width);
     assert.deepEqual(await page.locator('#track .project h2').allTextContents(),
-      ['Persistencia','Facultad','Widgets','TV','Experiencias'],'Five distinct project titles');
+      reentry.projects.map(p=>p.label),'All catalog projects must be rendered in order');
     if(width<=390){
       assert.ok(await page.locator('#track').evaluate(n=>n.scrollWidth>n.clientWidth),'Horizontal gallery does not scroll');
       await page.locator('#track').evaluate(n=>n.scrollTo({left:n.scrollWidth,behavior:'instant'}));

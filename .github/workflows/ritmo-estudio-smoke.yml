@@ -1,0 +1,68 @@
+name: Ritmo de estudio · prueba y publicación
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - "projects/ritmo-estudio/**"
+      - "tv/chat/relevo/retomar/reentrada.json"
+      - ".github/workflows/ritmo-estudio-smoke.yml"
+  push:
+    branches: [gh-pages]
+    paths:
+      - "projects/ritmo-estudio/**"
+      - "tv/chat/relevo/retomar/reentrada.json"
+      - ".github/workflows/ritmo-estudio-smoke.yml"
+jobs:
+  reproducible:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Motor Node real y límites temporales
+        run: node projects/ritmo-estudio/planner.test.mjs
+      - name: Recuperación fría desde propietarios sin conversaciones
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const entry=fs.readFileSync('tv/chat/AGENT_ENTRY_V1.md','utf8');
+          const catalog=JSON.parse(fs.readFileSync('tv/chat/relevo/retomar/reentrada.json','utf8'));
+          const project=catalog.projects.find(p=>p.id==='ritmo-estudio');
+          assert.ok(entry.includes('reentrada.json')&&project);
+          assert.equal(project.source_path,'projects/ritmo-estudio/PROJECT_V1.json');
+          assert.equal(project.link,'/prometeo/projects/ritmo-estudio/');
+          const owner=JSON.parse(fs.readFileSync(project.source_path,'utf8'));
+          assert.equal(owner.id,project.id);
+          for(const key of ['ideas','research','decisions','results','versions','artifacts'])assert.ok(owner[key]?.length,key);
+          for(const other of ['persistencia','facultad','widgets','tv','experiencias'])assert.ok(catalog.projects.some(p=>p.id===other),other);
+          assert.ok(catalog.public_receipts.some(r=>r.project_id===project.id));
+          console.log('Cold file recovery PASS: entry → catalog → owner, 5 existing projects preserved.');
+          NODE
+      - name: Instalar navegador para interacción real
+        if: github.event_name == 'push'
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: GitHub Pages realmente servido después del merge
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://juanmanuelpm.github.io/prometeo"
+          for path in "projects/ritmo-estudio/index.html" "projects/ritmo-estudio/planner.mjs" "tv/chat/relevo/retomar/reentrada.json"; do
+            ok=0
+            for n in $(seq 1 15); do
+              if curl -fsSL --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "$base/$path?proof=$GITHUB_SHA-$n" -o "/tmp/served-$(basename "$path")"; then
+                if cmp -s "$path" "/tmp/served-$(basename "$path")"; then ok=1; break; fi
+              fi
+              sleep 8
+            done
+            if [ "$ok" -ne 1 ]; then echo "Pages missing or stale: $path"; exit 1; fi
+            echo "Pages HTTP + exact bytes PASS: $path"
+          done
+      - name: "Chromium real: crear plan y recuperar proyecto desde la portada"
+        if: github.event_name == 'push'
+        run: node projects/ritmo-estudio/browser.test.mjs
