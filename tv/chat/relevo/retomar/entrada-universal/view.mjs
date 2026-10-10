@@ -9,7 +9,7 @@ function fail(msg){mount.replaceChildren(elm('div','ue-fail','Mapa no disponible
 async function main(){
  if(!mount)return;
  let res;
- try{res=await fetch('./entrada-universal/graph.v1.json',{cache:'no-store'});if(!res.ok)throw Error('HTTP '+res.status);const g=await res.json();validateGraph(g);render(g);}
+ try{res=await fetch('./entrada-universal/graph.v1.json',{cache:'no-store'});if(!res.ok)throw Error('HTTP '+res.status);const g=await res.json();validateGraph(g);await render(g);}
  catch(e){fail(String(e.message||e));}
 }
 async function render(g){
