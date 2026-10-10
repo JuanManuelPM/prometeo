@@ -31,6 +31,13 @@ export function planSignal(signal,projectIndex=[]){
  const uncertainty=[...(signal.uncertainty||[])];
  const ambiguous=intents.has('ambiguous_reference')||uncertainty.some(v=>['referente','acción','owner'].includes(v));
  const response={kind:'conversation',mutates:false,needs_authorization:false,blocked:[],requires:['context'],priority_change:false,owner:null};
+ const actionable=['execute','continue_project','create_product','correct_order','create_project','deep_research','explicit_global_priority'].some(x=>intents.has(x));
+ if(!ambiguous&&actionable&&(intents.has('status_question')||intents.has('intellectual_conversation')||intents.has('idea_unapproved'))){
+  const conversational=['status_question','intellectual_conversation','idea_unapproved'].filter(x=>intents.has(x));
+  const remaining=signal.intents.filter(x=>!conversational.includes(x));
+  const part=planSignal({...signal,intents:remaining},projectIndex);
+  return {...part,kind:'compound',subroutes:[...conversational,part.kind],requires:[...new Set(['fresh_owner',...part.requires])]};
+ }
  if(intents.has('status_question')&&!([...intents].some(x=>['execute','create_project','correct_order'].includes(x)))){
   response.kind='status';response.requires=['fresh_owner','head','evidence'];return response;
  }
