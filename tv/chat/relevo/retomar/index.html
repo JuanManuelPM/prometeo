@@ -294,7 +294,7 @@ function setSelected(i,push=false){
 
 }
 /* Historial público REAL, no mensajes privados ni datos inventados. */
-let activityGeneration=0,lastActivitySignature='',lastCommitReload=Date.now();
+let activityGeneration=0,lastActivitySignature='',lastCommitReload=Date.now(),lastVerifiedRelayState=null;
 async function refreshActivity({refreshCommits=false}={}){
  if(!items.length)return;
  const generation=++activityGeneration;
@@ -306,17 +306,21 @@ async function refreshActivity({refreshCommits=false}={}){
  if(generation!==activityGeneration)return;
  const entries=[];
  const state=results[0];
- if(state.status!=='fulfilled'||!Array.isArray(state.value?.history)){
-  watch.textContent='Sin actualización verificable. Se conservan los últimos resultados visibles.';
-  return;
+ const freshRelay=state.status==='fulfilled'&&Array.isArray(state.value?.history);
+ if(freshRelay)lastVerifiedRelayState=state.value;
+ const relayState=freshRelay?state.value:lastVerifiedRelayState;
+ if(!freshRelay){
+  watch.textContent='Relevo sin actualizar. Se conserva el último registro conocido; otros recibos públicos se consultan por separado.';
+  if(!relayState&&!publicReceipts.length)return;
+ }else{
+  watch.textContent='Revisado: '+argentineDate(new Date())+' · Consulta cada minuto; cambios de archivos cada 15 min.';
  }
- watch.textContent='Revisado: '+argentineDate(new Date())+' · Consulta cada minuto; cambios de archivos cada 15 min.';
- if(selected>=0&&items[selected]?.id==='persistencia'&&Number.isInteger(state.value.last_hop)&&state.value.last_hop>=highestPublicHopSeen){
-  nodes.state.textContent='Último registro: relevo '+state.value.last_hop+' · '+(state.value.history.length?dateLabel(state.value.history.at(-1).date_utc):'sin fecha comprobada')+'.';
-  renderRelayHistory(state.value,relayRequest,selected);
+ if(selected>=0&&items[selected]?.id==='persistencia'&&Number.isInteger(relayState?.last_hop)&&relayState.last_hop>=highestPublicHopSeen){
+  nodes.state.textContent='Último registro: relevo '+relayState.last_hop+' · '+(relayState.history.length?dateLabel(relayState.history.at(-1).date_utc):'sin fecha comprobada')+'.';
+  renderRelayHistory(relayState,relayRequest,selected);
  }
- if(state.status==='fulfilled'&&Array.isArray(state.value.history)){
-  state.value.history.forEach(h=>{
+ if(Array.isArray(relayState?.history)){
+  relayState.history.forEach(h=>{
    if(!Number.isInteger(h.hop)||typeof h.episode_ref!=='string'||!h.episode_ref.startsWith('tv/chat/relevo/episodes/')||!h.episode_ref.endsWith('.md')||h.episode_ref.split('/').some(part=>!part||part==='..')||!/^[a-zA-Z0-9_.-]+$/.test(h.episode_ref.split('/').at(-1)))return;
    const status=typeof h.result==='string'?h.result:'';
    let topic='Continuidad guardada',summary=String(h.lesson||h.result||'Resultado público disponible').replace(/\s+/g,' ').trim();
