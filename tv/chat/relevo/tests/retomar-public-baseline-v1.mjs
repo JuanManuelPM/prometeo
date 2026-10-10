@@ -27,13 +27,13 @@ try {
     fetch(stateUrl,{headers:{'cache-control':'no-cache'}}),
     fetch(registryUrl,{headers:{'cache-control':'no-cache'}})
   ]);
-  // Pages/CDN propagation is asynchronous after the merge. Retry *real* bytes.
+  // Pages/CDN observed lag >180s on run 38093708414 (served d9db271..., source be3ea6e...). Keep truthful 6-minute bounded retry on *real* bytes.
   const newSha=(await gh.clone().json()).sha;
-  for(let attempt=0;attempt<18;attempt++){
+  for(let attempt=0;attempt<36;attempt++){
     const b=Buffer.from(await resp.clone().arrayBuffer());
     const candidate=createHash('sha1').update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex');
     if(candidate===newSha)break;
-    if(attempt===17)throw Error('PAGES_PROPAGATION_TIMEOUT: expected '+newSha+', served '+candidate);
+    if(attempt===35)throw Error('PAGES_PROPAGATION_TIMEOUT: expected '+newSha+', served '+candidate);
     await new Promise(resolve=>setTimeout(resolve,10000));
     resp=await fetch(pageUrl+'?served-check='+newSha.slice(0,10)+'-'+(attempt+1),{headers:{'cache-control':'no-cache'}});
   }
