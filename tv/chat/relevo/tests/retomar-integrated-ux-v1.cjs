@@ -76,7 +76,9 @@ for(const width of [360,390,430,844,1440]){
   await page.route('**/prometeo/tv/chat/relevo/STATE_V1.json*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(liveState)}));
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(hop=>document.querySelector('#activityRows')?.textContent?.includes('Relevo '+hop),liveState.last_hop);
-  assert.equal(await page.locator('#relayRows a').count(),liveState.history.length);
+  await page.locator('#track [data-project="persistencia"]').click();
+  await page.waitForFunction(n=>document.querySelectorAll('#relayRows a').length===n,Math.min(8,liveState.history.length));
+  assert.equal(await page.locator('#relayRows a').count(),Math.min(8,liveState.history.length));
   await page.screenshot({path:path.join(dir,'cold-crosschat-live-owner-390.png'),fullPage:true});
   record('REAL gh-pages STATE HOP'+liveState.last_hop+' recovered into candidate via owner HTTP body');
 
