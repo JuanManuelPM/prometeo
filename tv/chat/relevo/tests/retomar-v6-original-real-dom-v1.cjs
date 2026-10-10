@@ -108,7 +108,7 @@ async function run(){
      const receipts=engine.observer.export(),audit=engine.qualityAudit();
      return {events:receipts.map(r=>({type:r.type,action:r.action,target:r.target,owner:r.owner,message:r.message,code:r.code})),
        manifest:manifest.targets.filter(x=>['projects.rail','projects.facultad','projects.persistencia','activity.feed'].includes(x.id)),
-       issue_codes:audit.issues.map(x=>x.code),audit_pass:audit.pass,
+       issue_codes:audit.issues.map(x=>x.code),issue_details:audit.issues,audit_pass:audit.pass,
        final_selected:root.querySelector('[data-demo-id="projects.persistencia"]')?.getAttribute('aria-pressed'),
        last_hop:root.querySelector('#activityRows').textContent.includes('Relevo 4'),
        viewport_owner:root.dataset.viewportOwner,
@@ -121,6 +121,7 @@ async function run(){
    assert.ok(result.events.some(e=>e.type==='viewport_authority'&&e.owner==='ENGINE'));
    assert.equal(result.viewport_owner,'FREE');
    assert.ok(result.last_hop,'Lost persisted actual history');
+   console.log('V6_QUALITY_DETAILS',width,JSON.stringify(result.issue_details));
    assert.deepEqual(result.issue_codes,[],'V6 quality issues');
    assert.deepEqual(pageErrors,[],'Uncaught browser errors');
    await page.screenshot({path:path.join(artifacts,'real-engine-v6-'+width+'.png'),fullPage:true});
