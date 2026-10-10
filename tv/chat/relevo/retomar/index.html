@@ -360,6 +360,7 @@ body.pwa{--ink:#f6f4ed;--paper:#0b0c0f;background:#0b0c0f;color:#f6f4ed;font-siz
   <p class="work-desk-sub">Un pedido puede tener varios avances. Acá se reúnen por encargo, con fecha argentina y fuentes. La página no escucha chats ni trabaja cuando está cerrada.</p>
   <p class="work-feedback" id="workFeedback" role="status" aria-live="polite">Cargando novedades públicas…</p>
   <div id="workCards" aria-live="off"><p class="work-empty">Buscando entregas y pedidos con prueba pública…</p></div>
+  <noscript><p class="work-empty">Esta vista necesita JavaScript para comprobar novedades. Las fuentes públicas siguen disponibles en GitHub.</p></noscript>
   <button id="workMore" type="button" class="work-more" hidden>Mostrar encargos anteriores</button>
 </section>
 
@@ -800,8 +801,8 @@ let workRows=[],workProjects=[],workShown=8,workRenderSignature='',workProjectNe
 const workStamp=r=>Date.parse(r.occurred_at_utc);
 const workPhases=[
  {label:'Pedido reconocido',states:['REQUEST_CAPTURED']},
- {label:'Trabajo guardado',states:['CANDIDATE','TESTED','PUBLISHED','SERVED_VERIFIED']},
- {label:'Pruebas',states:['TESTED','SERVED_VERIFIED']},
+ {label:'Cambio candidato',states:['CANDIDATE']},
+ {label:'Pruebas',states:['TESTED']},
  {label:'Página verificada',states:['SERVED_VERIFIED']}
 ];
 function workText(element,tag,value,className){
@@ -878,7 +879,7 @@ function workAlert(newEvents){
  }
  let unseen=[];
  for(const e of newEvents)if(!workNotified.has(e.id)){workNotified.add(e.id);unseen.push(e)}
- workSave('notified-v1',[...workNotified].slice(-1200));
+ if(unseen.length)workSave('notified-v1',[...workNotified].slice(-1200));
  if(!unseen.length||!workNotifications||document.hidden||!document.hasFocus()||
     matchMedia('(prefers-reduced-motion: reduce)').matches)return;
  try{
@@ -899,6 +900,17 @@ function workNotificationLabel(){
  workNotify.textContent=workNotifications?'Avisos activados · desactivar':'Activar avisos en esta pestaña';
 }
 workNotificationLabel();
+// On return visits the preference can persist, but Web Audio still needs a real
+// user gesture to reopen an AudioContext. Never attempt background autoplay.
+function workPrimeSound(){
+ if(!workNotifications||workSound?.state==='running')return;
+ try{
+  const AudioContext=window.AudioContext||window.webkitAudioContext;
+  if(AudioContext){workSound=workSound||new AudioContext();workSound.resume().catch(()=>{})}
+ }catch(_){}
+}
+document.addEventListener('pointerdown',workPrimeSound,{passive:true});
+document.addEventListener('keydown',workPrimeSound);
 workNotify.addEventListener('click',async()=>{
  workNotifications=!workNotifications;workSave('notices-v1',workNotifications);
  if(workNotifications){
