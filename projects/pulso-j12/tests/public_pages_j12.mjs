@@ -13,6 +13,9 @@ try {
   await page.waitForFunction(()=>!!document.querySelector('[data-project="pulso-j12"]'),null,{timeout:40000});
   const card=page.locator('[data-project="pulso-j12"]');
   check('actual project appears in living catalog',await card.isVisible());
+  const cover=await card.locator('.cover-lettering').evaluate(el=>{const a=el.getBoundingClientRect(),b=el.parentElement.getBoundingClientRect();return {text:el.textContent,right:a.right,max:b.right,left:a.left,min:b.left}});
+  check('cover title not clipped on narrow phone',cover.right<=cover.max+1&&cover.left>=cover.min-1,cover);
+  check('concise PULSO cover label',cover.text==='PULSO',cover.text);
   await card.click();
   check('project selected and history state kept',await card.getAttribute('aria-pressed')==='true');
   const link=page.locator('a[href="/prometeo/experiments/emblem-001-pulso/PULSO_JUGAR.html"]');
