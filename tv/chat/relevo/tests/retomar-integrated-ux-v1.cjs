@@ -29,8 +29,8 @@ try{
 server.listen(0,'127.0.0.1');await once(server,'listening');
 const url='http://127.0.0.1:'+server.address().port+'/prometeo/tv/chat/relevo/retomar/';
 browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-for(const width of [360,390,430,844,1440]){
- const context=await browser.newContext({viewport:{width,height:850},deviceScaleFactor:1});
+for(const width of [360,390,430,480,844,1440]){
+ const context=await browser.newContext({viewport:{width,height:width===480?1800:850},deviceScaleFactor:width<=480?2:1,isMobile:width<=480,hasTouch:width<=480});
  const page=await context.newPage();page.on('pageerror',e=>errors.push(width+':'+e.message));
  await page.route('https://api.github.com/repos/JuanManuelPM/prometeo/**',r=>r.fulfill({status:403,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'{"message":"No auth in this test"}'}));
  const nav=await page.goto(url,{waitUntil:'domcontentloaded'});
@@ -42,7 +42,9 @@ for(const width of [360,390,430,844,1440]){
  assert.match(await page.locator('.entry-note').innerText(),/audio transcripto/);
  assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
  assert.equal(await page.locator('.intro').count(),0,'PowerPoint explanation remains');
- assert.equal(await page.locator('#track img').count(),3,'Original art covers absent');
+ assert.equal(await page.locator('#track img').count(),1,'Only the authentic PR88 raster may be a pictorial cover');
+ assert.equal(await page.locator('#track .cover-lettering').count(),4,'The other four projects need accessible typographic covers');
+ assert.equal(await page.locator('#track img[src$=".svg"]').count(),0,'Rejected geometric SVG cover returned');
  assert.ok(await page.locator('#track img').evaluateAll(nodes=>nodes.every(img=>img.complete&&img.naturalWidth>0)),'Covers failed HTTP');
  assert.equal(await page.locator('#track .project').count(),5);
  // FEATURE-01..04: real PR88 owner data appears on the SAME HOP8 page,
@@ -80,9 +82,32 @@ for(const width of [360,390,430,844,1440]){
     meta:parseFloat(getComputedStyle(row.querySelector('time')).fontSize)
  })));
  assert.ok(activityCheck.length>=5,'Missing real activity');
+ const viewport=await page.evaluate(()=>({
+   inner:innerWidth,client:document.documentElement.clientWidth,visual:visualViewport?.width,
+   zoom:visualViewport?.scale,docScroll:document.documentElement.scrollWidth,
+   bg:getComputedStyle(document.body).backgroundColor,
+   mainFont:parseFloat(getComputedStyle(document.body).fontSize),
+   card:document.querySelector('#track .project').getBoundingClientRect().width,
+   coverFont:parseFloat(getComputedStyle(document.querySelector('.cover-lettering')).fontSize),
+   mobile:matchMedia('(max-width:639px)').matches
+ }));
+ assert.equal(viewport.inner,width,'Viewport meta has desktop-shrunk the mobile page');
+ assert.equal(viewport.client,width,'CSS layout viewport differs from requested width');
+ assert.ok(Math.abs(viewport.visual-width)<2,'Visual viewport unexpectedly shrunk');
+ assert.ok(Math.abs(viewport.zoom-1)<.01,'Unexpected page zoom');
+ assert.equal(viewport.bg,'rgb(11, 12, 15)','Old LIGHT theme still overrides dark');
+ assert.ok(viewport.mainFont>=18,'Global font is still miniature');
+ assert.ok(viewport.docScroll<=width+1,'Global overflow outside project rail');
+ if(width<=480){
+   assert.ok(viewport.mobile,'Mobile media query did not match');
+   assert.ok(viewport.card>=width*.84,'One dominant card is not large enough');
+   assert.ok(viewport.coverFont>=40,'Typographic cover too small');
+   assert.ok(activityCheck.every(e=>e.font>=22&&e.meta>=17),'Activity text/date still miniature');
+ }
+ record(width+'px: ACTUAL visual/CSS viewport, zoom, dark background and computed text sizes');
  assert.ok(activityCheck.every(e=>Number.isFinite(e.at)&&/Argentina/.test(e.text)),'Each visible activity must include a true Argentina date');
  assert.ok(activityCheck.every((e,i)=>i===0||activityCheck[i-1].at>=e.at),'Activity must be newest-first');
- if(width<=430){
+ if(width<=480){
    assert.ok(activityCheck.every(e=>e.font>=18&&e.meta>=14),'Mobile feed text too small');
    assert.ok(await page.locator('#track .project').first().evaluate(el=>el.getBoundingClientRect().width>=innerWidth*.78),'Mobile project cards too tiny');
    assert.ok(await page.locator('#track').evaluate(el=>el.scrollWidth>el.clientWidth),'Projects must swipe horizontally');
@@ -96,7 +121,7 @@ for(const width of [360,390,430,844,1440]){
  assert.ok(visible>=1.08&&visible<=1.3,'Expected one dominant mobile project with a peek of the next card, saw '+visible);
  assert.ok(numbers.activityY<850,'No activity in first screen');}
  await page.screenshot({path:path.join(dir,'integrated-'+width+'.png'),fullPage:true});
- record(width+'px: real HTTP + PR78 art + source activity + mobile hierarchy');
+ record(width+'px: real HTTP + authentic raster/typographic covers + source activity + mobile hierarchy');
  if(width===390){
   await page.getByRole('button',{name:'Facultad'}).click();
   assert.match(page.url(),/#facultad$/);
@@ -199,7 +224,7 @@ assert.deepEqual(errors,[],'Uncaught JS errors');
 record('No browser exceptions');
 } finally{
  await browser?.close();server.close();await once(server,'close');
- await writeFile(path.join(dir,'result.json'),JSON.stringify({status:errors.length?'FAIL':'PASS',scope:'HTTP_LOCAL_CANDIDATE',source_history_hop:owner.last_hop,real_chat_responses:false,pages_published:false,viewports:[360,390,430,844,1440],checks,errors},null,2));
+ await writeFile(path.join(dir,'result.json'),JSON.stringify({status:errors.length?'FAIL':'PASS',scope:'HTTP_LOCAL_CANDIDATE',source_history_hop:owner.last_hop,real_chat_responses:false,pages_published:false,viewports:[360,390,430,480,844,1440],checks,errors},null,2));
 }
 console.log('INTEGRATED_VISUAL_BROWSER_PASS',checks.length);
 })().catch(e=>{console.error(e);process.exitCode=1});
