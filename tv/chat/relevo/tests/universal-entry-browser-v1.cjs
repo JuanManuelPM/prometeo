@@ -31,7 +31,8 @@ const server=createServer(async(req,res)=>{
    const context=await browser.newContext({viewport:{width,height:850},hasTouch:width<500,isMobile:width<500,deviceScaleFactor:1});
    const page=await context.newPage(),errors=[];
    page.on('pageerror',err=>errors.push(err.message));
-   await page.route('https://api.github.com/repos/JuanManuelPM/prometeo/**',route=>route.fulfill({status:403,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:'{}'}));
+   const apiStatus=width===390?404:width===844?429:403;
+   await page.route('https://api.github.com/repos/JuanManuelPM/prometeo/**',route=>route.fulfill({status:apiStatus,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:'{}'}));
    const response=await page.goto('http://127.0.0.1:'+server.address().port+'/prometeo/tv/chat/relevo/retomar/',{waitUntil:'networkidle'});
    assert.equal(response.status(),200);
    const mount=page.locator('#universalEntryMount');
@@ -62,7 +63,7 @@ const server=createServer(async(req,res)=>{
    assert.ok(bodyWidth<=width+12,'unexpected horizontal overflow '+bodyWidth+' at '+width);
    assert.deepEqual(errors,[],'no page errors');
    await page.screenshot({path:path.join(dir,'universal-entry-'+width+'.png'),fullPage:true});
-   results.views.push({width,ok:true,errors:errors.length,http:response.status(),zoom:true,route:'a,b,e',legacy_projects:5});
+   results.views.push({width,ok:true,errors:errors.length,http:response.status(),zoom:true,route:'a,b,e',apiStatus,legacy_projects:5});
    await context.close();
   }
   results.status='PASS';console.log('UNIVERSAL_ENTRY_BROWSER_PASS',JSON.stringify(results.views));
