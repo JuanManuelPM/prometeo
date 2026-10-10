@@ -346,10 +346,18 @@ function draw(){
  const initial=items.findIndex(o=>o.id===decodeURIComponent(location.hash.slice(1)));setSelected(initial>=0?initial:0);
  if(!history.state?.project)history.replaceState({project:items[selected].id,scrollY:scrollY,rail:0},'');
 }
+function keepSelectedCardVisible(i){
+ const card=nodes.track.children[i];if(!card)return;
+ const rail=nodes.track.getBoundingClientRect(),rect=card.getBoundingClientRect();
+ // Preserve rail position when possible, but never return to a hidden selected object.
+ if(rect.left<rail.left)nodes.track.scrollLeft-=rail.left-rect.left+3;
+ else if(rect.right>rail.right)nodes.track.scrollLeft+=rect.right-rail.right+3;
+}
 window.addEventListener('popstate',event=>{
  if(!items.length)return;const id=event.state?.project||decodeURIComponent(location.hash.slice(1));
- const i=items.findIndex(x=>x.id===id);setSelected(i>=0?i:0);
+ const i=items.findIndex(x=>x.id===id),index=i>=0?i:0;setSelected(index);
  if(event.state){nodes.track.scrollLeft=event.state.rail||0;window.scrollTo({top:event.state.scrollY||0,behavior:'instant'});}
+ keepSelectedCardVisible(index);
 });
 nodes.copy.addEventListener('click',async()=>{
  const o=items[selected];let prompt=o?.id==='persistencia'?primary?.exact_prompt:o?.id==='experiencias'?oldGame?.exact_prompt:null;

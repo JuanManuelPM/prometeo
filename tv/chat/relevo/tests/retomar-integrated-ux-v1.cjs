@@ -60,6 +60,11 @@ for(const width of [360,390,430,844,1440]){
   assert.match(page.url(),/#facultad$/);
   await page.goBack({waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelector('[data-project="persistencia"]')?.getAttribute('aria-pressed')==='true');
+  await page.waitForFunction(()=>{
+    const rail=document.querySelector('#track')?.getBoundingClientRect();
+    const selected=document.querySelector('[data-project="persistencia"]')?.getBoundingClientRect();
+    return rail&&selected&&selected.left>=rail.left-2&&selected.right<=rail.right+2;
+  },null,{timeout:5000});
   await page.goForward({waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelector('[data-project="facultad"]')?.getAttribute('aria-pressed')==='true');
   record('Browser Back/Forward restores project without a second UI');
