@@ -91,12 +91,48 @@ body.pwa{background:#f4f2eb;color:#111111}
 .pwa footer{display:none}
 @media(max-width:530px){.pwa main.app{padding-inline:17px}.pwa .track.rail{margin-inline:-17px;padding-inline:17px}.pwa .project.card{flex-basis:min(72vw,260px)}}
 @media(prefers-reduced-motion:reduce){.pwa *{transition:none!important;scroll-behavior:auto!important}}
+
+/* ARCHIVO HABITADO V1 · candidato, arte de imagen original, nunca geometría CSS como imagen. */
+.pwa main.app{width:min(1040px,100%);max-width:1040px;padding-bottom:68px}
+.pwa .archive-stage{background:#050505;color:#fff;margin:10px 0 0;overflow:hidden}
+.pwa .archive-stage img{display:block;width:100%;height:clamp(220px,42vw,440px);object-fit:cover;object-position:center 53%;image-rendering:pixelated;background:#000;color:#fff}
+.pwa .archive-caption{padding:13px 19px 17px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;column-gap:18px;border-top:1px solid #bbb}
+.pwa .archive-caption h2{color:#fff;font-size:clamp(25px,5vw,43px);line-height:1.08;letter-spacing:-.035em;margin:2px 0 0}
+.pwa .archive-caption .archive-kicker{font:700 12px/1.5 ui-monospace,monospace;letter-spacing:.1em;margin:0;color:#ddd}
+.pwa .archive-caption .archive-note{font-size:12px;max-width:225px;line-height:1.4;margin:0;color:#dedede}
+.pwa .track.rail{margin:0;padding:0;gap:0;scrollbar-width:thin;border:2px solid #111;scroll-snap-type:x proximity}
+.pwa .project.card{flex:0 0 182px;min-width:0;aspect-ratio:auto;min-height:118px;height:118px;max-height:118px;scroll-snap-align:start;border:0;border-right:1px solid #111;border-radius:0;background:#f4f2eb;padding:0;transition:none}
+.pwa .project.card[aria-pressed="true"]{outline:none;background:#111;padding:0;border-right:1px solid #111}
+.pwa .project .cover{display:none}
+.pwa .project-foot{padding:12px 13px;justify-content:space-between;min-height:0;overflow:hidden}
+.pwa .project .tag{color:#111;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.pwa .project h2{font-size:21px;line-height:1.06;color:#111;margin:2px 0 5px;overflow-wrap:anywhere}
+.pwa .carddate{font-size:14px;line-height:1.15;color:#252525}
+.pwa .project.card[aria-pressed="true"] .tag,.pwa .project.card[aria-pressed="true"] h2,.pwa .project.card[aria-pressed="true"] .carddate{color:#f4f2eb}
+.pwa .activity{padding-top:7px}
+@media(max-width:530px){
+ .pwa main.app{padding-inline:14px}
+ .pwa .archive-stage{margin-inline:-14px}
+ .pwa .archive-stage img{height:clamp(220px,62vw,300px)}
+ .pwa .archive-caption{padding:12px 15px 14px;grid-template-columns:1fr}
+ .pwa .archive-caption h2{font-size:28px}
+ .pwa .archive-caption .archive-note{margin-top:7px;max-width:none}
+ .pwa .track.rail{margin-inline:-14px;padding:0;border-left:0;border-right:0}
+ .pwa .project.card{flex-basis:157px;height:117px;max-height:117px;min-height:117px}
+}
 </style>
 </head>
 <body class="pwa">
 <main class="app">
 <header class="bar"><h1>Proyectos</h1><span class="spacer"></span><a href="/prometeo/tv/chat/">TV ↗</a></header>
 <p class="entry-note">Pedí cambios o preguntá en cualquier chat de este Proyecto, con texto o audio transcripto. Acá ves los resultados públicos guardados.</p>
+<section class="archive-stage" aria-label="Escena ilustrada del archivo de Prometeo, arte conceptual en revisión">
+  <img id="archiveArt" alt="" decoding="async">
+  <div class="archive-caption">
+    <div><p class="archive-kicker">PROMETEO / ARCHIVO DE PROYECTOS</p><h2 id="archiveSelected" aria-live="polite">Recuperando proyectos…</h2></div>
+    <p class="archive-note" id="archiveNote">Ilustración conceptual. Los estados y resultados se comprueban en sus fuentes.</p>
+  </div>
+</section>
 <nav id="track" class="track rail" aria-label="Proyectos" data-demo-id="projects.rail"></nav>
 <section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><p class="watch-note" id="watchStatus" role="status">Recuperando actividad…</p><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
 <section class="below">
@@ -113,6 +149,14 @@ body.pwa{background:#f4f2eb;color:#111111}
 </main>
 <script>
 'use strict';
+
+/* Imagen real en PNG 1-bit, almacenada como bytes base64 en el mismo branch.
+   Fetch de archivo estático sin servicio externo, sin tokens ni inventar datos. */
+fetch('./art/archivo-habitado-256.png.b64',{cache:'force-cache'})
+ .then(r=>{if(!r.ok)throw Error('Arte HTTP '+r.status);return r.text()})
+ .then(raw=>{const b64=raw.trim();if(!/^iVBORw0KGgo[A-Za-z0-9+/=]+$/.test(b64))throw Error('Arte inválido');document.getElementById('archiveArt').src='data:image/png;base64,'+b64})
+ .catch(()=>{document.getElementById('archiveNote').textContent='No se pudo cargar la ilustración. Los proyectos y la actividad siguen disponibles.'});
+
 const dataUrl='./reentrada.json';
 const repo='JuanManuelPM/prometeo';
 const nodes={track:document.getElementById('track'),tag:document.getElementById('selectedTag'),title:document.getElementById('detailTitle'),desc:document.getElementById('detailDescription'),state:document.getElementById('detailState'),source:document.getElementById('source'),copy:document.getElementById('copy'),notice:document.getElementById('notice')};
@@ -269,6 +313,7 @@ function setSelected(i,push=false){
  if(push){try{history.replaceState({...history.state,scrollY:window.scrollY,rail:nodes.track.scrollLeft},'');history.pushState({project:items[i].id,scrollY:window.scrollY,rail:nodes.track.scrollLeft},'',location.pathname+location.search+'#'+items[i].id);}catch(e){/* about:blank and sandboxed embeds may deny URL mutation; project selection must still work */}}
  selected=i;
  [...nodes.track.children].forEach((e,k)=>e.setAttribute('aria-pressed',k===i?'true':'false'));
+ document.getElementById('archiveSelected').textContent=items[i].label;
  const o=items[i];const relayTurn=++relayRequest;relayPanel.hidden=o.id!=='persistencia';
  if(o.id==='persistencia')relayRows.textContent='Consultando relevos reales...';
  loadEvidence(o,i);nodes.tag.textContent='Proyecto';nodes.title.textContent=o.label;
@@ -369,13 +414,11 @@ function draw(){
  items.forEach((o,i)=>{
   const b=document.createElement('button');b.type='button';b.className='project';b.setAttribute('aria-pressed','false');
   b.classList.add('card');b.dataset.project=o.id;b.dataset.demoId='projects.'+o.id;
-  const cover=document.createElement('div'),coverText=document.createElement('div'),foot=document.createElement('div'),small=document.createElement('span'),h=document.createElement('h2'),time=document.createElement('span');
-  cover.className='cover';const art={persistencia:'notas',facultad:'estudio',experiencias:'pulso'}[o.id];
-  if(art){const img=document.createElement('img');img.src='/prometeo/ui-workspace-v1/visual-system/duotone-atelier-v1/art/'+art+'.svg';img.alt='';img.loading='lazy';cover.append(img);}
-  else{coverText.className='type-cover';const token=document.createElement('b');token.textContent=o.id==='tv'?'TV':'W';coverText.append(token);cover.append(coverText);}
+  const foot=document.createElement('div'),small=document.createElement('span'),h=document.createElement('h2'),time=document.createElement('span');
+  // Archivo Habitado: índice textual de proyectos, sin portadas SVG geométricas ni peticiones huérfanas.
   foot.className='project-foot';small.className='tag';small.textContent='Proyecto';h.textContent=o.label;
   time.className='carddate';time.textContent='Actualización sin comprobar';foot.append(small,h,time);
-  b.append(cover,foot);b.addEventListener('click',()=>setSelected(i,true));nodes.track.append(b);
+  b.append(foot);b.addEventListener('click',()=>setSelected(i,true));nodes.track.append(b);
   if(safeProject(o))getProjectCommits(o).then(list=>{
    o._last=list[0]?.commit?.committer?.date||list[0]?.commit?.author?.date||'';
    time.textContent=dateLabel(o._last);

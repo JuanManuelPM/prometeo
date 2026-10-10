@@ -42,8 +42,10 @@ for(const width of [360,390,430,844,1440]){
  assert.match(await page.locator('.entry-note').innerText(),/audio transcripto/);
  assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
  assert.equal(await page.locator('.intro').count(),0,'PowerPoint explanation remains');
- assert.equal(await page.locator('#track img').count(),3,'Original art covers absent');
- assert.ok(await page.locator('#track img').evaluateAll(nodes=>nodes.every(img=>img.complete&&img.naturalWidth>0)),'Covers failed HTTP');
+ assert.equal(await page.locator('#track img').count(),0,'Rejected generic SVG cards must not be rendered');
+ await page.waitForFunction(()=>document.querySelector('#archiveArt')?.naturalWidth>0);
+ assert.deepEqual(await page.locator('#archiveArt').evaluate(img=>[img.naturalWidth,img.naturalHeight]),[256,171],'Original 1-bit scene failed HTTP or decode');
+ assert.equal(await page.locator('#archiveSelected').innerText(),'Persistencia','Hero is not bound to the actual selected project');
  assert.equal(await page.locator('#track .project').count(),5);
  const text=await page.locator('#activityRows').innerText();
  assert.ok(text.includes('Relevo '+owner.last_hop),'Source history not represented');
@@ -53,11 +55,11 @@ for(const width of [360,390,430,844,1440]){
  assert.equal(numbers.width,width,'Viewport scaled incorrectly');
  assert.ok(numbers.scroll<=width+1,'Global horizontal overflow: '+JSON.stringify(numbers));
  assert.ok(numbers.meta>=14,'Metadata too small');
- if(width===390){const visible=numbers.client/(numbers.card+12);
- assert.ok(visible>=1.2&&visible<=1.6,'Expected approx 1.2–1.5 cards, saw '+visible);
+ if(width===390){const visible=numbers.client/(numbers.card+1);
+ assert.ok(visible>=2&&visible<=3.1,'Expected a legible archive index with multiple projects, saw '+visible);
  assert.ok(numbers.activityY<850,'No activity in first screen');}
  await page.screenshot({path:path.join(dir,'integrated-'+width+'.png'),fullPage:true});
- record(width+'px: real HTTP + PR78 art + source activity + mobile hierarchy');
+ record(width+'px: real HTTP + Archivo Habitado 1-bit image + source activity + mobile hierarchy');
  if(width===390){
   await page.getByRole('button',{name:'Facultad'}).click();
   assert.match(page.url(),/#facultad$/);
