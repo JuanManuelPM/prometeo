@@ -50,7 +50,7 @@ const server=createServer(async(req,res)=>{
     if(!result.isFile())return send(res,404,'Not a file');
     let bytes=await readFile(file);
     if(faults.servedDiff&&relative==='tv/chat/relevo/STATE_V1.json')bytes=Buffer.concat([bytes,Buffer.from('CHANGED')]);
-    const type=relative.endsWith('.html')?'text/html; charset=utf-8':relative.endsWith('.json')?'application/json; charset=utf-8':relative.endsWith('.js')?'application/javascript; charset=utf-8':'text/plain; charset=utf-8';
+    const type=relative.endsWith('.html')?'text/html; charset=utf-8':relative.endsWith('.json')?'application/json; charset=utf-8':relative.endsWith('.js')?'application/javascript; charset=utf-8':relative.endsWith('.css')?'text/css; charset=utf-8':'text/plain; charset=utf-8';
     send(res,200,bytes,type);
   }catch(e){send(res,404,'Local file missing: '+e.code)}
 });
@@ -99,17 +99,7 @@ try{
     assert.ok((await page.locator('#relayRows').innerText()).includes('Argentina'));
     assert.ok((await page.locator('#liveProofRows').innerText()).includes('COINCIDE byte a byte'));
     assert.ok(!(await page.locator('#liveProofRows').innerText()).includes('Cotejando respuesta'));
-    const overflow=await page.evaluate(()=>({
-      vw:innerWidth,scroll:document.documentElement.scrollWidth,
-      offenders:[...document.querySelectorAll('body *')].map(el=>{
-        const r=el.getBoundingClientRect(),c=getComputedStyle(el);
-        return {tag:el.tagName,cl:String(el.className).slice(0,85),id:el.id,
-          right:Math.round(r.right),left:Math.round(r.left),width:Math.round(r.width),
-          display:c.display,overflow:c.overflowX};
-      }).filter(x=>x.right>innerWidth+2&&x.display!=='none'&&x.right<innerWidth+700).sort((a,b)=>a.right-b.right).slice(0,30)
-    }));
-    if(overflow.scroll>width+1)console.error('J10_OVERFLOW_DIAGNOSTIC',width,JSON.stringify(overflow));
-    assert.ok(overflow.scroll<=width+1,'Body overflow at '+width);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Body overflow at '+width);
     assert.deepEqual(await page.locator('#track .project h2').allTextContents(),
       reentry.projects.map(p=>p.label),'All catalog projects must be rendered in order');
     if(width<=390){
