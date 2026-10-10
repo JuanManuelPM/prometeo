@@ -127,7 +127,7 @@ let browser;
     fixture={...fixture,public_receipts:[...fixture.public_receipts,receipt('m01-test-delta','m01-delta','tv','TESTED',-1,'Pruebas después de señal')]};
     await page.evaluate(()=>refreshWhenVisible());
     await page.waitForFunction(()=>document.querySelector('[data-work-id="m01-delta"] .work-status')?.textContent?.includes('Pruebas registradas'));
-    assert.equal(await page.locator('[data-work-id="m01-delta"] .work-history li').count(),2); // details stays collapsed but DOM history exists
+    assert.equal(await page.locator('[data-work-id="m01-delta"] .work-history li').count(),3); // ACK + CANDIDATE + new TESTED, even if details stays collapsed
     pass('New receipt from independent owner is consumed on same page without duplication');
     fixtureStatus=503;
     await page.evaluate(()=>refreshWhenVisible());
