@@ -390,17 +390,70 @@ nodes.copy.addEventListener('click',async()=>{
  try{await navigator.clipboard.writeText(prompt);nodes.notice.textContent='Mensaje copiado. Abrí otro chat del Proyecto persistencia y pegalo.';}
  catch(e){nodes.notice.textContent='Tu navegador bloqueó copiar. Abrí la fuente y recuperá el mensaje allí.';nodes.source.href='./reentrada.json';nodes.source.textContent='Ver el mensaje en JSON';}
 });
-(async()=>{
- try{const r=await fetch(dataUrl,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();
- if(!Array.isArray(d.projects)||!d.primary_mission?.exact_prompt)throw Error('Faltan datos de proyectos o misión.');
- items=d.projects;primary=d.primary_mission;oldGame=d.next_experiment;draw();refreshActivity();
- }catch(e){nodes.tag.textContent='Fuente no disponible';nodes.title.textContent='Consultar continuidad en GitHub';nodes.desc.textContent='No se pudo recuperar la información actual. No se inventa el estado.';nodes.state.textContent='';nodes.copy.disabled=true;nodes.notice.textContent='Abrí RETOMAR_V1.md con GitHub conectado.';}
-})();
-// Same page stays open while other chats publish new public receipts. No server worker or hidden chat runtime.
-function refreshWhenVisible(){if(!document.hidden&&items.length)refreshActivity({refreshCommits:true});}
+// The existing public registry is the only project catalog. Read it again while
+// this SAME page is open: newly published projects must not require a reload.
+// Do not create project cards from private chats or unverified activity.
+let registrySignature='',registryInFlight=null;
+function validRegistry(d){
+ if(!d||!Array.isArray(d.projects)||!d.projects.length||d.projects.length>25||
+    typeof d.primary_mission?.exact_prompt!=='string')return false;
+ const ids=new Set();
+ for(const p of d.projects){
+  if(!p||typeof p.id!=='string'||!/^[a-z0-9][a-z0-9-]{0,63}$/.test(p.id)||
+     ids.has(p.id)||typeof p.label!=='string'||!p.label.trim()||p.label.length>90||
+     typeof p.description!=='string'||p.description.length>600||
+     !safeProject(p)||!safePublicLink(p.link))return false;
+  ids.add(p.id);
+ }
+ return true;
+}
+async function refreshProjectRegistry(){
+ if(registryInFlight)return registryInFlight;
+ registryInFlight=(async()=>{
+  try{
+   const r=await fetch(dataUrl,{cache:'no-store'});
+   if(!r.ok)throw Error('HTTP '+r.status);
+   const d=await r.json();
+   if(!validRegistry(d))throw Error('Registro público inválido');
+   // The signature covers the full public projection, not just project IDs:
+   // changing a label, destination or continuation instruction is observable.
+   const nextSignature=JSON.stringify({projects:d.projects,primary:d.primary_mission,game:d.next_experiment});
+   if(nextSignature===registrySignature)return false;
+   const previous=new Map(items.map(p=>[p.id,p]));
+   items=d.projects.map(p=>{
+    const old=previous.get(p.id);
+    return old?.source_path===p.source_path&&old?.source_branch===p.source_branch
+      ?{...p,_last:old._last}:{...p};
+   });
+   primary=d.primary_mission;oldGame=d.next_experiment;
+   registrySignature=nextSignature;
+   // Selection lives in browser history; draw() recovers it without a new UI.
+   draw();
+   lastActivitySignature='';
+   return true;
+  }catch(e){
+   if(!items.length){
+    nodes.tag.textContent='Fuente no disponible';nodes.title.textContent='Consultar continuidad en GitHub';
+    nodes.desc.textContent='No se pudo recuperar la información actual. No se inventa el estado.';
+    nodes.state.textContent='';nodes.copy.disabled=true;
+    nodes.notice.textContent='Abrí RETOMAR_V1.md con GitHub conectado.';
+   }else{
+    nodes.notice.textContent='No se pudo comprobar el catálogo actualizado; se conservan los proyectos ya recuperados.';
+   }
+   return false;
+  }
+ })().finally(()=>{registryInFlight=null;});
+ return registryInFlight;
+}
+async function refreshWhenVisible(){
+ if(document.hidden)return;
+ await refreshProjectRegistry();
+ if(items.length)await refreshActivity({refreshCommits:true});
+}
+refreshWhenVisible();
 document.addEventListener('visibilitychange',refreshWhenVisible);
 window.addEventListener('focus',refreshWhenVisible);
-setInterval(()=>{if(!document.hidden&&items.length)refreshActivity({refreshCommits:true});},60000);
+setInterval(refreshWhenVisible,60000);
 setInterval(()=>{
  items.forEach((o,i)=>{
   if(o._last){
