@@ -1,0 +1,54 @@
+name: J11 auditoría independiente de entregas
+on:
+  push:
+    branches:
+      - audit/j11-independent-deliveries-20261010
+    paths:
+      - 'tv/chat/relevo/tests/j11-independent-audit-v1.mjs'
+      - 'tv/chat/relevo/audits/J11-20261010-EVIDENCE.md'
+      - '.github/workflows/j11-independent-audit.yml'
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - 'tv/chat/relevo/tests/j11-independent-audit-v1.mjs'
+      - 'tv/chat/relevo/audits/J11-20261010-EVIDENCE.md'
+      - '.github/workflows/j11-independent-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: j11-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  independent-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar continuidad, propietarios, fechas y recibos (sin mocks)
+        run: node tv/chat/relevo/tests/j11-independent-audit-v1.mjs
+      - name: Cotejar Pages remoto con bytes del checkout y hashes Git
+        run: node tv/chat/relevo/tests/j11-independent-audit-v1.mjs --served
+      - name: Probar motor real de Ritmo de estudio
+        run: node projects/ritmo-estudio/planner.test.mjs
+      - name: Preparar navegador Chromium para prueba pública
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Navegador público de Ritmo y regreso al catálogo (390/1440)
+        run: node projects/ritmo-estudio/browser.test.mjs
+      - name: Página realmente servida, escritorio y móviles (360/390/480/844/1440)
+        run: node tv/chat/relevo/tests/retomar-public-baseline-v1.mjs
+      - name: Guardar recibos JSON, screenshots y fallos incluso en error
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: J11-independent-public-evidence
+          path: |
+            artifacts/j11-independent/
+            artifacts/retomar-public-baseline/
+          retention-days: 14
+          if-no-files-found: warn
