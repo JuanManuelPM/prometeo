@@ -131,6 +131,7 @@ for(const width of [360,390,430,844,1440]){
    status:200,contentType:'application/json',body:JSON.stringify(extended)}));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await page.waitForFunction(()=>document.querySelectorAll('#track .project').length===6);
+  await page.waitForFunction(()=>document.querySelector('[data-project="facultad"]')?.getAttribute('aria-pressed')==='true');
   assert.equal(await page.locator('[data-project="facultad"]').getAttribute('aria-pressed'),'true',
    'Project selection lost when public registry changed');
   await page.waitForFunction(()=>document.querySelector('#activityRows')?.textContent?.includes('Entrega sintética verificable sólo en test'));
