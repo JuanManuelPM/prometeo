@@ -12,7 +12,7 @@ async function main(){
  try{res=await fetch('./entrada-universal/graph.v1.json',{cache:'no-store'});if(!res.ok)throw Error('HTTP '+res.status);const g=await res.json();validateGraph(g);render(g);}
  catch(e){fail(String(e.message||e));}
 }
-function render(g){
+async function render(g){
  mount.replaceChildren();
  let active=g.routes[0],chosen=g.nodes[0],technical=false,evolution=false;
  const head=elm('header','ue-head'),hgroup=elm('div'),kicker=elm('div','ue-kicker','PERSISTENCIA / ENTRADA UNIVERSAL / CANDIDATO'),title=elm('h2','', 'El mapa de decisiones'),intro=elm('p','','Explorá qué ocurre desde un mensaje hasta un resultado durable. Las rutas A–E son ejemplos de prueba, no chats ejecutándose en vivo.');
