@@ -44,7 +44,19 @@ for(const width of [360,390,430,480,844,1440]){
  assert.match(await page.locator('.entry-note').innerText(),/audio transcripto/);
  assert.match(await page.locator('#watchStatus').innerText(),/Consulta cada minuto/);
  assert.equal(await page.locator('.intro').count(),0,'PowerPoint explanation remains');
- assert.equal(await page.locator('#track img').count(),1,'Only the authentic PR88 raster may be a pictorial cover');
+ // J10: verify the real served-by-localhost illustration bytes decode before any visual claim.
+ await page.waitForFunction(()=>document.querySelector('#atlasFigure')?.dataset.art==='j10'&&
+   document.querySelector('.j10-mobile-cover')?.complete&&document.querySelector('.j10-mobile-cover')?.naturalWidth===384);
+ assert.equal(await page.locator('#track img').count(),2,'Exactly two original raster covers: PR88 and J10');
+ const newArt=await page.locator('#atlasImage').evaluate(img=>({w:img.naturalWidth,h:img.naturalHeight,loaded:img.complete}));
+ assert.deepEqual(newArt,{w:384,h:256,loaded:true},'J10 illustration missing or corrupt');
+ const presentation=await page.evaluate(()=>({
+   atlas:getComputedStyle(document.querySelector('.j10-atlas')).display,
+   cover:getComputedStyle(document.querySelector('.j10-mobile-cover')).display
+ }));
+ assert.equal(presentation.atlas,width<=720?'none':'grid','Editorial scene should not crowd mobile');
+ assert.equal(presentation.cover,width<=720?'block':'none','One illustrative project, no duplicate art');
+ record(width+'px: J10 original illustrated WebP decodes, responsive presentation, no SVG geometry');
  assert.equal(await page.locator('#track .cover-lettering').count(),initialProjectCount-1,'All non-raster projects need typographic covers');
  assert.equal(await page.locator('#track img[src$=".svg"]').count(),0,'Rejected geometric SVG cover returned');
  assert.ok(await page.locator('#track img').evaluateAll(nodes=>nodes.every(img=>img.complete&&img.naturalWidth>0)),'Covers failed HTTP');

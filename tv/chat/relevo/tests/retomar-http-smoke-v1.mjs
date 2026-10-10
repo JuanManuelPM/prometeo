@@ -50,7 +50,7 @@ const server=createServer(async(req,res)=>{
     if(!result.isFile())return send(res,404,'Not a file');
     let bytes=await readFile(file);
     if(faults.servedDiff&&relative==='tv/chat/relevo/STATE_V1.json')bytes=Buffer.concat([bytes,Buffer.from('CHANGED')]);
-    const type=relative.endsWith('.html')?'text/html; charset=utf-8':relative.endsWith('.json')?'application/json; charset=utf-8':relative.endsWith('.js')?'application/javascript; charset=utf-8':'text/plain; charset=utf-8';
+    const type=relative.endsWith('.html')?'text/html; charset=utf-8':relative.endsWith('.json')?'application/json; charset=utf-8':relative.endsWith('.js')?'application/javascript; charset=utf-8':relative.endsWith('.css')?'text/css; charset=utf-8':'text/plain; charset=utf-8';
     send(res,200,bytes,type);
   }catch(e){send(res,404,'Local file missing: '+e.code)}
 });

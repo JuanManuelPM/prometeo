@@ -273,11 +273,24 @@ body.pwa{--ink:#f6f4ed;--paper:#0b0c0f;background:#0b0c0f;color:#f6f4ed;font-siz
  .pwa .cover-lettering.cover-lettering-long{font-size:43px}
 }
 </style>
+<link rel="stylesheet" href="./j10-editorial.css">
 </head>
 <body class="pwa">
 <main class="app">
 <header class="bar"><h1>Proyectos</h1><span class="spacer"></span><a href="/prometeo/tv/chat/">TV ↗</a></header>
 <p class="entry-note">Pedí cambios en cualquier chat de este Proyecto. También por audio transcripto.</p>
+<section class="j10-atlas" aria-labelledby="atlasTitle">
+ <figure class="j10-atlas-art" id="atlasFigure" hidden>
+  <img id="atlasImage" alt="Ilustración original de Archivo Habitado, una arquitectura de memoria dibujada en tinta" width="256" height="171" decoding="async">
+  <figcaption>Archivo Habitado · ilustración experimental del PR #88</figcaption>
+ </figure>
+ <div class="j10-atlas-copy">
+  <p class="j10-eyebrow">PROMETEO / BIBLIOTECA VIVA</p>
+  <h2 id="atlasTitle">Un lugar para volver.</h2>
+  <p>Los proyectos, resultados y pruebas quedan reunidos sin depender de un chat abierto.</p>
+  <a href="#activityTitle">Ver actividad reciente ↓</a>
+ </div>
+</section>
 <p class="rail-hint">Deslizá para ver más proyectos →</p>
 <nav id="track" class="track rail" aria-label="Proyectos" data-demo-id="projects.rail"></nav>
 <section class="activity" aria-labelledby="activityTitle"><h2 id="activityTitle">Actividad</h2><p class="activity-sort-note">Más recientes primero · horario argentino</p><p class="watch-note" id="watchStatus" role="status">Recuperando actividad…</p><div id="activityRows" aria-live="polite" data-demo-id="activity.feed"><p>Consultando los cambios guardados…</p></div></section>
@@ -547,7 +560,45 @@ async function refreshActivity({refreshCommits=false}={}){
  });
 }
 
+/* Imagen original J10 servida desde la misma rama. WebP real, con prueba de decodificación.
+   Si falla, conservar el raster público PR88 o la composición tipográfica. */
+let j10SceneSrc=null,j10SceneFailed=false,j10SceneLoading=null;
+function applyJ10MobileCover(){
+ if(!j10SceneSrc)return;
+ const cover=document.querySelector('#track .project[data-project="persistencia"] .cover');
+ if(!cover||cover.querySelector('.j10-mobile-cover'))return;
+ const img=document.createElement('img');
+ img.className='j10-mobile-cover';img.alt='';img.src=j10SceneSrc;img.width=384;img.height=256;
+ cover.insertBefore(img,cover.firstChild);cover.classList.add('j10-illustrated');
+}
+function installJ10Scene(){
+ const figure=document.getElementById('atlasFigure'),img=document.getElementById('atlasImage');
+ if(!figure||!img)return;
+ if(j10SceneSrc){img.src=j10SceneSrc;figure.dataset.art='j10';figure.hidden=false;return;}
+ if(j10SceneFailed||j10SceneLoading)return;
+ j10SceneLoading=(async()=>{
+  const response=await fetch('./art/j10-atlas-384.webp.b64',{cache:'force-cache'});
+  if(!response.ok)throw Error('Arte HTTP '+response.status);
+  const encoded=(await response.text()).trim();
+  if(encoded.length!==11512||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw Error('Arte inválido');
+  const data='data:image/webp;base64,'+encoded;
+  const probe=new Image();probe.src=data;await probe.decode();
+  if(probe.naturalWidth!==384||probe.naturalHeight!==256)throw Error('Dimensiones de arte inesperadas');
+  j10SceneSrc=data;
+  img.src=data;img.alt='Ilustración original en tinta de una biblioteca nocturna con libros, ventanas y ciudad al fondo';
+  img.width=384;img.height=256;
+  figure.querySelector('figcaption').textContent='Archivo nocturno · ilustración original J10';
+  figure.dataset.art='j10';figure.hidden=false;
+  applyJ10MobileCover();
+ })().catch(()=>{j10SceneFailed=true;}).finally(()=>{j10SceneLoading=null;});
+}
+
 function draw(){
+ const atlasFigure=document.getElementById('atlasFigure'),atlasImage=document.getElementById('atlasImage');
+ const publicArtwork=document.querySelector('#workArchive .work-art img');
+ if(publicArtwork?.src?.startsWith('data:image/png;base64,')){atlasImage.src=publicArtwork.src;atlasFigure.hidden=false;}
+ else{atlasFigure.hidden=true;atlasImage.removeAttribute('src');}
+ installJ10Scene();
  nodes.track.replaceChildren();
  items.forEach((o,i)=>{
   const b=document.createElement('button');b.type='button';b.className='project';b.setAttribute('aria-pressed','false');
@@ -577,6 +628,7 @@ function draw(){
    if(selected===i&&o.id!=='persistencia')nodes.state.textContent='Última edición de fuente: '+dateLabel(o._last)+'. No indica versión lista.';
   }).catch(()=>{time.textContent='Edición sin verificar';});
  });
+ applyJ10MobileCover();
  const initial=items.findIndex(o=>o.id===decodeURIComponent(location.hash.slice(1)));setSelected(initial>=0?initial:0);
  if(!history.state?.project)history.replaceState({project:items[selected].id,scrollY:scrollY,rail:0},'');
 }
