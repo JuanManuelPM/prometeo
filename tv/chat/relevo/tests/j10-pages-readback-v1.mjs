@@ -50,17 +50,23 @@ try{
   await page.waitForFunction(()=>document.getElementById('atlasFigure')?.dataset.art==='j10'&&
     document.getElementById('atlasImage')?.naturalWidth===384,null,{timeout:15000});
   await page.waitForFunction(()=>document.querySelectorAll('#track .project').length>=5);
+  await page.waitForFunction(()=>{
+   const rows=[...document.querySelectorAll('#activityRows article')];
+   return rows.length>=5&&rows.every(row=>row.querySelector('time')?.textContent.includes('Argentina'));
+  },null,{timeout:30000});
   const state=await page.evaluate(()=>({
    overflow:document.documentElement.scrollWidth>innerWidth+1,
    mobileScene:getComputedStyle(document.querySelector('.j10-atlas')).display,
    mobileCover:getComputedStyle(document.querySelector('.j10-mobile-cover')).display,
    activity:document.querySelector('#activityTitle').getBoundingClientRect().top,
+   activityRows:document.querySelectorAll('#activityRows article').length,
    img:document.getElementById('atlasImage').naturalWidth
   }));
   assert.equal(state.overflow,false,'Horizontal overflow in served Pages at '+width);
   assert.equal(state.mobileScene,width===390?'none':'grid');
   assert.equal(state.mobileCover,width===390?'block':'none');
   assert.equal(state.img,384);
+  assert.ok(state.activityRows>=5,'Published activity feed did not load');
   assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(evidence,'j10-pages-'+width+'.png'),fullPage:true});
   console.log('J10_PAGES_CHROMIUM_PASS',width,JSON.stringify(state));
