@@ -50,6 +50,9 @@ for(const width of [360,390,430,844,1440]){
  await page.waitForFunction(()=>!document.querySelector('#workArchive')?.hidden);
  const dossier=page.locator('#workArchive');
  assert.match(await dossier.innerText(),/Archivo Habitado/);
+ assert.equal(await dossier.locator('.work-expanded').count(),1,'Dossier research must be collapsible');
+ assert.equal(await dossier.locator('.work-expanded').evaluate(el=>el.open),false,'Long research hides by default');
+ await dossier.locator('.work-expanded summary').click();
  assert.match(await dossier.innerText(),/Ciudad Isométrica/);
  assert.match(await dossier.innerText(),/Observatorio Monumental/);
  assert.match(await dossier.innerText(),/NO está publicado ni aprobado/);
@@ -70,6 +73,21 @@ for(const width of [360,390,430,844,1440]){
  assert.ok(text.includes('Relevo '+owner.last_hop),'Source history not represented');
  assert.ok(text.includes('Argentina'),'Missing AR timestamps');
  assert.ok(!(await page.locator('.evidence-drawer').evaluate(el=>el.open)),'Technical details dominate home');
+ const activityCheck=await page.locator('#activityRows article').evaluateAll(rows=>rows.map(row=>({
+    at:Date.parse(row.dataset.occurredAt),
+    text:row.querySelector('time')?.textContent||'',
+    font:parseFloat(getComputedStyle(row.querySelector('strong')).fontSize),
+    meta:parseFloat(getComputedStyle(row.querySelector('time')).fontSize)
+ })));
+ assert.ok(activityCheck.length>=5,'Missing real activity');
+ assert.ok(activityCheck.every(e=>Number.isFinite(e.at)&&/Argentina/.test(e.text)),'Each visible activity must include a true Argentina date');
+ assert.ok(activityCheck.every((e,i)=>i===0||activityCheck[i-1].at>=e.at),'Activity must be newest-first');
+ if(width<=430){
+   assert.ok(activityCheck.every(e=>e.font>=18&&e.meta>=14),'Mobile feed text too small');
+   assert.ok(await page.locator('#track .project').first().evaluate(el=>el.getBoundingClientRect().width>=innerWidth*.78),'Mobile project cards too tiny');
+   assert.ok(await page.locator('#track').evaluate(el=>el.scrollWidth>el.clientWidth),'Projects must swipe horizontally');
+ }
+ record(width+'px: mobile readable type, full Argentina dates, activity descending, horizontal project rail');
  const numbers=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,rail:document.querySelector('#track').scrollWidth,client:document.querySelector('#track').clientWidth,card:document.querySelector('.project').getBoundingClientRect().width,activityY:document.querySelector('#activityTitle').getBoundingClientRect().top,meta:parseFloat(getComputedStyle(document.querySelector('.carddate')).fontSize)}));
  assert.equal(numbers.width,width,'Viewport scaled incorrectly');
  assert.ok(numbers.scroll<=width+1,'Global horizontal overflow: '+JSON.stringify(numbers));
