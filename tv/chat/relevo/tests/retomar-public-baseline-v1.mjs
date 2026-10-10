@@ -126,7 +126,15 @@ try {
     assert.ok(Math.abs(responsive.scale-1)<.01,'Unexpected browser zoom');
     assert.equal(responsive.dark,'rgb(11, 12, 15)','Old light theme remains SERVED');
     assert.equal(responsive.typeCovers,registry.projects.length-1,'Rejected CSS pattern / SVG is still served');
-    assert.equal(responsive.imageCovers,1,'Authentic PR88 raster illustration not served');
+    await page.waitForFunction(()=>{
+      const j10=document.querySelector('#track .j10-mobile-cover'),hero=document.querySelector('#atlasImage');
+      return j10?.complete&&j10.naturalWidth===384&&hero?.naturalWidth===384;
+    },null,{timeout:15000});
+    assert.equal(responsive.imageCovers,2,'Real PR88 and J10 illustrated covers must both survive');
+    assert.equal(await page.locator('#track .cover.has-art img').evaluate(img=>img.naturalWidth),256,
+      'PR88 original raster was lost');
+    assert.equal(await page.locator('#track .j10-mobile-cover').evaluate(img=>img.naturalWidth),384,
+      'J10 original raster is missing');
     if(width<=480){
       assert.ok(responsive.card>=width*.84,'Cards look like mini desktop tiles');
       assert.ok(responsive.title>=22&&responsive.date>=17,'Activity/date text remains too small');
@@ -141,7 +149,7 @@ try {
     assert.equal(await page.locator('#track .project[aria-pressed="true"]').first().evaluate(el=>getComputedStyle(el).outlineStyle),'none','Double selected ring still served');
     note('published_PR93_typography_'+width,coverFit);
     note('published_PR92_dark_responsive_'+width,responsive);
-    evidence.checks.push(width+'px: SERVED black theme, real viewport & zoom, large cards, authentic raster + four typographic covers');
+    evidence.checks.push(width+'px: SERVED black theme, real viewport & zoom, large cards, PR88 and J10 original raster + typographic fallback');
     // The published baseline may be either the old responsive skin or the
     // future PR91 release. Once PR91 is served, enforce true mobile usability.
     if(await page.locator('.activity-sort-note').count()){
