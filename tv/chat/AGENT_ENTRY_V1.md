@@ -14,6 +14,17 @@ Interpretar por **intención**, no por palabra clave o último proyecto visitado
 
 **Falsadores**: una pregunta «¿ya funciona X?» respondida con CI anterior sin ver estado real es FAIL; una charla convertida en PR es FAIL; una orden atendida con otro prompt para el humano es FAIL; una página abierta que no consulta cambios nuevos es FAIL; un dato privado convertido en feed público es FAIL. La página `tv/chat/relevo/retomar/` sigue siendo la **misma**; renderiza sólo recibos/proyecciones públicas verificables, no mensajes brutos. Enlaces y marcas de tiempo no equivalen a un chat corriendo por detrás. Evitar duplicar UI, runtime de chats, queue, scheduler, worker o base de datos.
 
+## Modo conversacional, distinto de los chats ejecutores · «continuar última charla»
+
+**Prioridad humana explícita:** una conversación de ideas/dirección tiene identidad de hilo lógico distinta de los chats que reciben encargos de un solo mensaje. Si el usuario dice «continuar última charla», «seguimos donde nos quedamos», «quiero seguir hablando como antes» u otra reentrada similar, **NO** usar el PR más reciente, el `last_hop` del experimento ni el último chat ejecutor como criterio de identidad.
+
+1. Intentar recuperar contexto privado pertinente **con las capacidades de memoria/búsqueda de conversaciones disponibles realmente en esa sesión**. No prometer acceder al texto íntegro o saber el orden de chats si esas funciones no lo exponen. No subir detalles privados al repositorio.
+2. Leer por GitHub conectado el checkpoint público sanitario `gh-pages:tv/chat/relevo/CONVERSACION_DIRECTORA_V1.md` y, sólo para lo necesario, `gh-pages:tv/chat/relevo/CONTINUIDAD_INTELECTUAL_V2.md`. Éste describe la **última conversación directora registrada**, no garantiza que sea la última cronológicamente abierta en ChatGPT.
+3. **Continuar conversando** desde su último tema y decisiones, con tono natural y preguntas abiertas; si hace falta, responder primero a lo nuevo. **NO** convertir esa frase en encargo, publicar un recibo ficticio, incrementar `STATE_V1.json.last_hop` ni repetir un ritual técnico. Si el checkpoint está viejo o hay varias conversaciones de dirección ambiguas, decirlo en lugar de inventar continuidad.
+4. Sólo ante una nueva decisión estratégica pública relevante, actualizar el checkpoint de modo seguro y verificable. Nunca sobreescribir por la ejecución de J01/M01/J06/J07 ni por un chat que únicamente consultó estado. La identidad de la conversación es **lógica**, no una transferencia literal del mismo modelo.
+
+Casos de regresión: «continuar última charla» retoma `DIALOGUE` aunque haya cinco `EXECUTOR` posteriores; «desarrollá J12» ejecuta J12 sin mover el hilo director; «cómo va J01» responde estado sin desplazar el diálogo; «continuemos la charla sobre X» prioriza esa referencia explícita, no el hilo genérico.
+
 ## 2026-10-09 · Puente de continuidad al trabajo de los PR #71, #72 y #73
 
 Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invocan las instrucciones del Proyecto **persistencia**. **No crea ni instala skills por sí misma.** La tarea humana actual manda. Para evitar olvido entre chats, elegir SÓLO los contratos pertinentes:
