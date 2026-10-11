@@ -71,8 +71,15 @@ jobs:
           // be buried behind today's numerous real receipts in a 12-entry feed.
           const second="occurred_at_utc:'2026-10-10T14:00:00.000Z'";
           if(original.split(second).length!==2)throw Error('Owner synthetic project receipt changed; review before staging');
+          // This owner test originally required HOP8 in the 12 most recent
+          // generic feed entries. With genuine recent work receipts, HOP8
+          // correctly moves into the separate durable relay history.
+          const legacy="assert.ok(text.includes('Relevo '+owner.last_hop),'Source history not represented');";
+          if(original.split(legacy).length!==2)throw Error('Owner relay-history assertion changed; reconcile it explicitly');
+          const history="if(!text.includes('Relevo '+owner.last_hop)) await page.waitForFunction(h=>document.querySelector('#relayRows')?.textContent?.includes('Salto '+h),owner.last_hop,{timeout:5000});";
           fs.writeFileSync(out,original.replace(fixed,"date_utc:new Date().toISOString()")
-            .replace(second,"occurred_at_utc:new Date().toISOString()"));
+            .replace(second,"occurred_at_utc:new Date().toISOString()")
+            .replace(legacy,history));
           NODE
           node tv/chat/relevo/tests/retomar-integrated-m01-candidate-only.cjs
       - name: Evidence only, never automatic publication
