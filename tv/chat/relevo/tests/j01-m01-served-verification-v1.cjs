@@ -6,6 +6,7 @@ const {readFile,mkdir,writeFile}=require('node:fs/promises');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {chromium}=require('playwright');
+(async()=>{
 const root=process.cwd(),out=path.join(root,'artifacts/j01-m01-served');
 const htmlPath='tv/chat/relevo/retomar/index.html';
 const dataPath='tv/chat/relevo/retomar/reentrada.json';
@@ -57,3 +58,5 @@ try{
 }catch(e){
  receipt.state='BLOCKED';receipt.errors.push(e.stack||String(e));console.error('BLOCKED PUBLIC J01/M01',e.stack||e);process.exitCode=1;
 }finally{await browser?.close();await writeFile(path.join(out,'receipt.json'),JSON.stringify(receipt,null,2));}
+
+})().catch(e=>{console.error('POST_PUBLISH_PROOF_STARTUP_ERROR',e);process.exitCode=1;});
