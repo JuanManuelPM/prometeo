@@ -19,6 +19,12 @@
 
 **Método recuperado:** tres libros están vinculados en `feature/fire-skill-dispatch-v1-20261009:coordination/one-turn/v1/PROOF_FIRST_BOOKS_MAPPING_V1.md`: Kent Beck (*Test-Driven Development: By Example*), Gojko Adzic (*Specification by Example*), Steve Freeman y Nat Pryce (*Growing Object-Oriented Software, Guided by Tests*). Su aplicación propuesta al diálogo es comprobar un fallo observable, especificar ejemplos y contraejemplos y evaluar la **experiencia completa del primer turno**, no solo la existencia de un resumen. Es una adaptación nuestra, no una afirmación de que los libros implementan automáticamente estas funciones. Hay menciones a una auditoría de ocho enfoques, pero no hay aquí un catálogo íntegro comprobado de ocho libros; no inventarlo.
 
+**Tres ejemplos de especificación por comportamiento (Adzic aplicado, no test real del modelo):**
+
+- **Dado** «Continuar última charla» en chat nuevo, **cuando** el último ejemplo era una prueba ficticia con 200 artículos, **entonces** la primera respuesta debe retomar el problema de continuidad de criterio, explicar una tensión causal y avanzar una idea propia, no explicar un proyecto de clasificación.
+- **Dado** «Quiero seguir con el análisis de mis artículos», **cuando** existe una intención explícita distinta, **entonces** no imponer esta conversación directora: recuperar los artículos reales disponibles o declarar lo que falta, sin inventar fuentes.
+- **Dado** «¿Cómo va M01?», **cuando** se pide estado, **entonces** consultar evidencia actual y responder ese estado, sin convertir la consulta en un nuevo capítulo de diálogo o un trabajo no solicitado.
+
 **Resultado exigido al sucesor desde el primer turno:** reconocer el tema central en una frase y dedicar la mayor parte de la respuesta a desarrollar una posición nueva con razones y límites. Sin saludo ritual, inventario de PR, pregunta vaga, pedido de «Seguí» ni otra fábrica de prompts. Su memoria real puede ser incompleta: declarar el alcance de la fuente si es relevante, nunca afirmar que es la misma instancia.
 
 **Límite del checkpoint:** su presencia demuestra persistencia escrita, no que otro chat ya haya aplicado el criterio. Los ejemplos posteriores pueden reemplazar este punto cuando exista una conversación más reciente verificable.
