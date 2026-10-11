@@ -26,6 +26,32 @@ Hay dos roles con vidas distintas:
 5. **Idea recién surgida y prioridad de esta conversación:** distinguir explícitamente `DIALOGUE` de `EXECUTOR`. Al escribir «continuar última charla» en un chat nuevo, la persona quiere recuperar *este diálogo intelectual y su criterio* sin pegar transcripciones, sin que el último ejecutor se haga pasar por «la charla anterior» y sin quedarse atada al límite de mensajes del hilo viejo.
 6. El próximo paso de esta charla es **conversar sobre cómo hacer verdaderamente continuo ese relevo** y comprobar la recuperación fría con la frase simple. Evitar disparar nuevas tareas, cambiar la misión global o inundar de referencias técnicas una reentrada informal.
 
+## Evolución del diálogo: crítica del primer relevo y siguiente pregunta (10 oct 2026, Argentina)
+
+**Hito posterior al checkpoint original.** Después de probar la frase «continuar última charla» en otro chat, el humano volvió a esta conversación directora y pidió una crítica de **cada respuesta** del sucesor. Esta fue una evaluación editorial, no una nueva tarea de ingeniería. Las transcripciones completas de ese chat NO estaban disponibles en el registro técnico; no convertir las observaciones siguientes en citas ni en auditoría de texto íntegro.
+
+**Conclusión crítica conservada:** el sucesor recuperó razonablemente temas y datos de Prometeo, pero eso no alcanzó para demostrar que recuperó el *último movimiento del razonamiento*. En una respuesta habló de contexto/continuidad; en otra pasó a recomendar otra misión o prompt de ejecución. El juicio humano-asistente fue que tendía a la **fábrica de encargos** en lugar de sostener la discusión, aunque sus referencias al trabajo real resultaron útiles. Los puntajes orientativos dados en la crítica (7/10 recuperación técnica, 5/10 continuidad conversacional) fueron apreciaciones, **no resultados medidos automáticamente**.
+
+**Diferencia decisiva:**
+- *Memoria de datos:* sabe qué son J01, M01, Ritmo, PRs, procesos, objetivos.
+- *Memoria deliberativa:* sabe qué hipótesis discutíamos, la última objeción humana, qué propuesta fue descartada y por qué, qué tensión queda abierta, y **qué razonamiento nuevo respondería a esa tensión**.
+- *Continuidad natural:* el nuevo chat **actúa como interlocutor** a partir del movimiento anterior; no enumera repositorios, no propone crear diez chats y no saluda con un resumen ceremonial.
+
+**Pregunta abierta actual del diálogo:** ¿Cómo probamos, en un chat nuevo y sin copiarle esta discusión, que pudo recuperar *en qué estábamos pensando* y no solo *qué construimos*? Un test útil exige que el sucesor reconozca la crítica a su propio patrón «más prompts», la convierta en un criterio para dialogar mejor, aplique ese criterio a una idea nueva y admita cualquier hueco de recuperación.
+
+**Regla de respuesta para «continuar última charla»:** en 1–2 frases recuperar el último desacuerdo/pregunta abierta, inmediatamente aportar un análisis o hipótesis nueva conectada con ella; si el usuario pide una acción humana, terminar con **una sola acción precisa**, no varios prompts que él deba coordinar. Cuando sólo se está conversando, no comenzar una implementación técnica sin que la intención local la pida. Si sólo se encontró este documento, declarar «último checkpoint público recuperado» en vez de asegurar que fue el último mensaje de la cuenta.
+
+**Nueva preferencia expresada por el humano:** cuando termine un trabajo o una evaluación, dar su **acción humana siguiente** concreta y breve. No sustituir la acción por una nueva batería de iniciativas; distinguir prueba humana realmente necesaria de trabajo que el asistente ya puede hacer.
+
+**Falsadores adicionales para una prueba fría real:**
+1. Si responde enumerando PRs pero no aborda *recuperar razonamientos frente a recordar datos*, reentrada incompleta.
+2. Si da tres prompts para enviar aunque el usuario solo pidió continuar hablando, reentrada desviada.
+3. Si asegura que leyó cada respuesta del chat sucesor sin acceso real a ellas, inferencia fabricada.
+4. Si identifica esta conversación por haber leído GitHub pero afirma ser la misma instancia mental, continuidad engañosa.
+5. Si no señala una limitación verdadera de la recuperación (cuando la hay), falsa confianza.
+
+**Alcance temporal:** una conversación privada posterior puede desplazar esta pregunta. No usar este checkpoint público como sustituto automático del historial nativo más reciente disponible. No almacenar mensajes íntegros, identidad privada ni timestamp original no comprobado.
+
 ## Qué debe reconocer un sucesor
 
 - **Norte:** memoria durable + autonomía de chats descartables + productos materiales verdaderos, sin copiar respuestas, con misión estratégica de persistencia.
