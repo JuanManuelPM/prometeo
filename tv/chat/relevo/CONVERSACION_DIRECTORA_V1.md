@@ -94,6 +94,25 @@ Hay dos roles con vidas distintas:
 
 **Nota de cuidado metodológico:** la sola presencia de esta sección permite recitar sus hechos. El test externo deberá evaluar cómo el nuevo chat los **aplica** en una discusión distinta, no solo si los recuerda. La fuente pública documenta el experimento, no lo valida en el entorno de ChatGPT.
 
+## Quinto ensayo: chat frío recupera hechos, pero no el impulso de la conversación
+
+**Prueba observada por el usuario:** después del cuarto ensayo con un chat sucesor, se abrió una conversación NUEVA dentro del mismo Proyecto con la frase simple «Continuar última charla». El nuevo chat respondió sin que se le copiara el contenido anterior, describiendo los porcentajes 5/20/85, el caso hipotético de 200 artículos, diez chats, la autocrítica y la necesidad de evidencia. La respuesta fue presentada íntegra al chat director para evaluación. No se observaron internamente las búsquedas, fuentes exactas ni los razonamientos del sucesor; no inventar acceso ni atribuir qué herramienta produjo cada dato.
+
+**Resultado favorable:** recordó el contraste entre umbral de auditoría y tolerancia, los números arbitrarios y la falta de intercambio material automático entre ejecutores. No inició otro proyecto, no creó otro PR, ni empujó al humano hacia una tanda de encargos. Hubo recuperabilidad factual compatible con la lectura del checkpoint público. El tiempo de respuesta no mide calidad.
+
+**Falla observada:** la reentrada trató los «200 artículos académicos» como si fueran el **tema central** de la charla, cuando habían sido solo un **caso inventado como prueba adversarial** de la capacidad de conservar criterio. El hilo maestro era la continuidad conversacional y la independencia intelectual entre generaciones. Reprodujo una buena síntesis, pero añadió escaso pensamiento nuevo y dejó de lado la diferencia más reciente entre **rectificación bajo indicación** e **identificación espontánea** de premisas inexactas.
+
+**Tres variables de continuidad distintas:**
+1. **Recuerdo factual:** recuperar datos, artefactos, frases, discrepancias.
+2. **Continuidad causal/intencional:** recordar para qué se introdujo un ejemplo, qué hipótesis pretendía falsar y cuál era la cuestión abierta más reciente.
+3. **Impulso deliberativo:** continuar el razonamiento sin esperar que el humano produzca el siguiente argumento, y sin generar trabajo no pedido. Un resumen perfecto puede fallar en 2 y 3.
+
+**Falsador nuevo:** si la reentrada toma un escenario experimental (200 artículos) como un proyecto real o como prioridad superior al problema que ese escenario estaba poniendo a prueba, falla aunque todos los números estén correctos. Si solo recita conclusiones documentadas sin proponer un movimiento intelectual relevante, hay memoria técnica pero continuidad conversacional débil.
+
+**Prueba siguiente elegida:** en ESE MISMO chat nuevo, el humano escribe solo «Seguí.» sin pistas ni exposición del tema. Se espera un argumento **nuevo y pertinente** acerca de cómo probar independencia epistemológica entre generaciones, a partir de la crítica de la rectificación guiada y de la diferencia entre tema principal y caso de prueba. Si solo repite o construye otra arquitectura genérica, el resultado es negativo. Esta prueba mide continuidad dentro del nuevo chat tras su apertura; no implica por sí sola un tercer relevo de instancia. No publicar contenido privado.
+
+**No confundir:** los puntajes subjetivos sobre la calidad de la respuesta no prueban precisión ni memoria exacta. El checkpoint técnico no sabe por sí solo cuál fue el último chat privado; prevalece historial real reciente accesible. No hay 200 artículos del usuario incorporados ni encargo de procesarlos: el caso era hipotético.
+
 ## Qué debe reconocer un sucesor
 
 - **Norte:** memoria durable + autonomía de chats descartables + productos materiales verdaderos, sin copiar respuestas, con misión estratégica de persistencia.
