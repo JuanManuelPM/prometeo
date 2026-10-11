@@ -9,7 +9,12 @@ on:
       - 'tv/chat/relevo/tests/j01-m01-source-validation-v1.mjs'
       - '.github/workflows/m01-work-desk-quality.yml'
   push:
-    branches: [integration/j01-m01-verified-bridge-20261010]
+    branches: [integration/j01-m01-verified-bridge-20261010, gh-pages]
+    paths:
+      - 'tv/chat/relevo/retomar/index.html'
+      - 'tv/chat/relevo/retomar/reentrada.json'
+      - 'tv/chat/relevo/tests/j01-m01-served-verification-v1.cjs'
+      - '.github/workflows/m01-work-desk-quality.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -47,5 +52,26 @@ jobs:
             artifacts/m01-work-desk/
             artifacts/retomar-pr77-http/
             artifacts/retomar-integrated-ux/
+          if-no-files-found: warn
+          retention-days: 14
+  served-pages-proof:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/gh-pages'
+    name: LIVE GitHub Pages · real ACK in Chromium and exact source hashes
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - run: node tv/chat/relevo/tests/j01-m01-served-verification-v1.cjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: j01-m01-production-proof
+          path: artifacts/j01-m01-served/
           if-no-files-found: warn
           retention-days: 14
