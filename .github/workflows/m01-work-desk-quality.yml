@@ -1,0 +1,51 @@
+name: M01 isolated work desk candidate quality
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - 'tv/chat/relevo/retomar/index.html'
+      - 'tv/chat/relevo/retomar/reentrada.json'
+      - 'tv/chat/relevo/tests/m01-work-desk-browser-v1.cjs'
+      - 'tv/chat/relevo/tests/j01-m01-source-validation-v1.mjs'
+      - '.github/workflows/m01-work-desk-quality.yml'
+  push:
+    branches: [integration/j01-m01-verified-bridge-20261010]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m01-candidate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-six-sizes:
+    name: M01 actual DOM, staged ACK fixtures, failover and screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Chromium harness
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify genuine J01 bridge ACK against GitHub issue comment and projection
+        run: node tv/chat/relevo/tests/j01-m01-source-validation-v1.mjs
+      - name: Chromium against checked-out candidate over HTTP
+        run: node tv/chat/relevo/tests/m01-work-desk-browser-v1.cjs
+      - name: Existing owner HTTP baseline regressions
+        run: node tv/chat/relevo/tests/retomar-http-smoke-v1.mjs
+      - name: Existing 6-viewport integrated regressions
+        run: node tv/chat/relevo/tests/retomar-integrated-ux-v1.cjs
+      - name: Evidence only, never automatic publication
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m01-candidate-chromium-screens-and-receipts
+          path: |
+            artifacts/m01-work-desk/
+            artifacts/retomar-pr77-http/
+            artifacts/retomar-integrated-ux/
+          if-no-files-found: warn
+          retention-days: 14
