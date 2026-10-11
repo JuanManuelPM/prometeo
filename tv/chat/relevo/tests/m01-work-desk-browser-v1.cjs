@@ -76,9 +76,18 @@ let browser;
    assert.equal(await persisted.count(),1,'Real persisted ACK did not reach M01 DOM');
    assert.match(await persisted.innerText(),/Integración J01 \+ M01/);
    assert.match(await persisted.innerText(),/Argentina/);
-   assert.match(await persisted.locator('.work-status').innerText(),/Pruebas registradas/,'A TESTED candidate is not a served page');
-   assert.doesNotMatch(await persisted.locator('.work-status').innerText(),/Resultado servido y verificado/,'CI green cannot become SERVED');
-   assert.equal(await persisted.locator('.work-phases li[data-verified="true"]').count(),3,'Real ACK→CANDIDATE→TESTED history must preserve exact evidence gates');
+   const realStages=original.public_receipts.filter(r=>r.work_id===genuine.work_id);
+   const realLatest=realStages[realStages.length-1];
+   const realStatus=await persisted.locator('.work-status').innerText();
+   if(realLatest.state==='SERVED_VERIFIED'){
+    assert.match(realStatus,/Resultado servido y verificado/);
+    assert.match(realLatest.proof_url||'',/^https:\/\/github\.com\/JuanManuelPM\/prometeo\/actions\/runs\/[0-9]+$/);
+   }else{
+    assert.match(realStatus,realLatest.state==='PUBLISHED'?/Publicación informada/:/Pruebas registradas/);
+    assert.doesNotMatch(realStatus,/Resultado servido y verificado/,'CI green cannot become SERVED');
+   }
+   assert.equal(await persisted.locator('.work-phases li[data-verified="true"]').count(),realLatest.state==='SERVED_VERIFIED'?4:3,
+    'Actual phases must remain evidence-backed from capture to delivery');
    await persisted.locator('summary').click();
    assert.equal(await persisted.locator('.work-plan li').count(),5,'Actual plan steps omitted from public page');
 
