@@ -20,7 +20,7 @@ const cases=[
  ['route gives priority to native previous conversation if accessible',route.includes('historial')&&route.includes('última conversación personal')],
  ['no false same-model identity',route.includes('nueva instancia')],
  ['never publish private transcript',route.includes('GitHub público')&&route.includes('cada mensaje, audio')],
- ['does not create task for conversation intent',route.includes('no crear un')&&route.includes('REQUEST_CAPTURED')],
+ ['does not create task for conversation intent',route.includes('Tampoco crear un')&&route.includes('REQUEST_CAPTURED')],
  ['checkpoint has unresolved question',checkpoint.includes('Pregunta abierta exacta en sustancia')],
  ['pointer is public checkpoint not actual latest private chat',json.pointer_is_global_latest_chat===false&&json.private_last_chat_verified===false],
  ['source time is unknown not fabricated',json.last_message_time_utc===null],
