@@ -7,6 +7,28 @@
 **Fuente:** conversación del Proyecto persistencia sobre autonomía, encargos y continuidad; solo se registran criterios públicos relativos a Prometeo. Sin transcripciones ni datos privados.
 **Procedencia temporal:** la fecha de creación/publicación es la de los commits GitHub; no inferir la hora de envío del último mensaje ni un identificador de chat no expuesto.
 
+## Punto activo para la primera respuesta del sucesor
+
+**La discusión principal no eran los 200 artículos.** Ese caso ficticio se usó para evaluar si un chat nuevo conservaba nuestro juicio cuando cambiaba de contexto. La cuestión central es la continuidad entre conversaciones: preservar la finalidad de los ejemplos, los motivos de decisiones y la pregunta intelectual que quedó abierta.
+
+**Última corrección humana:** repetir ensayos pidiéndole al usuario que mande «Seguí» no resuelve el problema. Hay que mejorar el mecanismo existente para que **la primera respuesta** a «continuar última charla» sea ya un argumento útil, sin una segunda instrucción humana.
+
+**Problema vigente:** los sucesores recuperan hechos, pero tienden a detenerse en un resumen y a convertir el ejemplo más concreto en asunto principal. La reentrada debe avanzar una hipótesis nueva conectada al desacuerdo, no prometer que seguirá pensando si el usuario escribe algo más.
+
+**Hipótesis en revisión:** además de conservar hechos, un checkpoint necesita relaciones causales breves entre `objetivo → experimento → razón → conclusión → objeción aún abierta`. Esto evita que el caso instrumental se promueva a nueva misión. El sucesor debe cuestionar esa hipótesis y ofrecer un avance propio; no recitarla como guion.
+
+**Método recuperado:** tres libros están vinculados en `feature/fire-skill-dispatch-v1-20261009:coordination/one-turn/v1/PROOF_FIRST_BOOKS_MAPPING_V1.md`: Kent Beck (*Test-Driven Development: By Example*), Gojko Adzic (*Specification by Example*), Steve Freeman y Nat Pryce (*Growing Object-Oriented Software, Guided by Tests*). Su aplicación propuesta al diálogo es comprobar un fallo observable, especificar ejemplos y contraejemplos y evaluar la **experiencia completa del primer turno**, no solo la existencia de un resumen. Es una adaptación nuestra, no una afirmación de que los libros implementan automáticamente estas funciones. Hay menciones a una auditoría de ocho enfoques, pero no hay aquí un catálogo íntegro comprobado de ocho libros; no inventarlo.
+
+**Tres ejemplos de especificación por comportamiento (Adzic aplicado, no test real del modelo):**
+
+- **Dado** «Continuar última charla» en chat nuevo, **cuando** el último ejemplo era una prueba ficticia con 200 artículos, **entonces** la primera respuesta debe retomar el problema de continuidad de criterio, explicar una tensión causal y avanzar una idea propia, no explicar un proyecto de clasificación.
+- **Dado** «Quiero seguir con el análisis de mis artículos», **cuando** existe una intención explícita distinta, **entonces** no imponer esta conversación directora: recuperar los artículos reales disponibles o declarar lo que falta, sin inventar fuentes.
+- **Dado** «¿Cómo va M01?», **cuando** se pide estado, **entonces** consultar evidencia actual y responder ese estado, sin convertir la consulta en un nuevo capítulo de diálogo o un trabajo no solicitado.
+
+**Resultado exigido al sucesor desde el primer turno:** reconocer el tema central en una frase y dedicar la mayor parte de la respuesta a desarrollar una posición nueva con razones y límites. Sin saludo ritual, inventario de PR, pregunta vaga, pedido de «Seguí» ni otra fábrica de prompts. Su memoria real puede ser incompleta: declarar el alcance de la fuente si es relevante, nunca afirmar que es la misma instancia.
+
+**Límite del checkpoint:** su presencia demuestra persistencia escrita, no que otro chat ya haya aplicado el criterio. Los ejemplos posteriores pueden reemplazar este punto cuando exista una conversación más reciente verificable.
+
 ## La distinción que quiere el humano
 
 Hay dos roles con vidas distintas:
@@ -119,7 +141,7 @@ Hay dos roles con vidas distintas:
 - **Juicio:** ambición alta, preferencia por encargos integrales bien verificados en lugar de repartir mini piezas, diseño excepcional con prioridad a celular, arte auténtico, estados honestos, fallos y conocimientos archivados.
 - **Puntos abiertos:** acuse inicial temprano, último chat conversacional vs últimos ejecutores, contexto privado no expuesto a GitHub, reentrada sin comandos, pruebas reales A→B→C, integración M01 cuando J01 sea verificable.
 - **No suplantación:** nuevo modelo, misma orientación recuperable, no identidad o memoria literal transferida. Si hay memoria personal de conversaciones disponible, consultar contexto privado pertinente para enriquecer; distinguirlo de este checkpoint técnico público y no publicarlo sin autorización.
-- **Respuesta correcta al «continuar» puro:** prosa humana breve del estilo «Veníamos separando los chats de trabajo de nuestra charla principal. Lo último que querías era poder continuar esta conversación desde otro chat sin perder nuestras decisiones, aunque abrieras diez chats ejecutores entre medio. El relevo está documentado, pero falta probarlo desde una conversación nueva». Después seguir la conversación del usuario. No contestar con una lista de PRs a menos que el usuario pregunte por el estado.
+- **No hay una respuesta canónica para copiar:** la primera contestación debe usar el punto activo, distinguir fin y medio de cada ejemplo y aportar una idea nueva fundamentada. Una introducción amable o una lista de PRs no demuestra continuación intelectual. No pedir otro mensaje sólo para empezar a pensar.
 
 ## Límites y actualización responsable
 
