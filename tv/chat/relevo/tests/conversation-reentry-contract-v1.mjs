@@ -5,11 +5,12 @@ import {readFile} from 'node:fs/promises';
 
 const read=(p)=>readFile(p,'utf8');
 const dir='tv/chat/relevo/conversaciones/';
-const [entry,intellectual,route,checkpoint,json,state]=await Promise.all([
+const [entry,intellectual,route,checkpoint,director,json,state]=await Promise.all([
  read('tv/chat/AGENT_ENTRY_V1.md'),
  read('tv/chat/relevo/CONTINUIDAD_INTELECTUAL_V2.md'),
  read(dir+'CONTINUAR_ULTIMA_CHARLA_V1.md'),
  read(dir+'DIRECTOR_20261010_CHECKPOINT_V1.md'),
+ read('tv/chat/relevo/CONVERSACION_DIRECTORA_V1.md'),
  read(dir+'LATEST_PUBLIC_V1.json').then(JSON.parse),
  read('tv/chat/relevo/STATE_V1.json').then(JSON.parse)
 ]);
@@ -22,6 +23,14 @@ const cases=[
  ['never publish private transcript',route.includes('GitHub público')&&route.includes('cada mensaje, audio')],
  ['does not create task for conversation intent',route.includes('Tampoco crear un')&&route.includes('REQUEST_CAPTURED')],
  ['checkpoint has unresolved question',checkpoint.includes('Pregunta abierta exacta en sustancia')],
+ ['director preserves first-succesor critique without fake transcript',director.includes('Evolución del diálogo: crítica del primer relevo')&&director.includes('transcripciones completas')&&director.includes('NO estaban disponibles')],
+ ['director distinguishes technical facts from reasoning',director.includes('Memoria de datos:')&&director.includes('Memoria deliberativa:')&&director.includes('Continuidad natural:')],
+ ['director includes actual open intellectual question',director.includes('Pregunta abierta actual del diálogo:')],
+ ['director forbids default prompt factory',director.includes('fábrica de encargos')&&director.includes('no propone crear diez chats')],
+ ['director keeps subjective scores separate from validated metrics',director.includes('apreciaciones')&&director.includes('no resultados medidos automáticamente')],
+ ['director asks for single next human action when needed',director.includes('una sola acción precisa')],
+ ['director does not pretend to be last private conversation',director.includes('último checkpoint público recuperado')&&director.includes('historial nativo')],
+
  ['pointer is public checkpoint not actual latest private chat',json.pointer_is_global_latest_chat===false&&json.private_last_chat_verified===false],
  ['source time is unknown not fabricated',json.last_message_time_utc===null],
  ['pointer is typed as conversation',json.kind==='CONVERSACION_CONTINUA'],
