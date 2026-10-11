@@ -2,6 +2,8 @@
 // Genuine-source J01↔M01 integration gate. No simulated chats or fabricated time.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+const entry=readFileSync('tv/chat/AGENT_ENTRY_V1.md','utf8');
+assert.ok(entry.includes('Captura temprana J01')&&entry.includes('REQUEST_CAPTURED'),'New chats lack early capture instructions');
 const registry=JSON.parse(readFileSync('tv/chat/relevo/retomar/reentrada.json','utf8'));
 const id='j01_m01_ack_6103569828',work='j01-m01-integration-20261010';
 assert.equal(registry.projects.length>=7,true,'Existing projects lost');
