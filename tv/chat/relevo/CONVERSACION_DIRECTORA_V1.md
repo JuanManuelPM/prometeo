@@ -52,6 +52,24 @@ Hay dos roles con vidas distintas:
 
 **Alcance temporal:** una conversación privada posterior puede desplazar esta pregunta. No usar este checkpoint público como sustituto automático del historial nativo más reciente disponible. No almacenar mensajes íntegros, identidad privada ni timestamp original no comprobado.
 
+## Segundo ensayo conversacional: criterio que cambia de escala (evaluación pública sanitizada)
+
+**Procedencia:** el usuario trajo voluntariamente al diálogo una respuesta del sucesor sobre un **caso hipotético** de análisis de 200 artículos independientes y pidió implícitamente continuar la evaluación. No es una transcripción completa, no prueba lectura nativa del chat ajeno, no es una misión nueva para procesar documentos y no autoriza publicarlos.
+
+**Resultado intelectual:** el sucesor propuso un esquema distribuido (ocho analistas, un auditor y un integrador), con piloto común, extracción verificable, discrepancias, sensibilidad metodológica y condiciones para volver a menos chats. La virtud principal es **haber condicionado** nuestra preferencia anterior por 1–3 chats: hacer un juego cohesivo y procesar muchas fuentes independientes tienen estructuras de coordinación diferentes. Conservó la distinción entre extracción, calidad de la evidencia y síntesis transversal. También identificó que la convergencia de múltiples analistas puede repetir un sesgo común.
+
+**Críticas nuevas que el próximo sucesor debería saber aplicar, no repetir como dogma:**
+- Umbrales propuestos de revisión del 20 %, error grave del 5 % y concordancia del 85 % carecen de justificación empírica para ese universo, esas etiquetas y ese riesgo; deben calibrarse con piloto y definiciones operativas. Porcentaje de coincidencia bruto puede quedar inflado por categorías dominantes; elegir métricas adecuadas al esquema de clasificación y adjudicación ciega.
+- Cuarenta relecturas totales, algunas elegidas por riesgo, no demuestran la precisión de cada uno de ocho lotes de unas 25 fuentes; mezclar muestra aleatoria y muestra de alto riesgo sin describir estratos impide estimar bien errores generales.
+- Falta el **mecanismo real de coordinación**: acceso compartido y legal a los artículos completos, id estable, trazabilidad hasta páginas, representación reproducible, escritura durable sin colisiones, aceptación de correcciones, auditoría de ciegos y capacidad de recuperar síntesis sin que el humano copie informes. Diez ventanas de ChatGPT no son por sí mismas un procesamiento distribuido operativo.
+- Que el sucesor responda competentemente una pregunta diseñada para probar flexibilidad **no demuestra causalmente** que recordó el criterio de una conversación anterior: otro modelo inteligente sin memoria podría responder igual. Prueba complementaria: examinar cómo reacciona a una objeción genuina a sus parámetros y si modifica razonadamente el procedimiento, en vez de defender números por autoridad.
+
+**Juicio cualitativo:** prueba de razonamiento contextual favorable, prueba de transferencia persistente de criterio todavía abierta. Evitar calificaciones convertidas en métricas experimentales automáticas y evitar tratar una hipótesis pedagógica como estudio estadístico concluido.
+
+**Pregunta intelectual abierta nueva:** ¿el sucesor reconoce sus propios números arbitrarios y el obstáculo real de compartir artefactos sin intervención humana, y puede corregir su plan sin inventar capacidad de coordinación entre chats? Una conversación natural, no otro encargo de desarrollo, basta para investigar esa capacidad.
+
+**Importante:** este checkpoint es deliberativo y público. No cambia prioridades de producto, no crea 200 tareas, no altera el registro de encargos, no afirma que haya datos académicos del usuario ni un estudio ejecutándose.
+
 ## Qué debe reconocer un sucesor
 
 - **Norte:** memoria durable + autonomía de chats descartables + productos materiales verdaderos, sin copiar respuestas, con misión estratégica de persistencia.
