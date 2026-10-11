@@ -20,7 +20,11 @@ assert.equal(r.source_url,'https://github.com/JuanManuelPM/prometeo/issues/76');
 assert.equal(r.ack_comment_url,'https://github.com/JuanManuelPM/prometeo/issues/76#issuecomment-6103569828');
 assert.equal(r.plan_branches.length,5);
 assert.match(r.timestamp_provenance,/GitHub/);
-assert.ok(!registry.public_receipts.some(e=>e.work_id===work&&e.state==='SERVED_VERIFIED'),'False delivery');
+for(const done of registry.public_receipts.filter(e=>e.work_id===work&&e.state==='SERVED_VERIFIED')){
+ assert.match(done.version_sha||'',/^[a-f0-9]{40}$/,'Served without version identity');
+ assert.match(done.served_url||'',/^https:\/\/juanmanuelpm\.github\.io\/prometeo\//,'Served without a permitted actual public URL');
+ assert.match(done.proof_url||'',/^https:\/\/github\.com\/JuanManuelPM\/prometeo\/actions\/runs\/[0-9]+$/,'Served without an auditable proof');
+}
 const endpoint='https://api.github.com/repos/JuanManuelPM/prometeo/issues/comments/6103569828';
 const resp=await fetch(endpoint,{headers:{accept:'application/vnd.github+json','User-Agent':'prometeo-integration-proof'} ,signal:AbortSignal.timeout(15000)});
 assert.equal(resp.status,200,'Real GitHub ACK inaccessible: HTTP '+resp.status);
