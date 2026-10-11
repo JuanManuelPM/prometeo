@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-// Real remote GitHub Pages only. Do not run this during PR as if it were published.
+const base=(process.env.RITMO_TEST_BASE||'https://juanmanuelpm.github.io/prometeo').replace(/\/$/,'');
+const staged=process.env.RITMO_ONLY_PROJECT==='1';
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 const results=[];
 try{
- for(const width of [390,1440]){
+ for(const width of [360,390,844,1440]){
   const page=await browser.newPage({viewport:{width,height:900}});
-  const errors=[];
+  const errors=[],unexpectedWrites=[];
   page.on('pageerror',e=>errors.push(e.message));
-  const url='https://juanmanuelpm.github.io/prometeo/projects/ritmo-estudio/?proof='+Date.now();
+  page.on('request',r=>{if(r.method()!=='GET')unexpectedWrites.push(r.method()+' '+r.url())});
+  const url=base+'/projects/ritmo-estudio/?proof='+Date.now();
   const nav=await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
-  assert.equal(nav.status(),200,'New project page HTTP');
+  assert.equal(nav.status(),200,'Ritmo Pages HTTP');
+  await page.waitForFunction(()=>document.querySelector('#storageStatus')?.textContent?.includes('Todavía'));
   await page.locator('input[name="rounds"]').fill('2');
   await page.locator('input[name="focusMinutes"]').fill('20');
   await page.locator('input[name="breakMinutes"]').fill('5');
@@ -18,18 +21,47 @@ try{
   await page.waitForFunction(()=>document.querySelectorAll('#blocks li').length===3);
   assert.match(await page.locator('#status').innerText(),/45 min en total/);
   assert.match(await page.locator('#blocks').innerText(),/ART/);
+  await page.locator('button.finish-session').first().click();
+  await page.waitForFunction(()=>document.querySelectorAll('#finishedList li').length===1);
+  assert.match(await page.locator('#finishedList').innerText(),/20 min planificados/);
+  assert.match(await page.locator('#finishedList').innerText(),/ART/);
+  assert.equal(await page.locator('button.finish-session').first().isDisabled(),true);
+  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('prometeo.ritmo-estudio.finished.v1')).length),1);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>document.querySelectorAll('#finishedList li').length===1);
+  assert.equal(await page.locator('#finishedList li').count(),1,'History survives reload');
   await page.locator('#projectLog summary').click();
   await page.waitForFunction(()=>document.querySelector('#projectHistory')?.textContent?.includes('Versiones'));
   assert.match(await page.locator('#projectHistory').innerText(),/Decisiones/);
   assert.match(await page.locator('#projectHistory').innerText(),/Investigación/);
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'No overflow');
-  const home=await page.goto('https://juanmanuelpm.github.io/prometeo/tv/chat/relevo/retomar/?proof='+Date.now(),{waitUntil:'domcontentloaded',timeout:30000});
-  assert.equal(home.status(),200,'Main catalog HTTP');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'No mobile horizontal overflow');
+  assert.equal(await page.locator('#clearFinished').evaluate(e=>e.getBoundingClientRect().height>=48),true,'Touch target');
+  await page.getByRole('button',{name:'Borrar historial'}).click();
+  assert.equal(await page.getByRole('button',{name:'Confirmar borrado definitivo'}).isVisible(),true);
+  await page.getByRole('button',{name:'Cancelar'}).click();
+  assert.equal(await page.locator('#finishedList li').count(),1,'Cancel preserves data');
+  await page.getByRole('button',{name:'Borrar historial'}).click();
+  await page.getByRole('button',{name:'Confirmar borrado definitivo'}).click();
+  assert.equal(await page.locator('#finishedList li').count(),0,'Explicit delete');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('prometeo.ritmo-estudio.finished.v1')),null);
+  await page.evaluate(()=>localStorage.setItem('prometeo.ritmo-estudio.finished.v1','corrupt'));
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>document.querySelector('#storageStatus')?.textContent?.includes('No se pudo acceder'));
+  assert.equal(await page.evaluate(()=>localStorage.getItem('prometeo.ritmo-estudio.finished.v1')),'corrupt','Corruption not overwritten silently');
+  await page.getByRole('button',{name:'Borrar historial'}).click();
+  await page.getByRole('button',{name:'Confirmar borrado definitivo'}).click();
+  assert.match(await page.locator('#storageStatus').innerText(),/Todavía/);
+  if(!staged){
+  const home=await page.goto(base+'/tv/chat/relevo/retomar/?proof='+Date.now(),{waitUntil:'domcontentloaded',timeout:30000});
+  assert.equal(home.status(),200,'Single project index HTTP');
   await page.waitForFunction(()=>!!document.querySelector('#track [data-project="ritmo-estudio"]'),null,{timeout:30000});
   assert.ok((await page.locator('#track [data-project="ritmo-estudio"]').innerText()).includes('Ritmo'));
-  assert.deepEqual(errors,[],'Browser exceptions');
-  results.push({width,page_http:200,main_http:200,schedule_blocks:3,project:'ritmo-estudio',status:'PASS'});
+  await page.waitForFunction(()=>document.querySelector('#workDesk')?.textContent?.includes('historial de sesiones'),null,{timeout:30000});
+  }
+  assert.deepEqual(unexpectedWrites,[],'No personal data sent with POST');
+  assert.deepEqual(errors,[],'No browser exceptions');
+  results.push({width,history:'create/reload/delete/corrupt-recovery',page_http:200,main_http:staged?'NOT_APPLICABLE_LOCAL':200,status:'PASS'});
   await page.close();
  }
 }finally{await browser.close()}
-console.log('SERVED_CHROMIUM_VERIFIED '+JSON.stringify(results));
+console.log('SERVED_RITMO_HISTORY_VERIFIED '+JSON.stringify(results));

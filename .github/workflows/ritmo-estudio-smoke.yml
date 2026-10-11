@@ -23,6 +23,8 @@ jobs:
           node-version: "22"
       - name: Motor Node real y límites temporales
         run: node projects/ritmo-estudio/planner.test.mjs
+      - name: "Historial local: privacidad, integridad, errores y límites"
+        run: node projects/ritmo-estudio/history.test.mjs
       - name: Recuperación fría desde propietarios sin conversaciones
         run: |
           node --input-type=module <<'NODE'
@@ -42,17 +44,21 @@ jobs:
           console.log('Cold file recovery PASS: entry → catalog → owner, 5 existing projects preserved.');
           NODE
       - name: Instalar navegador para interacción real
-        if: github.event_name == 'push'
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
+      - name: Chromium del candidato servido localmente
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/ritmo-local-server.log 2>&1 &
+          RITMO_TEST_BASE=http://127.0.0.1:8765 RITMO_ONLY_PROJECT=1 node projects/ritmo-estudio/browser.test.mjs
       - name: GitHub Pages realmente servido después del merge
         if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
           base="https://juanmanuelpm.github.io/prometeo"
-          for path in "projects/ritmo-estudio/index.html" "projects/ritmo-estudio/planner.mjs" "tv/chat/relevo/retomar/reentrada.json"; do
+          for path in "projects/ritmo-estudio/index.html" "projects/ritmo-estudio/planner.mjs" "projects/ritmo-estudio/history.mjs" "tv/chat/relevo/retomar/reentrada.json"; do
             ok=0
             for n in $(seq 1 15); do
               if curl -fsSL --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "$base/$path?proof=$GITHUB_SHA-$n" -o "/tmp/served-$(basename "$path")"; then

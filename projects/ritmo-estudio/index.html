@@ -6,14 +6,14 @@
 <title>Ritmo de estudio · Prometeo</title>
 <meta name="description" content="Armá bloques de estudio y descanso con horarios argentinos, sin cuentas ni servidores.">
 <style>
-:root{color-scheme:light dark;font-family:system-ui,sans-serif}
-body{margin:0;padding:clamp(1rem,4vw,2rem);font-size:clamp(18px,2vw,21px);line-height:1.55}
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10141b;color:#f5f5f3}
+body{margin:0;padding:clamp(1rem,4vw,2.5rem);font-size:clamp(17px,2vw,20px);line-height:1.5} a{color:#b9d7ff} a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #f9c96d;outline-offset:3px}
 main{max-width:800px;margin:auto}
-fieldset{display:grid;gap:1rem;padding:1rem;border-radius:0.5rem}
+fieldset{display:grid;gap:1rem;padding:clamp(1rem,4vw,1.75rem);border:1px solid #48576b;border-radius:1rem;background:#1a222e}
 label{display:grid;gap:0.35rem}
-input,button{font:inherit;padding:.65rem;min-height:44px;max-width:100%}
+input,button{font:inherit;padding:.75rem 1rem;min-height:48px;max-width:100%;box-sizing:border-box;border-radius:.65rem} input{background:#10141b;border:1px solid #8e9aac;color:inherit;width:100%} button{background:#dfeaff;color:#111723;border:1px solid transparent;font-weight:650} button:disabled{opacity:.65;cursor:default} .secondary{background:transparent;border-color:#8e9aac;color:#f1f5f9}
 button{cursor:pointer}
-li{padding:.65rem 0}
+li{padding:.75rem 0} #blocks li{border-bottom:1px solid #344255;display:grid;gap:.5rem} #blocks li button{justify-self:start} #finishedHistory{margin:2.5rem 0;padding:clamp(1rem,4vw,1.75rem);border:1px solid #51627a;border-radius:1rem;background:#1a222e} #finishedList li{border-bottom:1px solid #344255} #storageStatus{font-weight:600} .actions{display:flex;flex-wrap:wrap;gap:.6rem} [hidden]{display:none!important} details{margin-block:2rem} summary{cursor:pointer;padding:.6rem} @media(max-width:480px){#blocks li button,.actions button{width:100%} h1{font-size:clamp(1.9rem,9vw,2.4rem)} h2{font-size:1.45rem}}
 #result{margin-top:2rem}
 small{font-size:.85em}
 </style>
@@ -40,14 +40,27 @@ small{font-size:.85em}
 <p id="status">Completá los valores y tocá «Armar plan».</p>
 <ol id="blocks"></ol>
 </section>
+<section id="finishedHistory" aria-labelledby="finishedTitle">
+<h2 id="finishedTitle">Sesiones terminadas</h2>
+<p>Marcá «Terminé esta sesión» en un bloque de enfoque para guardarlo. El registro es manual: muestra los minutos <strong>planificados</strong>, no el tiempo real medido.</p>
+<p id="storageStatus" role="status" aria-live="polite">Comprobando el almacenamiento de este dispositivo…</p>
+<ol id="finishedList" aria-label="Historial de sesiones terminadas"></ol>
+<div class="actions">
+<button id="clearFinished" type="button" class="secondary" disabled>Borrar historial</button>
+<button id="confirmClear" type="button" hidden>Confirmar borrado definitivo</button>
+<button id="cancelClear" type="button" class="secondary" hidden>Cancelar</button>
+</div>
+<p><small>Se guarda sólo en este navegador mediante almacenamiento local. No se envía a Prometeo, GitHub ni otros dispositivos. Si borrás los datos del navegador o usás modo privado, podés perderlo.</small></p>
+</section>
 <details id="projectLog">
 <summary>Ideas, investigación, decisiones, resultados y versiones del proyecto</summary>
 <div id="projectHistory" aria-live="polite"><p>Recuperando historia desde el owner público…</p></div>
 </details>
-<p><small>Los cálculos se hacen en tu dispositivo. No se envían horarios ni datos a un servidor. Código y decisiones: <a href="https://github.com/JuanManuelPM/prometeo/blob/gh-pages/projects/ritmo-estudio/PROJECT_V1.json">fuente verificable del proyecto</a>.</small></p>
+<p><small>Los cálculos y el historial de sesiones se guardan o procesan sólo en tu dispositivo. No se envían horarios ni datos a un servidor. Código y decisiones: <a href="https://github.com/JuanManuelPM/prometeo/blob/gh-pages/projects/ritmo-estudio/PROJECT_V1.json">fuente verificable del proyecto</a>.</small></p>
 </main>
 <script type="module">
 import { planBlocks, formatArgentineDate } from './planner.mjs';
+import { readFinished, recordFinished, clearFinished } from './history.mjs';
 const form=document.getElementById('planner');
 const status=document.getElementById('status');
 const list=document.getElementById('blocks');
@@ -64,9 +77,30 @@ form.addEventListener('submit',event=>{
     });
     for(const block of plan.blocks){
       const li=document.createElement('li');
-      li.textContent=(block.kind==='enfoque'?'Enfoque':'Descanso')+
+      const label=document.createElement('span');
+      label.textContent=(block.kind==='enfoque'?'Enfoque':'Descanso')+
         ' · bloque '+block.session+' · '+formatArgentineDate(block.startUtc)+
         ' → '+formatArgentineDate(block.endUtc);
+      li.append(label);
+      if(block.kind==='enfoque'){
+        const btn=document.createElement('button');
+        btn.type='button';btn.className='finish-session';
+        btn.textContent='Terminé esta sesión';
+        btn.setAttribute('aria-label','Terminé sesión '+block.session+' de '+plan.blocks.filter(x=>x.kind==='enfoque').length);
+        const id=(globalThis.crypto?.randomUUID?.()||('s'+Date.now().toString(36)+Math.random().toString(36).slice(2))).replaceAll('-','');
+        btn.addEventListener('click',()=>{
+          try {
+            const rows=recordFinished(window.localStorage,{
+              id,session:block.session,
+              plannedMinutes:Number(data.get('focusMinutes')),
+              finishedAtUtc:new Date().toISOString()
+            });
+            btn.disabled=true;btn.textContent='Sesión registrada ✓';
+            renderFinished(rows);
+          } catch(error) { historyFailure(error); }
+        });
+        li.append(btn);
+      }
       list.append(li);
     }
     status.textContent=plan.totalMinutes+' min en total · termina '+formatArgentineDate(plan.finishUtc)+'.';
@@ -74,6 +108,51 @@ form.addEventListener('submit',event=>{
     status.textContent='No se pudo generar: '+error.message;
   }
 });
+
+// Historial personal en el navegador; nunca se agrega al owner público.
+const finishedList=document.getElementById('finishedList');
+const storageStatus=document.getElementById('storageStatus');
+const clearButton=document.getElementById('clearFinished');
+const confirmButton=document.getElementById('confirmClear');
+const cancelButton=document.getElementById('cancelClear');
+function closeConfirmation(){
+  confirmButton.hidden=true;cancelButton.hidden=true;clearButton.hidden=false;
+}
+function renderFinished(rows){
+  closeConfirmation();
+  finishedList.replaceChildren();
+  storageStatus.textContent=rows.length
+    ? rows.length+' sesión(es) terminada(s) guardada(s) en este navegador.'
+    : 'Todavía no hay sesiones terminadas registradas.';
+  clearButton.disabled=!rows.length;
+  for(const row of rows){
+    const li=document.createElement('li');
+    li.textContent='Sesión '+row.session+' · '+row.plannedMinutes+
+      ' min planificados · marcada '+formatArgentineDate(row.finishedAtUtc);
+    finishedList.append(li);
+  }
+}
+function historyFailure(error){
+  storageStatus.textContent='No se pudo acceder al historial local: '+error.message+
+    '. No se registró ninguna sesión. Podés intentar borrar los datos locales de esta herramienta.';
+  clearButton.disabled=false;
+}
+function refreshFinished(){
+  try{renderFinished(readFinished(window.localStorage))}
+  catch(error){historyFailure(error)}
+}
+clearButton.addEventListener('click',()=>{
+  clearButton.hidden=true;confirmButton.hidden=false;cancelButton.hidden=false;
+});
+cancelButton.addEventListener('click',closeConfirmation);
+confirmButton.addEventListener('click',()=>{
+  try{clearFinished(window.localStorage);renderFinished([])}
+  catch(error){closeConfirmation();historyFailure(error)}
+});
+window.addEventListener('storage',event=>{
+  if(event.key==='prometeo.ritmo-estudio.finished.v1')refreshFinished();
+});
+refreshFinished();
 
 // La historia visible viene del owner real, no de respuestas privadas ni tarjetas inventadas.
 async function renderOwner(){
