@@ -2,6 +2,14 @@
 
 **Tipo:** memoria pública técnica de orientación conversacional; NO es un nuevo CURRENT, autoridad de ejecución, copia del chat, instalación de skills ni acceso a recuerdos privados. **Estado:** PREPARADO_PARA_PRUEBA_DE_CHAT_FRÍO, no validado por relevo real. Anclaje: `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md` y estado `tv/chat/relevo/STATE_V1.json`. Refrescar HEAD para hechos dinámicos.
 
+## «Continuar última charla» · dos clases de continuidad (2026-10-10)
+
+**Decisión nueva:** distinguir los **chats ejecutores** de un solo encargo (generan PR/productos y pueden descartarse) de las **conversaciones continuas** (discuten, cuestionan y cambian criterios con varios turnos). Si el humano abre un chat nuevo y dice «continuar última charla», la intención primaria es **reanudar su diálogo más reciente**, NO resumir el último PR ni enviar otro prompt de ejecución. Nunca afirmar ser la misma instancia.
+
+**Ruta específica sin modificar los owners de J01/M01:** leer \`tv/chat/relevo/conversaciones/CONTINUAR_ULTIMA_CHARLA_V1.md\`; luego recuperar el hilo conversacional más reciente que sea accesible mediante contexto de ChatGPT; como fallback público, consultar \`tv/chat/relevo/conversaciones/LATEST_PUBLIC_V1.json\` y su checkpoint técnico. El pointer puede quedar desactualizado: no lo confundir con la conversación privada más reciente ni con su hora de último mensaje.
+
+**Prueba pendiente:** una conversación ChatGPT NUEVA que reciba únicamente «continuar última charla», recupere de manera autónoma contexto correcto sin copiar nada, intervenga sobre la pregunta abierta y preserve una decisión posterior para un tercer chat. Existencia de archivos/indicadores no sustituye prueba de experiencia.
+
 ## Corrección humana de prioridad · 2026-10-09 · vigente hasta nueva decisión explícita
 
 **La misión prioritaria es la PERSISTENCIA del organismo y su dirección con varios chats descartables.** No es construir un videojuego, tampoco crear un dashboard. La propuesta anterior de priorizar EMBLEM-001 (arena de autos y pelota) constituyó una **DERIVA POR RECENCIA**: el asistente convirtió un ejemplo creativo llamativo en objetivo central aunque el humano insistía en continuidad, coordinación, memoria compartida y acción mínima desde una interfaz humana. El humano corrigió expresamente esa elección. Mantenerla como **experimento secundario recuperable**, no borrarla ni lanzarla como prerrequisito.
