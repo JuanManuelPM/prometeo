@@ -135,7 +135,7 @@ Hay dos roles con vidas distintas:
 - **Juicio:** ambición alta, preferencia por encargos integrales bien verificados en lugar de repartir mini piezas, diseño excepcional con prioridad a celular, arte auténtico, estados honestos, fallos y conocimientos archivados.
 - **Puntos abiertos:** acuse inicial temprano, último chat conversacional vs últimos ejecutores, contexto privado no expuesto a GitHub, reentrada sin comandos, pruebas reales A→B→C, integración M01 cuando J01 sea verificable.
 - **No suplantación:** nuevo modelo, misma orientación recuperable, no identidad o memoria literal transferida. Si hay memoria personal de conversaciones disponible, consultar contexto privado pertinente para enriquecer; distinguirlo de este checkpoint técnico público y no publicarlo sin autorización.
-- **Respuesta correcta al «continuar» puro:** prosa humana breve del estilo «Veníamos separando los chats de trabajo de nuestra charla principal. Lo último que querías era poder continuar esta conversación desde otro chat sin perder nuestras decisiones, aunque abrieras diez chats ejecutores entre medio. El relevo está documentado, pero falta probarlo desde una conversación nueva». Después seguir la conversación del usuario. No contestar con una lista de PRs a menos que el usuario pregunte por el estado.
+- **No hay una respuesta canónica para copiar:** la primera contestación debe usar el punto activo, distinguir fin y medio de cada ejemplo y aportar una idea nueva fundamentada. Una introducción amable o una lista de PRs no demuestra continuación intelectual. No pedir otro mensaje sólo para empezar a pensar.
 
 ## Límites y actualización responsable
 
