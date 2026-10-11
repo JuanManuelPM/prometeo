@@ -58,8 +58,20 @@ jobs:
           fs.writeFileSync(out,original.slice(0,-(trailer.length+1))+'// Production is gated independently AFTER publication.\\n');
           NODE
           node tv/chat/relevo/tests/retomar-http-m01-candidate-only.mjs
-      - name: Existing 6-viewport integrated regressions
-        run: node tv/chat/relevo/tests/retomar-integrated-ux-v1.cjs
+      - name: Existing 6-viewport integrated regressions · candidate with chronologically valid synthetic fixture
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const file='tv/chat/relevo/tests/retomar-integrated-ux-v1.cjs';
+          const out='tv/chat/relevo/tests/retomar-integrated-m01-candidate-only.cjs';
+          const original=fs.readFileSync(file,'utf8');
+          const fixed="date_utc:'2026-10-10T03:00:00.000Z'";
+          if(original.split(fixed).length!==2)throw Error('Owner future event fixture changed; review chronology before staging');
+          // This particular synthetic future owner event must sort as NEW, not
+          // be buried behind today's numerous real receipts in a 12-entry feed.
+          fs.writeFileSync(out,original.replace(fixed,"date_utc:new Date().toISOString()"));
+          NODE
+          node tv/chat/relevo/tests/retomar-integrated-m01-candidate-only.cjs
       - name: Evidence only, never automatic publication
         if: always()
         uses: actions/upload-artifact@v4
