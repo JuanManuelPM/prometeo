@@ -41,8 +41,18 @@ jobs:
         run: node tv/chat/relevo/tests/j01-m01-source-validation-v1.mjs
       - name: Chromium against checked-out candidate over HTTP
         run: node tv/chat/relevo/tests/m01-work-desk-browser-v1.cjs
-      - name: Existing owner HTTP baseline regressions
-        run: node tv/chat/relevo/tests/retomar-http-smoke-v1.mjs
+      - name: Existing owner HTTP baseline · candidate-only (public readback is a separate post-merge job)
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const file='tv/chat/relevo/tests/retomar-http-smoke-v1.mjs';
+          const out='tv/chat/relevo/tests/retomar-http-m01-candidate-only.mjs';
+          const original=fs.readFileSync(file,'utf8');
+          const trailer="await import('./j10-pages-readback-v1.mjs');";
+          if(!original.endsWith(trailer+'\n'))throw Error('Owner baseline changed; review before separating production proof');
+          fs.writeFileSync(out,original.slice(0,-(trailer.length+1))+'// Production is gated independently AFTER publication.\\n');
+          NODE
+          node tv/chat/relevo/tests/retomar-http-m01-candidate-only.mjs
       - name: Existing 6-viewport integrated regressions
         run: node tv/chat/relevo/tests/retomar-integrated-ux-v1.cjs
       - name: Evidence only, never automatic publication
