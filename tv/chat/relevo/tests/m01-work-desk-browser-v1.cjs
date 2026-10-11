@@ -76,7 +76,9 @@ let browser;
    assert.equal(await persisted.count(),1,'Real persisted ACK did not reach M01 DOM');
    assert.match(await persisted.innerText(),/Integración J01 \+ M01/);
    assert.match(await persisted.innerText(),/Argentina/);
-   assert.match(await persisted.locator('.work-status').innerText(),/sin|pedido|Sin|Pedido|acuse|Acuse/i,'A capture is not a completion');
+   assert.match(await persisted.locator('.work-status').innerText(),/Pruebas registradas/,'A TESTED candidate is not a served page');
+   assert.doesNotMatch(await persisted.locator('.work-status').innerText(),/Resultado servido y verificado/,'CI green cannot become SERVED');
+   assert.equal(await persisted.locator('.work-phases li[data-verified="true"]').count(),3,'Real ACK→CANDIDATE→TESTED history must preserve exact evidence gates');
    await persisted.locator('summary').click();
    assert.equal(await persisted.locator('.work-plan li').count(),5,'Actual plan steps omitted from public page');
 
