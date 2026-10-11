@@ -19,7 +19,7 @@ try{
   await page.waitForFunction(()=>document.querySelectorAll('#blocks li').length===3);
   assert.match(await page.locator('#status').innerText(),/45 min en total/);
   assert.match(await page.locator('#blocks').innerText(),/ART/);
-  await page.getByRole('button',{name:'Terminé esta sesión',exact:false}).first().click();
+  await page.locator('button.finish-session').first().click();
   await page.waitForFunction(()=>document.querySelectorAll('#finishedList li').length===1);
   assert.match(await page.locator('#finishedList').innerText(),/20 min planificados/);
   assert.match(await page.locator('#finishedList').innerText(),/ART/);
