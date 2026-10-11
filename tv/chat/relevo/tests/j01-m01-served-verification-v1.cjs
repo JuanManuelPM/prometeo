@@ -30,8 +30,9 @@ try{
  receipt.checks.push('Production HTTP HTML+registry 200, Git blob hashes identical to merged checked-out source');
  const registry=JSON.parse((await readFile(path.join(root,dataPath))).toString());
  const actual=registry.public_receipts.filter(r=>r.work_id==='j01-m01-integration-20261010');
- assert.equal(actual.length,1);
- assert.equal(actual[0].state,'REQUEST_CAPTURED','Never upgrade an ACK to delivery');
+ assert.equal(actual.filter(r=>r.state==='REQUEST_CAPTURED').length,1,'Real capture must be unique');
+ assert.ok(actual.some(r=>r.state==='CANDIDATE'),'Candidate work history must be preserved');
+ assert.ok(actual.every(r=>r.state!=='BLOCKED'),'Unresolved blocked work cannot be claimed served');
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  for(const width of [360,390,430,844,1440]){
   const page=await browser.newPage({viewport:{width,height:900},deviceScaleFactor:width<500?2:1});
