@@ -27,7 +27,7 @@ assert.equal(issueComment.id,6103569828);
 assert.equal(issueComment.created_at,r.occurred_at_utc,'ACK time not independently sourced');
 assert.ok(issueComment.body.includes(work)&&issueComment.body.includes('REQUEST_CAPTURED'),'Issue does not corroborate real ACK');
 assert.match(issueComment.body,/Pasos previstos/);
-const local=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',dateStyle:'short',timeStyle:'medium'}).format(new Date(r.occurred_at_utc));
+const local=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',dateStyle:'short',timeStyle:'medium',hour12:false}).format(new Date(r.occurred_at_utc));
 assert.match(local,/21:03:46/,'Argentine timestamp conversion broken');
 console.log('PASS genuine GitHub request ACK, stable work_id, ordered plan, preservation and Argentina date',local);
 console.log('LIMIT: independent source read is not a second autonomous ChatGPT chat; no invented liveness or served result.');
