@@ -19,7 +19,7 @@ const cases=[
  ['contract differentiates executor and dialogue',route.includes('CONVERSACION_CONTINUA')&&route.includes('EJECUTOR_PUNTUAL')],
  ['route gives priority to native previous conversation if accessible',route.includes('historial')&&route.includes('última conversación personal')],
  ['no false same-model identity',route.includes('nueva instancia')],
- ['never publish private transcript',route.includes('GitHub público')&&route.includes('mensajes, audio')],
+ ['never publish private transcript',route.includes('GitHub público')&&route.includes('cada mensaje, audio')],
  ['does not create task for conversation intent',route.includes('no crear un')&&route.includes('REQUEST_CAPTURED')],
  ['checkpoint has unresolved question',checkpoint.includes('Pregunta abierta exacta en sustancia')],
  ['pointer is public checkpoint not actual latest private chat',json.pointer_is_global_latest_chat===false&&json.private_last_chat_verified===false],
