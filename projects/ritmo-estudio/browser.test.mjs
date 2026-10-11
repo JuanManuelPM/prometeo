@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+const base=(process.env.RITMO_TEST_BASE||'https://juanmanuelpm.github.io/prometeo').replace(/\/$/,'');
+const staged=process.env.RITMO_ONLY_PROJECT==='1';
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 const results=[];
 try{
@@ -8,7 +10,7 @@ try{
   const errors=[],unexpectedWrites=[];
   page.on('pageerror',e=>errors.push(e.message));
   page.on('request',r=>{if(r.method()!=='GET')unexpectedWrites.push(r.method()+' '+r.url())});
-  const url='https://juanmanuelpm.github.io/prometeo/projects/ritmo-estudio/?proof='+Date.now();
+  const url=base+'/projects/ritmo-estudio/?proof='+Date.now();
   const nav=await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
   assert.equal(nav.status(),200,'Ritmo Pages HTTP');
   await page.waitForFunction(()=>document.querySelector('#storageStatus')?.textContent?.includes('Todavía'));
@@ -49,14 +51,16 @@ try{
   await page.getByRole('button',{name:'Borrar historial'}).click();
   await page.getByRole('button',{name:'Confirmar borrado definitivo'}).click();
   assert.match(await page.locator('#storageStatus').innerText(),/Todavía/);
-  const home=await page.goto('https://juanmanuelpm.github.io/prometeo/tv/chat/relevo/retomar/?proof='+Date.now(),{waitUntil:'domcontentloaded',timeout:30000});
+  if(!staged){
+  const home=await page.goto(base+'/tv/chat/relevo/retomar/?proof='+Date.now(),{waitUntil:'domcontentloaded',timeout:30000});
   assert.equal(home.status(),200,'Single project index HTTP');
   await page.waitForFunction(()=>!!document.querySelector('#track [data-project="ritmo-estudio"]'),null,{timeout:30000});
   assert.ok((await page.locator('#track [data-project="ritmo-estudio"]').innerText()).includes('Ritmo'));
   await page.waitForFunction(()=>document.querySelector('#workDesk')?.textContent?.includes('historial de sesiones'),null,{timeout:30000});
+  }
   assert.deepEqual(unexpectedWrites,[],'No personal data sent with POST');
   assert.deepEqual(errors,[],'No browser exceptions');
-  results.push({width,history:'create/reload/delete/corrupt-recovery',page_http:200,main_http:200,status:'PASS'});
+  results.push({width,history:'create/reload/delete/corrupt-recovery',page_http:200,main_http:staged?'NOT_APPLICABLE_LOCAL':200,status:'PASS'});
   await page.close();
  }
 }finally{await browser.close()}
