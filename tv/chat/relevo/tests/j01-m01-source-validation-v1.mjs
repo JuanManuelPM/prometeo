@@ -1,0 +1,33 @@
+#!/usr/bin/env node
+// Genuine-source J01↔M01 integration gate. No simulated chats or fabricated time.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const registry=JSON.parse(readFileSync('tv/chat/relevo/retomar/reentrada.json','utf8'));
+const id='j01_m01_ack_6103569828',work='j01-m01-integration-20261010';
+assert.equal(registry.projects.length>=7,true,'Existing projects lost');
+assert.equal(new Set(registry.projects.map(p=>p.id)).size,registry.projects.length,'Duplicate project');
+assert.equal(new Set(registry.public_receipts.map(r=>r.id)).size,registry.public_receipts.length,'Duplicate receipt');
+const a=registry.public_receipts.filter(x=>x.id===id);
+assert.equal(a.length,1,'Missing or duplicate real ACK');
+const r=a[0];
+assert.equal(r.state,'REQUEST_CAPTURED');
+assert.equal(r.work_id,work);
+assert.equal(r.project_id,'persistencia');
+assert.equal(r.occurred_at_utc,'2026-10-11T00:03:46Z');
+assert.equal(r.source_url,'https://github.com/JuanManuelPM/prometeo/issues/76');
+assert.equal(r.ack_comment_url,'https://github.com/JuanManuelPM/prometeo/issues/76#issuecomment-6103569828');
+assert.equal(r.plan_branches.length,5);
+assert.match(r.timestamp_provenance,/GitHub/);
+assert.ok(!registry.public_receipts.some(e=>e.work_id===work&&e.state==='SERVED_VERIFIED'),'False delivery');
+const endpoint='https://api.github.com/repos/JuanManuelPM/prometeo/issues/comments/6103569828';
+const resp=await fetch(endpoint,{headers:{accept:'application/vnd.github+json','User-Agent':'prometeo-integration-proof'} ,signal:AbortSignal.timeout(15000)});
+assert.equal(resp.status,200,'Real GitHub ACK inaccessible: HTTP '+resp.status);
+const issueComment=await resp.json();
+assert.equal(issueComment.id,6103569828);
+assert.equal(issueComment.created_at,r.occurred_at_utc,'ACK time not independently sourced');
+assert.ok(issueComment.body.includes(work)&&issueComment.body.includes('REQUEST_CAPTURED'),'Issue does not corroborate real ACK');
+assert.match(issueComment.body,/Pasos previstos/);
+const local=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',dateStyle:'short',timeStyle:'medium'}).format(new Date(r.occurred_at_utc));
+assert.match(local,/21:03:46/,'Argentine timestamp conversion broken');
+console.log('PASS genuine GitHub request ACK, stable work_id, ordered plan, preservation and Argentina date',local);
+console.log('LIMIT: independent source read is not a second autonomous ChatGPT chat; no invented liveness or served result.');
