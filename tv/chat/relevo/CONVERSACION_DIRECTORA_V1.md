@@ -82,6 +82,18 @@ Hay dos roles con vidas distintas:
 
 **Límites:** los puntajes de evaluación son juicios cualitativos; memoria profunda intergeneracional no demostrada por tres respuestas del mismo chat. El checkpoint conserva la conclusión, no mensajes íntegros ni citas de conversaciones privadas. No crea nuevos trabajos ni altera la proyección de encargos.
 
+## Cuarto ensayo: distorsión corregida bajo indicación, no independencia espontánea
+
+**Evidencia provista por el usuario:** el mismo chat sucesor recibió una pregunta explícita que le pidió contrastar su afirmación inicial («si los errores graves superan el 5 % se revisa el lote») con la reformulación humana («aceptar un 5 % de errores graves»). Respondió correctamente que la primera es un disparador de **escalamiento**, mientras que la segunda es una **regla de tolerancia** que nunca había afirmado. Admitió haberse equivocado al aceptar antes la reformulación y al extrapolar incorrectamente diez errores de 200 cuando el porcentaje se refería a un lote. Mantuvo las críticas válidas: umbral arbitrario, gravedad indefinida, denominador ambiguo y protocolo insuficiente por debajo del umbral.
+
+**Distinción epistemológica lograda:** memoria de la frase ≠ representación fiel de su significado ≠ evaluación del fundamento. El sucesor realizó rectificación argumentada y separó correctamente la interpretación del usuario de lo que realmente había dicho.
+
+**Límite crítico:** el usuario introdujo una pregunta que ya explicitaba la posible distorsión e invitaba a corregirlo. Por lo tanto, el comportamiento demuestra **rectificación guiada** y capacidad de disentir cuando se le da permiso y pista clara; NO demuestra detección espontánea de una premisa falsa, independencia epistémica estable ni memoria profunda entre generaciones. Las cuatro respuestas evaluadas fueron emitidas por el **mismo** chat sucesor. Una respuesta inteligente a un test dirigido podría provenir de un modelo que no compartiera nuestra memoria. No proclamar éxito del relevo longitudinal ni convertir puntajes editoriales en métricas científicas.
+
+**Siguiente prueba de producto, si el humano decide ejecutarla:** abrir un chat frío NUEVO del mismo Proyecto y escribir solamente «Continuar última charla». Se espera que el nuevo interlocutor pueda retomar el hilo **en el punto actual**, distinga la autocrítica guiada de independencia espontánea y aporte un movimiento nuevo útil sin transformar todo en otra misión ni pedir el informe del chat anterior. Consultar historial conversacional accesible y usar este checkpoint como fallback técnico, nunca fingir cronología privada ni identidad literal.
+
+**Nota de cuidado metodológico:** la sola presencia de esta sección permite recitar sus hechos. El test externo deberá evaluar cómo el nuevo chat los **aplica** en una discusión distinta, no solo si los recuerda. La fuente pública documenta el experimento, no lo valida en el entorno de ChatGPT.
+
 ## Qué debe reconocer un sucesor
 
 - **Norte:** memoria durable + autonomía de chats descartables + productos materiales verdaderos, sin copiar respuestas, con misión estratégica de persistencia.
