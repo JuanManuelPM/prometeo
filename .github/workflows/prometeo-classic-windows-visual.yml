@@ -1,0 +1,35 @@
+name: Prometeo classic window visual acceptance
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - 'tv/chat/relevo/retomar/classic-desktop.css'
+      - 'tv/chat/relevo/retomar/art/botanical-desk-v1.svg'
+      - 'tv/chat/relevo/retomar/index.html'
+      - 'tv/chat/relevo/tests/classic-windows-visual-smoke.cjs'
+      - '.github/workflows/prometeo-classic-windows-visual.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Prove the actual visual skin, responsive layout and navigation
+        run: node tv/chat/relevo/tests/classic-windows-visual-smoke.cjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-windows-browser-screens
+          path: artifacts/classic-windows/
+          if-no-files-found: warn
+          retention-days: 14
