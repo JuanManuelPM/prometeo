@@ -66,7 +66,7 @@ const root=process.cwd(),out=path.join(root,'artifacts/classic-windows');
    assert.equal(seenAssets.get('classic-desktop.css'),200,'stylesheet did not load');
    assert.equal(seenAssets.get('botanical-desk-v1.svg'),200,'botanical wallpaper did not load');
    if(width>=901) assert.ok(Math.abs(geometry.activityY-geometry.workY)<8,'desktop windows should share row');
-   if(width<=900) assert.ok(geometry.workY>geometry.activityY,'mobile panels should stack');
+   if(width<=900){assert.ok(geometry.workY>geometry.activityY,'mobile panels should stack');assert.ok(geometry.workY<1320,'activity pushes remaining tools too far down');}
    const selected=page.locator('#track [data-project="facultad"]');
    await selected.click();
    assert.match(page.url(),/#facultad$/,'project navigation broken');
