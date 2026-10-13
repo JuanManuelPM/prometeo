@@ -87,9 +87,23 @@ $("#undo").addEventListener("click",()=>{if(!edges.length){P.notify("No hay rama
 $("#reset").addEventListener("click",()=>{if(window.confirm("¿Reiniciar la red de conexiones?"))reset()});
 $("#export").addEventListener("click",()=>P.download("jardin-de-ecos.json",{schema:SCHEMA,edges:edges.map(e=>[e.a,e.b])}));
 $("#load").addEventListener("click",()=>$("#file").click());
-$("#file").addEventListener("change",async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>30000)throw Error("Archivo demasiado grande");
- const d=JSON.parse(await f.text());if(d.schema!==SCHEMA||!Array.isArray(d.edges)||d.edges.length>MAX||d.edges.some(pair=>!Array.isArray(pair)||pair.length!==2||!byId[pair[0]]||!byId[pair[1]]))throw Error("Formato inválido");
- const saved=d.edges.map(p=>[...p]);clearEdges();lit=new Set(["S"]);for(const p of saved){if(!connect(p[0],p[1]))throw Error("Hay conexiones inválidas en el archivo")};score();P.notify("Puzzle recuperado")}catch(err){clearEdges();lit=new Set(["S"]);score();P.notify("Importación rechazada: "+err.message)}e.target.value=""});
+$("#file").addEventListener("change",async e=>{try{
+ const f=e.target.files[0];if(!f)return;if(f.size>30000)throw Error("Archivo demasiado grande");
+ const d=JSON.parse(await f.text());
+ if(d.schema!==SCHEMA||!Array.isArray(d.edges)||d.edges.length>MAX)throw Error("Formato inválido");
+ const seen=new Set(),reach=new Set(["S"]),validated=[];
+ for(const pair of d.edges){
+  if(!Array.isArray(pair)||pair.length!==2||!byId[pair[0]]||!byId[pair[1]])throw Error("Nudos desconocidos");
+  const [a,b]=pair,k=key(a,b),A=byId[a],B=byId[b];
+  if(a===b||seen.has(k)||Math.hypot(A.x-B.x,A.z-B.z)>LIMIT||collides(A,B))throw Error("Conexión imposible o repetida");
+  if(!reach.has(a)&&!reach.has(b))throw Error("La conexión no está alimentada por ORIGEN");
+  seen.add(k);reach.add(a);reach.add(b);validated.push([a,b]);
+ }
+ // Transacción: hasta acá el mundo anterior sigue intacto.
+ clearEdges();lit=new Set(["S"]);for(const [a,b] of validated)makeConnection(a,b,edges.length);
+ score();P.notify("Puzzle recuperado");
+ }catch(err){P.notify("Importación rechazada: "+err.message)}finally{e.target.value=""}
+});
 $("#help").addEventListener("click",()=>{running=false;cancelAnimationFrame(frame);$("#veil").hidden=false;$("#enter").textContent="VOLVER AL JARDÍN"});
 $("#enter").addEventListener("click",()=>{if(!T)return;$("#veil").hidden=true;running=true;prev=0;animate(0)});
 $("#continue").addEventListener("click",()=>{$("#win").classList.remove("show");running=true;prev=0;animate(0)});
