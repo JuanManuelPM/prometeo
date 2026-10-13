@@ -39,3 +39,6 @@ Los renders, controles manuales y exportaciones están escritos en HTML/Canvas/J
 
 ## Continuidad
 Las fuentes y la planificación persisten en `atlas-tecnico/v2/` y `atlas-tecnico/v1/PLAN_EJECUTABLE.md`; las aplicaciones se encuentran en tres carpetas independientes. Reanudar con la comprobación de navegador/hardware, no con reconstrucción de código.
+
+## Restricción confirmada del escritorio de Laboratorios
+Se leyó `laboratorios-js/index.html` en `gh-pages`: el iframe se crea con `allow="fullscreen"` y `sandbox="allow-scripts allow-forms allow-downloads allow-pointer-lock"`. La política no delega `camera`, por lo que la webcam debe considerarse **no disponible dentro del iframe**. El propio escritorio ofrece por cada widget el enlace `Abrir completo ↗` (`target="_blank"`), que permite acceder directamente fuera del sandbox para intentar el permiso de cámara. No se modificó el shell compartido ni otros escritorios.
