@@ -1,0 +1,428 @@
+{
+  "schema": "prometeo.embeds.atlas/v2",
+  "library": "embeds",
+  "date": "2026-10-13",
+  "status": "KNOWLEDGE_PUBLISHED_NOT_THREE_WIDGETS",
+  "sourceStatus": "Se recibió texto/transcripción, no se proporcionaron enlaces originales, fecha ni duración; no se reprodujeron transcripciones completas.",
+  "sources": [
+    {
+      "id": "F1",
+      "title": "Moddable SDK + Zephyr",
+      "author": "Peter Hoddie entrevistado por Benjamin",
+      "goal": "JavaScript en hardware, NO iframes",
+      "sequence": "Kinoma y XS pequeño → XS-in-C / Zephyr → device tree y device.LED → temporizadores, GPIO, botones onReadable → REPL, breakpoints, memoria → bytecode en flash → fetch/JSON/Wi-Fi/Bluetooth → PIU.",
+      "reusable": "El diseño de adaptadores directos, contratos estandarizados ECMA-419, instrumentación y reducción de recursos inspira nuestro catálogo; el código no es transferible directamente al navegador.",
+      "correction": "Motor Moddable no es un SDK de iframe; ninguna demostración ocurrió en Prometeo.",
+      "variation": "Transformar el REPL de hardware en inspector de mensajes y APIs de editores web. Diferencia sustancial: observa integraciones externas, no sensores.",
+      "techniques": [
+        "[VIDEO] Kinoma precede a Moddable: el objetivo es ejecutar JavaScript en dispositivos con poca RAM, no integrar páginas externas.",
+        "[VIDEO] Motor XS implementado en C; puente XS-in-C para comunicar APIs JS y funciones de C; no todo control físico debe programarse en JS.",
+        "[VIDEO] La integración con Zephyr evita una capa de abstracción transversal enorme; usa directamente sus GPIO, sockets y Device Tree.",
+        "[VIDEO] mcconfig envuelve el build de Zephyr vía CMake/West, compila bytecode a flash y limita la RAM usada por scripts.",
+        "[VIDEO] Blinky: Timer.repeat alterna un pin con LED.write(); Button.onReadable reacciona a interrupciones de entrada.",
+        "[VIDEO] El debugger enumera device.LED, device.Button, I2C, PWM y Serial según la placa y permite ejecutar expresiones REPL sin recompilar.",
+        "[VIDEO] Panel de instrumentación separa turns del event loop, chunk, slots y stack; compara estados inactivo y activo.",
+        "[VIDEO] fetch + URL + response.json se implementan encima de ECMA-419 HTTP/TCP, que utiliza sockets Zephyr; promesas no bloqueantes.",
+        "[VIDEO] Web Bluetooth recupera pulso de un sensor y reintenta conexión; PIU mueve múltiples elementos con bitmap leído desde flash.",
+        "[VIDEO] TypedArray/DataView reducen costes de buffers; tail calls reducen uso de pila; se describen opciones GPL y soporte comercial."
+      ],
+      "reproduce": "Crear registry de capacidades legible por máquina {id,kind,capabilities,restrictions}; construir adaptador mount/probe/dispose; conectar un inspector que sólo reporte señales comprobadas. No instalar Moddable en el navegador.",
+      "pseudo": "const adapter = registry.find(x => x.matches(validatedURL));\nconst session = await adapter.mount(container);\ninspector.record({provider: adapter.id, evidence: await session.probe()});",
+      "tests": [
+        "Una capacidad declarada sin handshake figura NO VERIFICADA.",
+        "El inspector diferencia carga del iframe, API lista e interacción completada.",
+        "El adaptador nativo nunca comparte secretos y puede desmontarse."
+      ],
+      "url": null,
+      "duration": null,
+      "published_at": null,
+      "original_title_confirmed": false
+    },
+    {
+      "id": "F2",
+      "title": "Últimos videos de YouTube con fetch",
+      "author": "Julia",
+      "goal": "Tres videos recientes en iframes",
+      "sequence": "Crear HTML/CSS/JS → tres iframes vacíos → ID del canal → feed RSS → encodeURIComponent → servicio RSS→JSON → fetch() y response.json() → seleccionar items por posición → extraer video ID → construir /embed/ID → flexbox.",
+      "reusable": "Separar descubrimiento de contenido y reproductor permite canales dinámicos.",
+      "correction": "Tres fetch repetidos, substring del ID frágil, medidas fijas, dependencia de conversor externo sin garantía de costo/CORS. No usa YouTube Data API directamente.",
+      "variation": "Convertir la lista de tres últimos videos en hemeroteca multifuente con notas, etiquetas, vínculo técnica↔video e importación/exportación de colecciones.",
+      "techniques": [
+        "[VIDEO] Crear index.html, style.css y main.js; insertar tres iframe sin src, numerados mediante atributo personalizado.",
+        "[VIDEO] Recuperar el Channel ID desde ajustes de YouTube y construir URL de feed RSS de publicaciones.",
+        "[VIDEO] encodeURIComponent prepara la URL RSS para incluirla como parámetro de consulta del conversor RSS→JSON.",
+        "[VIDEO] fetch(requestURL).then(response => response.json()) obtiene items; se hace console.log para comprobar respuesta.",
+        "[VIDEO] Cada iframe usa número 0,1,2 y consulta result.items[numero].link; extrae identificador mediante substring después del primer '='.",
+        "[VIDEO] Asigna src 'youtube.com/embed/<id>' a los tres iframes; getElementsByClassName y for agregan reproductores.",
+        "[VIDEO] Corrección durante la clase: reubicar función/llamada fuera de un alcance incorrecto para que cargue el contenido.",
+        "[VIDEO] CSS display:flex y separación entre iframes; se busca que el cuarto video más antiguo desaparezca al publicar uno nuevo."
+      ],
+      "reproduce": "Consultar feed UNA sola vez; verificar origen y formato de los resultados; normalizar [{id,title,date,link}]; ordenar y limitar; separar selección de datos de carga del reproductor; comprobar disponibilidad real con IFrame Player API.",
+      "pseudo": "const feed = await adapter.readChannel(channelId); // una solicitud\nconst videos = feed.items.map(normalize).filter(valid).sort(byNewest).slice(0,3);\nmountVideo(videos[0].id); // reproductor activo",
+      "tests": [
+        "Dados cuatro videos por fecha, muestra sólo tres nuevos.",
+        "No realiza N consultas HTTP para N iframes.",
+        "URL 'youtube.com.evil.invalid' no pasa normalización.",
+        "Si el feed falla por CORS, indica fecha del último snapshot en vez de 'en vivo'."
+      ],
+      "url": null,
+      "duration": null,
+      "published_at": null,
+      "original_title_confirmed": false
+    },
+    {
+      "id": "F3",
+      "title": "PayPal: arquitectura de SDK client-side",
+      "author": "Conferencista PayPal, identidad no constatable en texto",
+      "goal": "Distribuir módulos de UI incrustables",
+      "sequence": "SDK inicial envolvía HTTP → pasó a componentes visuales → problema de NPM versionado y CDN evergreen → bundles bajo demanda con Webpack DefinePlugin y minimizador → import() asíncrono → configuración GraphQL preinsertada → fecha de versión → cache y rollback por dist-tags.",
+      "reusable": "Módulos desacoplados, compatibilidad, ruta crítica pequeña y posibilidad de reversión.",
+      "correction": "No hace falta Webpack en servidor ni GraphQL para un laboratorio en GitHub Pages. Presenta estrategia histórica de PayPal, no receta universal.",
+      "variation": "Pasar de personalización por comercio a mini SDK de ventanas sin servidor, cuyos adaptadores se actualizan individualmente y conservan la UI anfitriona.",
+      "techniques": [
+        "[VIDEO] Un SDK inicialmente envuelve fetch/XMLHttpRequest; PayPal evoluciona a componentes UI integrables en el sitio.",
+        "[VIDEO] NPM fijo obliga a soportar versiones muy antiguas; script evergreen de CDN concentra todas las opciones y crece excesivamente.",
+        "[VIDEO] Propuesta de compilar Webpack en producción por parámetros: localización, componentes y configuración particular.",
+        "[VIDEO] Webpack DefinePlugin más eliminación de ramas inalcanzables conserva sólo traducciones y funciones necesarias.",
+        "[VIDEO] import() dinámico separa recursos no críticos en bundles diferidos; primer render recibe sólo lo indispensable.",
+        "[VIDEO] Consultas GraphQL y configuración pueden incorporarse durante build; caché edge evita recompilar cada visita.",
+        "[VIDEO] Estrategia de versiones por fecha de primera integración, con actualización voluntaria; deprecaciones sin arrastrar código viejo.",
+        "[VIDEO] Despliegue mediante npm y dist-tags, activar y revertir por separado; conferencista señala que la arquitectura estaba en pruebas."
+      ],
+      "reproduce": "Para Pages estático, conservar contratos y empaquetados versionados; módulos import() se descargan al abrir proveedor. No trasladar compilador en servidor, GraphQL ni configuraciones privadas al navegador público.",
+      "pseudo": "async function openTool(id) {\n  const {createAdapter} = await import(`./adapters/${allowlistedId(id)}.mjs`);\n  return createAdapter().mount(windowNode);\n}",
+      "tests": [
+        "Abrir GeoGebra no solicita el SDK de TikTok.",
+        "Un módulo ausente presenta error específico y escritorio sigue funcionando.",
+        "Cambio de versión no rompe las propiedades serializadas conocidas."
+      ],
+      "url": null,
+      "duration": null,
+      "published_at": null,
+      "original_title_confirmed": false
+    },
+    {
+      "id": "F4",
+      "title": "React Social Media Embed / Tweet / Share",
+      "author": "Docente en español, nombre no constatado",
+      "goal": "Incrustaciones sociales, tienda y clon experimental",
+      "sequence": "Crear proyecto Vite React/TS → instalar react-social-media-embed → Instagram/YouTube/TikTok/Pinterest → fallos de Facebook y LinkedIn → ficha de producto con reel → react-tweet por ID → react-share por URL → clon de timeline con publicaciones locales y salida real a X → publicación con Vercel.",
+      "reusable": "Un adaptador por proveedor y separación entre vista previa, interactividad y apertura externa.",
+      "correction": "Ninguna librería esquiva restricciones de CSP/X-Frame-Options; un clon local no equivale a publicar en X. Servicio de hosting gratis no implica ilimitado.",
+      "variation": "De tarjeta de producto con Reel a colección verificable de fuentes multimedia para investigar, citar y comparar, sin almacenar copias no licenciadas.",
+      "techniques": [
+        "[VIDEO] React Social Media Embed ofrece componentes para Instagram, Facebook, TikTok, YouTube, LinkedIn, Pinterest y X.",
+        "[VIDEO] Crear aplicación Vite, elegir React + TypeScript, instalar paquete e importar componentes concretos.",
+        "[VIDEO] Los ejemplos de YouTube, TikTok e Instagram reciben URL; algunos se reproducen y otros sólo muestran vista previa.",
+        "[VIDEO] Al probar una URL inadecuada de LinkedIn aparece 'conexión rechazada'; no todas las publicaciones o perfiles son embebibles.",
+        "[VIDEO] Tienda de peluches alterna fotografía y Reel de Instagram; estilos importan y el botón comprar resulta ficticio.",
+        "[VIDEO] React Tweet recibe ID de tweet; XEmbed pide URL completa; el profesor compara ambos estilos.",
+        "[VIDEO] React Share incorpora botones reales para WhatsApp, Telegram, Facebook, X y email. En local comparte localhost y por eso no es público.",
+        "[VIDEO] Clon de X incluye feed local simulado y enlace de publicación real a X: las dos acciones son distintas.",
+        "[VIDEO] Publicación con Vercel y discusión Dokploy/OVH son aspectos de infraestructura, no prueba de integración universal."
+      ],
+      "reproduce": "Normalizar la URL del post y escoger componente especializado u oficial; permitir fallback externo; no afirmar que react-social-media-embed vence bloqueos del proveedor. React es opcional, no requisito del atlas.",
+      "pseudo": "const match = resolveOfficialPost(new URL(userUrl));\nif (!match) return renderExternal(validExternalUrl);\nconst adapter = await import(match.adapter);\nreturn adapter.mount(match.canonicalUrl);",
+      "tests": [
+        "Publicación borrada exhibe estado externo o bloqueado.",
+        "Botón de compartir URL localhost advierte que no es accesible públicamente.",
+        "URL de perfil donde se exige URL de publicación no se marca funcional.",
+        "Un clon local no se presenta como publicación real en la red."
+      ],
+      "url": null,
+      "duration": null,
+      "published_at": null,
+      "original_title_confirmed": false
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "C1",
+      "name": "Detección de proveedores",
+      "how": "Parsear URL HTTPS con URL(); exigir hostname allowlisted; normalizar rutas, IDs y parámetros; no aceptar coincidencias substring.",
+      "limits": "Esquema Provider {id,match,embed,capabilities,test}; evitar dominios impostores.",
+      "test": "URL genuina se resuelve; dominio parecido se rechaza.",
+      "learned_from": "VID-04 / normas oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "No confiar en includes('youtube.com'); URL corta y subdominios deben resolverse con reglas exactas.",
+      "reusable_pattern": "const u = new URL(input); if(u.protocol!=='https:') throw Error('Esquema inválido'); if(!ALLOW.has(u.hostname)) return {mode:'external'};",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C2",
+      "name": "oEmbed",
+      "how": "Consultar endpoints declarados de proveedor y obtener type/title/html; sanitizar estrictamente markup si fuera indispensable.",
+      "limits": "CORS, límites del proveedor, HTML remoto inseguro; en páginas estáticas puede requerir alternativa.",
+      "test": "La fuente autorizada devuelve metadata o un estado de no disponible.",
+      "learned_from": "VID-04 / normas oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "oEmbed describe contenido; no concede permiso de iframe ni elimina CORS. No inyectar HTML remoto directamente.",
+      "reusable_pattern": "const metadata = await endpoint(url); if(metadata.type==='rich') return safeIsolatedRenderer(metadata.html);",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C3",
+      "name": "Iframes oficiales",
+      "how": "Usar endpoint específico, title y permisos mínimos; dimensiones fluidas; preferir carga diferida.",
+      "limits": "load no significa que la app funcione; CSP, cookies y sandbox son restricciones.",
+      "test": "Reproducir/manipular contenido en navegador real.",
+      "learned_from": "VID-04 / normas oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "CSP y X-Frame-Options pueden bloquear la aplicación incluso con load; verificar acción significativa.",
+      "reusable_pattern": "frame.onload=()=>status('loaded-not-verified'); api?.onReady?.(()=>status('interactable'));",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C4",
+      "name": "API de GeoGebra",
+      "how": "Cargar deployggb.js, crear GGBApplet y recibir appletOnLoad; evalCommand y API de estado/eventos.",
+      "limits": "El iframe host sin allow-same-origin puede requerir diseño alternativo: no declarar probado.",
+      "test": "Crear f(x), leer objeto, restaurar material o exportar.",
+      "learned_from": "VID-02 / APIs oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "GeoGebra dispone de API oficial pero hay que probar red y sandbox real; varias instancias deben distinguirse.",
+      "reusable_pattern": "new GGBApplet({appName:'graphing',appletOnLoad(api){api.evalCommand('f(x)=x^2')}}).inject(node);",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C5",
+      "name": "Editor diagrams.net",
+      "how": "https://embed.diagrams.net/?embed=1&proto=json y protocolo postMessage init/load/save, XML import/export.",
+      "limits": "Filtrar event.origin y event.source, correlacionar respuestas, validar JSON/XML.",
+      "test": "Enviar documento, editar, salvar y verificar XML producido.",
+      "learned_from": "VID-02 / APIs oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "diagramas XML deben provenir de mensaje válido init/load/export; rechazar XML sin verificar formato y tamaño.",
+      "reusable_pattern": "if(event.origin!=='https://embed.diagrams.net'||event.source!==frame.contentWindow)return;",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C6",
+      "name": "Reproductor YouTube",
+      "how": "IFrame Player API oficial con onReady, onStateChange, loadVideoById.",
+      "limits": "Autoplay restringido; video puede deshabilitar embeds.",
+      "test": "Controles Play/Pause y eventos de estado en video embebible.",
+      "learned_from": "VID-02 / APIs oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "El reproductor API tiene estados observables, a diferencia del iframe.onload.",
+      "reusable_pattern": "const player=new YT.Player(node,{videoId:validId,events:{onReady:ready,onError:error}});",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C7",
+      "name": "Descubrimiento RSS",
+      "how": "Una solicitud por canal, ordenar/deduplicar resultados y construir representación segura.",
+      "limits": "Feed XML de YouTube no garantiza acceso navegador por CORS; no asumir proxy ilimitado.",
+      "test": "Comparar con fixture y simular falla de feed sin resultados falsos.",
+      "learned_from": "VID-02 / APIs oficiales",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "RSS→JSON externo de tutorial no implica que exista CORS estable/gratuidad; permitir snapshot con fecha.",
+      "reusable_pattern": "const items=(await feedOnce(channel)).map(normalize); return unique(items).sort(byDate).slice(0,n);",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C8",
+      "name": "Componentes React",
+      "how": "react-social-media-embed para múltiples posts; react-tweet especializado; react-share para acciones.",
+      "limits": "Dependencia React pesa; CDN y CSP pueden fallar; preview no equivale a interacción.",
+      "test": "En cada red verificar el gesto principal permitido y su fallback.",
+      "learned_from": "VID-03 / VID-04",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "Biblioteca React requiere evaluar versión/licencia/compatibilidad, no supera restricciones sociales.",
+      "reusable_pattern": "const adapter = await import('./providers/social.mjs');return adapter.mount(canonicalPostUrl);",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C9",
+      "name": "Carga selectiva",
+      "how": "Separar adapters por import() y no cargar SDK externos antes de necesitarlos.",
+      "limits": "Evitar dependencias rotas o evergreen impredecibles.",
+      "test": "Inspeccionar red y confirmar que proveedor inactivo no descarga código.",
+      "learned_from": "VID-03 / VID-04",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "Separar el hot path de opciones pesadas sin servidor de compilación Webpack.",
+      "reusable_pattern": "const {mount}=await import('./providers/'+key+'.mjs');",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C10",
+      "name": "Mensajes cross-origin",
+      "how": "postMessage(data,targetOrigin) y listener que valida origin/source/tipo/id.",
+      "limits": "Mensajes no confiables; jamás usar '*' salvo caso documentado.",
+      "test": "Mensaje de origen falso se descarta; válido produce transición.",
+      "learned_from": "VID-01 / diagrams.net",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "postMessage con targetOrigin exacto. Ningún string externo se evalúa o se trata como HTML.",
+      "reusable_pattern": "if(e.origin!==expected||e.source!==iframe.contentWindow||!isValid(e.data))return;",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C11",
+      "name": "Estados honestos",
+      "how": "State machine: detectado, conectando, listo según API, interacción verificada, bloqueado, externo.",
+      "limits": "No marcar éxito a partir de onload, timeout silencioso o captura.",
+      "test": "Fallos se muestran con causa, salida externa y reintento real.",
+      "learned_from": "VID-01 / diagrams.net",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "Distinguir 'cargando', 'listo', 'interacción verificada', 'bloqueado', 'externo'.",
+      "reusable_pattern": "state={phase:'pending',evidence:[]}; if(apiReady)state.phase='ready';",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C12",
+      "name": "Preservación de ventanas",
+      "how": "Separar geometría, z-index, herramienta e información que su SDK deja serializar; restaurar mediante importación explícita.",
+      "limits": "Sandbox de Laboratorios no admite localStorage fiable. Sesiones de terceros no necesariamente recuperables.",
+      "test": "Exportar JSON, recargar y restaurar posición/objeto cuando es posible.",
+      "learned_from": "VID-01 / diagrams.net",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "Ocultar preserva instancia; al recargar sólo vuelve lo que se exportó realmente, no sesiones ajenas.",
+      "reusable_pattern": "const snapshot={selected,rectByWindow,exportableProviderState};",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C13",
+      "name": "Compartir contenido",
+      "how": "Web Share API con fallback a copiar URL canónica; botones específicos opcionales.",
+      "limits": "No compartir localhost ni rutas inexistentes.",
+      "test": "Compartir y abrir la URL desde una sesión diferente.",
+      "learned_from": "VID-04 / MDN",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "El iframe anfitrión no permite allow-popups; copiar URL tiene fallback seleccionable.",
+      "reusable_pattern": "if(navigator.share)await navigator.share({url}); else await showCopyableLink(url);",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C14",
+      "name": "Accesibilidad y móvil",
+      "how": "viewport fluido, controles de 44px, etiquetas, teclado, foco, scroll vertical completo.",
+      "limits": "Captura de rueda/gestos por iframe puede impedir scroll.",
+      "test": "Comprobar 360px, tabulación y escalado sin recorte.",
+      "learned_from": "VID-04 / MDN",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "320–360px sin scroll horizontal; teclado, foco visible, controles 44px y reduce motion.",
+      "reusable_pattern": ".viewport{width:100%;min-width:0}.video{aspect-ratio:16/9;width:100%}",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C15",
+      "name": "Privacidad y licencias",
+      "how": "Permisos mínimos por iframe; explicar solicitudes a terceros; licencias verificadas; sin secretos cliente.",
+      "limits": "Las librerías open source y servicios externos tienen condiciones diferenciadas.",
+      "test": "Ningún token o material privado aparece en HTML ni telemetría.",
+      "learned_from": "VID-04 / MDN",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "Privacidad de terceros; revisar licencias e informar cuándo una herramienta necesita red/cookies.",
+      "reusable_pattern": "const allowed=approvedHosts.has(url.hostname); // never publish API secrets",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    },
+    {
+      "id": "C16",
+      "name": "Portabilidad de estado por archivo",
+      "how": "serializar ventanas, notas y estados exportables a archivo JSON versionado y XML oficial; importar con validación.",
+      "limits": "Iframe sandbox opaco no garantiza localStorage; estado interno del proveedor puede ser inaccesible.",
+      "test": "Roundtrip exportar/importar recupera sólo los campos prometidos; archivo corrupto se rechaza.",
+      "learned_from": "VID-03 / contrato",
+      "components": "Adaptador tipado, UI responsable, pruebas automatizadas",
+      "avoid": "No usar localStorage en origen opaco; importación exige validar esquema y versión.",
+      "reusable_pattern": "download(new Blob([JSON.stringify(project)],{type:'application/json'}));",
+      "projects": "Mesa Viva / Inspector de Integraciones / Hemeroteca Viva (selección según capacidad)."
+    }
+  ],
+  "references": [
+    {
+      "title": "GeoGebra Apps Embedding",
+      "url": "https://geogebra.github.io/docs/reference/en/GeoGebra_Apps_Embedding/",
+      "analysis": "SDK oficial deployggb.js, GGBApplet, parámetros y ejemplos."
+    },
+    {
+      "title": "GeoGebra Apps API",
+      "url": "https://geogebra.github.io/docs/reference/en/GeoGebra_Apps_API/",
+      "analysis": "Control mediante evalCommand, estado y eventos."
+    },
+    {
+      "title": "diagrams.net Embed Mode",
+      "url": "https://www.drawio.com/docs/reference/embed-mode/",
+      "analysis": "Editor oficial con postMessage y protocolos JSON/XML."
+    },
+    {
+      "title": "YouTube IFrame Player API",
+      "url": "https://developers.google.com/youtube/iframe_api_reference",
+      "analysis": "Reproducción controlada y eventos reales."
+    },
+    {
+      "title": "oEmbed specification",
+      "url": "https://oembed.com/",
+      "analysis": "Formato para descubrimiento e incrustación de contenido."
+    },
+    {
+      "title": "React Social Media Embed",
+      "url": "https://github.com/justinmahar/react-social-media-embed",
+      "analysis": "Componentes de redes sociales, límites por proveedor."
+    },
+    {
+      "title": "React Share",
+      "url": "https://github.com/nygardk/react-share",
+      "analysis": "Botones de compartir, sin necesidad de recrearlos."
+    },
+    {
+      "title": "GeoGebra integration example",
+      "url": "https://github.com/geogebra/integration",
+      "analysis": "Ejemplos oficiales de iframe y DIV."
+    },
+    {
+      "title": "diagrams.net: walkthrough iframe + postMessage",
+      "url": "https://www.drawio.com/docs/tutorials/embedding-walkthrough/",
+      "analysis": "Proceso y mensajes de editor real; verificar event.origin/event.source y exportación XML; no confundir con imagen estática."
+    },
+    {
+      "title": "MDN postMessage",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage",
+      "analysis": "Validar origin, source, esquema y targetOrigin exacto; mensajes de otros sitios no cambian estado."
+    },
+    {
+      "title": "YouTube PlaylistItems.list",
+      "url": "https://developers.google.com/youtube/v3/docs/playlistItems/list",
+      "analysis": "Listado oficial de subidas con cuota y clave configurada; no asumir tarifa ilimitada ni guardar credenciales privadas en cliente."
+    },
+    {
+      "title": "MDN Web Share API",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share",
+      "analysis": "Compartir nativo con HTTPS, gesto del usuario y compatibilidad parcial; fallbacks explícitos."
+    }
+  ],
+  "decisions": [
+    "Mantener intactos los escritorios V19-V22 existentes",
+    "Distinguir embed oficial, componente instalable y enlace externo",
+    "No prometer integración de WhatsApp, Gemini o ChatGPT sin prueba en navegador",
+    "No depender de localStorage en iframe sandbox",
+    "No importar la infraestructura servidor de PayPal al laboratorio estático",
+    "No inventar títulos/links originales de videos",
+    "No publicar tres demos hasta que llegue el punto"
+  ],
+  "experiences": [
+    {
+      "name": "Mesa Viva",
+      "role": "1 · Emblemática",
+      "goal": "Escritorio académico de tres ventanas auténticas: GeoGebra, diagrams.net y cuaderno Markdown."
+    },
+    {
+      "name": "Inspector de Integraciones",
+      "role": "2 · Laboratorio interactivo",
+      "goal": "Mesa de pruebas de URLs y SDK que registra evidencia de capacidad, fallos y protocolos."
+    },
+    {
+      "name": "Hemeroteca Viva",
+      "role": "3 · Variación radical",
+      "goal": "Transformar «los tres últimos videos» de Julia en una biblioteca multimedia investigable y exportable de fuentes de distintas redes."
+    }
+  ],
+  "version": "v2",
+  "updated_at": "2026-10-13",
+  "change_log": [
+    "v1 conservada sin alteraciones",
+    "Ampliación fuente por fuente con procedimientos, pseudocódigo y pruebas originales",
+    "16 capacidades con patrón reutilizable, límites y errores",
+    "12 referencias identificadas y plan ampliado"
+  ]
+}
