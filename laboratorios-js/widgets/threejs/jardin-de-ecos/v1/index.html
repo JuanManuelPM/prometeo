@@ -1,0 +1,98 @@
+<!doctype html><html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#100f24"><title>Jardín de ecos · Puzzle orgánico Three.js</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#0c1422;color:#f4efe7;font-family:system-ui,Segoe UI,Arial,sans-serif;overflow:hidden}button{font:inherit;cursor:pointer;touch-action:manipulation}button:focus-visible{outline:3px solid #efca8f;outline-offset:3px}
+#stage{position:absolute;inset:0}#stage canvas{display:block;touch-action:none;width:100%;height:100%}
+header{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;justify-content:space-between;align-items:start;gap:15px;padding:17px clamp(17px,3vw,38px);pointer-events:none;background:linear-gradient(#0a1024ef,transparent)}header>*{pointer-events:auto}
+.kicker{font-size:10px;letter-spacing:.2em;font-weight:800;color:#e8bb8f}h1{font:normal clamp(35px,5vw,59px)/.95 Georgia,serif;letter-spacing:-.04em;margin:7px 0 10px}p{line-height:1.5}header p{font-size:12px;color:#b1bccc;margin:0}
+.stats{background:#15283bd9;border:1px solid #708d9d82;padding:11px 13px;min-width:130px;text-align:center;font-size:11px;letter-spacing:.02em}.stats strong{font:normal 28px Georgia,serif;display:block;color:#e8c68d}.stats span{color:#b7ced5}
+footer{position:absolute;left:0;right:0;bottom:0;z-index:4;display:flex;align-items:end;justify-content:space-between;gap:18px;padding:15px clamp(12px,3vw,38px) max(18px,env(safe-area-inset-bottom));background:linear-gradient(transparent,#080e20ef)}.hint{color:#d9dcda;font-size:13px;max-width:590px;line-height:1.5}.hint b{display:block;color:#f4d7a0;margin-bottom:4px;font-size:11px;letter-spacing:.11em}.toolbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}button{background:#263748c2;border:1px solid #849ea3;color:white;border-radius:3px;padding:11px 12px;min-height:42px;font-size:12px;font-weight:750}button:hover{background:#39506a}button.primary{background:#e1c28a;color:#27313a;border-color:#e1c28a}button:disabled{opacity:.4;cursor:not-allowed}
+#labels{position:absolute;inset:0;pointer-events:none;z-index:2}.tag{position:absolute;transform:translate(-50%,-50%);font-size:10px;font-weight:800;letter-spacing:.11em;padding:4px 7px;border-radius:30px;background:#0d203ad5;white-space:nowrap;color:#e4dbcc;border:1px solid #667d85}.tag.source{color:#ffdca3;border-color:#d5a66a}.tag.target{color:#b8f5e1;border-color:#6fc1b8}.tag.powered{color:#f9e9a9;background:#3a3845;border-color:#e3d7a8}
+#toast{position:absolute;top:28%;left:50%;transform:translateX(-50%);z-index:7;max-width:min(90vw,530px);background:#1a2435e9;color:#fff3dd;padding:14px 18px;border:1px solid #cfaa81;opacity:0;transition:opacity .2s;text-align:center;pointer-events:none}#toast.show{opacity:1}
+#veil{position:absolute;z-index:10;inset:0;display:grid;place-items:center;padding:20px;background:linear-gradient(130deg,#0d1725f5,#151a30f2)}#veil[hidden]{display:none}.panel{max-width:570px;background:#161d30;border:1px solid #526882;padding:clamp(24px,5vw,43px);max-height:90dvh;overflow:auto}.panel h2{font:normal clamp(40px,7vw,66px)/1 Georgia,serif;letter-spacing:-.05em;margin:10px 0 20px}.panel p{color:#cbd2dc;line-height:1.7}.panel ul{color:#d9dfdf;line-height:1.8;padding-left:20px}.panel .primary{width:100%;margin-top:15px;padding:14px}#error{color:#f9bfa1;overflow-wrap:anywhere}
+#win{display:none;position:absolute;inset:0;z-index:9;background:#071421c9;place-items:center;padding:18px}#win.show{display:grid}#win .panel{text-align:center}#win h2{font-size:49px}
+@media(max-width:650px){header{padding:13px 15px}h1{font-size:35px}header p{font-size:10px}.stats{min-width:95px;padding:7px}.stats strong{font-size:23px}footer{display:block;padding:10px 10px max(12px,env(safe-area-inset-bottom))}.hint{font-size:11px;margin-bottom:10px}.toolbar{justify-content:center}.toolbar button{font-size:10px;flex:1;padding:9px 7px;min-height:39px}.tag{font-size:9px;letter-spacing:0;padding:3px 5px}.panel{padding:24px}#win h2{font-size:39px}}
+</style></head><body>
+<div id="stage" aria-label="Red orgánica tridimensional de conexión de energía"></div><div id="labels" aria-hidden="true"></div>
+<header><div><div class="kicker">PROMETEO / JUEGOS / 03</div><h1>Jardín de ecos</h1><p>Una red viva. Tres receptores. Nueve enlaces.</p></div><div class="stats"><strong id="count">0 / 3</strong><span>RECEPTORES ACTIVOS</span><br><span id="budget">9 enlaces libres</span></div></header>
+<div id="toast" role="status" aria-live="polite"></div>
+<footer><div class="hint"><b>INSTRUCCIONES EN UNA FRASE</b>Elegí dos nudos para cultivar una rama; empezá por ORIGEN. Distancia máxima: 11 unidades. Las barreras oscuras bloquean las conexiones.</div><div class="toolbar"><button id="undo">↶ DESHACER</button><button id="reset">REINICIAR</button><button id="export">EXPORTAR</button><button id="load">IMPORTAR</button><button id="help" class="primary">AYUDA</button></div></footer>
+<div id="veil"><section class="panel"><div class="kicker">UNA EXPERIENCIA DE CRECIMIENTO</div><h2>Hacé circular<br>la memoria.</h2><p>El jardín perdió su corriente vital. Reconectá ORIGEN con los tres receptores de luz. Cada rama consume una de tus nueve conexiones: elegí bien.</p><ul><li>Tocá un nudo y después otro cercano para tender una rama.</li><li>No podés cruzar las zonas oscuras ni repetir un enlace.</li><li>La energía solo viaja por ramas conectadas con ORIGEN.</li><li>Deshacer y reiniciar modifican realmente el grafo.</li></ul><p>Esta experiencia transforma el crecimiento procedural del VID-004 en un puzzle con reglas. Usa Three.js por CDN gratuito (requiere conexión).</p><p id="error" role="alert"></p><button id="enter" class="primary" disabled>PREPARANDO EL JARDÍN…</button></section></div>
+<div id="win"><section class="panel"><div class="kicker">EL JARDÍN RESPONDE</div><h2>La red<br>despertó.</h2><p>Los tres receptores están alimentados desde ORIGEN. Conectaste el sistema sin atravesar las zonas que lo protegían.</p><button id="continue" class="primary">CONTINUAR MIRANDO</button><button id="again">OTRO INTENTO</button></section></div><input id="file" style="display:none" type="file" accept="application/json,.json">
+<script src="../../shared/v1/kit.js"></script><script type="module">
+const $=s=>document.querySelector(s),P=globalThis.PrometeoThreeKit,MAX=9,LIMIT=11.2,SCHEMA="prometeo.jardin-ecos/v1";
+const nodes=[
+{id:"S",label:"ORIGEN",x:-12,z:0,source:true},{id:"A",label:"A",x:-6,z:-8},{id:"B",label:"B",x:-4,z:7},
+{id:"C",label:"C",x:3,z:-9},{id:"D",label:"D",x:3,z:4},{id:"E",label:"E",x:11,z:-6},{id:"F",label:"F",x:11,z:5},
+{id:"R1",label:"LUMEN",x:18,z:-10,target:true},{id:"R2",label:"BRUMA",x:18,z:4,target:true},{id:"R3",label:"SAVIA",x:6,z:13,target:true}
+];
+const obstacles=[{x:-1,z:-1,r:2.3},{x:8,z:-1,r:2},{x:13,z:10,r:1.7}],byId=Object.fromEntries(nodes.map(n=>[n.id,n]));
+let T,w,view,meshes=[],edges=[],selected=null,lit=new Set(["S"]),running=false,prev=0,sec=0,frame=0,nodelabels=[],tiny=[],win=false;
+function key(a,b){return [a,b].sort().join("-")}
+function clearEdges(){for(const e of edges){w.scene.remove(e.mesh,e.pulse);e.mesh.geometry.dispose();e.mesh.material.dispose();e.pulse.geometry.dispose();e.pulse.material.dispose()}edges=[]}
+function collides(a,b){const dx=b.x-a.x,dz=b.z-a.z,den=dx*dx+dz*dz;return obstacles.some(o=>{const t=P.clamp(((o.x-a.x)*dx+(o.z-a.z)*dz)/den,0,1);return Math.hypot(a.x+t*dx-o.x,a.z+t*dz-o.z)<o.r+.28})}
+function hasEdge(a,b){return edges.some(e=>key(e.a,e.b)===key(a,b))}
+function powered(){const reach=new Set(["S"]);let progress=true;while(progress){progress=false;for(const e of edges){if(reach.has(e.a)&&!reach.has(e.b)){reach.add(e.b);progress=true}if(reach.has(e.b)&&!reach.has(e.a)){reach.add(e.a);progress=true}}}return reach}
+function score(){lit=powered();for(const n of nodes){const label=n.labelEl;if(label){label.classList.toggle("powered",lit.has(n.id))}n.ball.material.emissiveIntensity=lit.has(n.id)?2.4:n.target?1.15:.28}
+ const done=nodes.filter(n=>n.target&&lit.has(n.id)).length;$("#count").textContent=done+" / 3";$("#budget").textContent=(MAX-edges.length)+" enlaces libres";
+ win=done===3;if(win){$("#win").classList.add("show");running=false;cancelAnimationFrame(frame);P.notify("La corriente alcanzó todos los receptores")}}
+function makeConnection(a,b,index){const A=byId[a],B=byId[b];const mid=new T.Vector3((A.x+B.x)/2,.9,(A.z+B.z)/2),dx=B.x-A.x,dz=B.z-A.z,len=Math.hypot(dx,dz);
+ mid.x+=-dz/len*.75;mid.z+=dx/len*.75;
+ const pts=[new T.Vector3(A.x,.5,A.z),mid,new T.Vector3(B.x,.5,B.z)];
+ const curve=new T.CatmullRomCurve3(pts),geo=new T.TubeGeometry(curve,48,.125,7,false);
+ const mat=new T.ShaderMaterial({transparent:false,uniforms:{uTime:{value:0},uGrowth:{value:0},uBase:{value:new T.Color("#556d87")},uGlow:{value:new T.Color("#dbb58c")}},
+ vertexShader:"varying vec2 vUv;varying vec3 vN;varying vec3 vV;void main(){vUv=uv;vec4 v=modelViewMatrix*vec4(position,1.0);vV=-v.xyz;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*v;}",
+ fragmentShader:"varying vec2 vUv;varying vec3 vN;varying vec3 vV;uniform float uTime,uGrowth;uniform vec3 uBase,uGlow;void main(){if(vUv.x>uGrowth)discard;float rim=pow(1.0-max(dot(normalize(vN),normalize(vV)),0.0),2.0);float pulse=pow(max(sin(vUv.x*27.0-uTime*4.0),0.0),8.0);gl_FragColor=vec4(mix(uBase,uGlow,min(1.0,rim*.9+pulse*.9)),1.0);#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}"});
+ const mesh=new T.Mesh(geo,mat);w.scene.add(mesh);
+ const pulse=new T.Mesh(new T.IcosahedronGeometry(.18,1),new T.MeshBasicMaterial({color:"#ffdfa2"}));pulse.visible=false;w.scene.add(pulse);
+ edges.push({a,b,mesh,pulse,curve,created:sec,index});score()}
+function connect(a,b){if(!a||!b||a===b)return false;if(!byId[a]||!byId[b])return false;if(hasEdge(a,b)){P.notify("Esa rama ya existe");return false}
+if(edges.length>=MAX){P.notify("Usaste los nueve enlaces. Deshacé o reiniciá.");return false}
+const A=byId[a],B=byId[b],d=Math.hypot(A.x-B.x,A.z-B.z);
+if(d>LIMIT){P.notify("Demasiado lejos: máximo 11 unidades.");return false}
+if(collides(A,B)){P.notify("Una barrera oscura interrumpe esa ruta.");return false}
+if(!lit.has(a)&&!lit.has(b)){P.notify("La nueva rama debe tocar la red alimentada.");return false}
+makeConnection(a,b,edges.length);P.notify("Rama cultivada: "+a+" → "+b);return true}
+function choose(id){if(!running)return;if(!selected){if(!lit.has(id)){P.notify("Elegí primero ORIGEN u otro nudo alimentado");return}selected=id;P.notify("Origen "+id+" elegido. Tocá un segundo nudo.");return}
+const a=selected;selected=null;if(a===id){P.notify("Selección cancelada");return}connect(a,id)}
+function makeNode(n,i){const g=new T.Group();g.position.set(n.x,w.ground(n.x,n.z),n.z);
+ const stone=new T.MeshStandardMaterial({color:"#3e4d63",roughness:.98,metalness:.06}),core=new T.MeshStandardMaterial({color:n.source?"#f9c887":n.target?"#8ccdb9":"#6e93a6",emissive:n.source?"#d08f46":n.target?"#2f897e":"#294959",emissiveIntensity:n.source?2.4:n.target?1.15:.28,roughness:.35});
+ const plinth=new T.Mesh(new T.CylinderGeometry(.71,.9,.22,11),stone);plinth.position.y=.13;g.add(plinth);
+ const branch=new T.Mesh(new T.CylinderGeometry(.075,.12,.64,8),stone);branch.position.y=.55;g.add(branch);
+ const ball=new T.Mesh(new T.IcosahedronGeometry(n.target?.35:.3,2),core);ball.position.y=.93;ball.userData.node=n.id;g.add(ball);
+ const halo=new T.Mesh(new T.TorusGeometry(.5,.035,7,32),core);halo.position.y=.89;halo.rotation.x=-Math.PI/2;halo.userData.node=n.id;g.add(halo);
+ w.scene.add(g);n.g=g;n.ball=ball;n.halo=halo;meshes.push(ball,halo);
+ const label=document.createElement("div");label.className="tag"+(n.source?" source":n.target?" target":"");label.textContent=n.label;$("#labels").appendChild(label);n.labelEl=label;
+}
+function build(){w=P.makeWorld(T,{seed:106,size:24,segments:42,amp:.16,top:"#131b38",fog:"#1e3650",fogDensity:.012,low:"#1b3641",high:"#345454",patch:"#4b5956",sun:"#a8a0cb"});
+view=P.makeRenderer(T,$("#stage"),{ortho:17,dpr:1.5});view.camera.position.set(0,29,26);view.camera.lookAt(0,0,0);
+const mat=new T.MeshStandardMaterial({color:"#252b43",roughness:1}),mat2=new T.MeshStandardMaterial({color:"#384457",roughness:1});
+for(const o of obstacles){const rock=new T.Mesh(new T.DodecahedronGeometry(o.r,1),mat);rock.position.set(o.x,w.ground(o.x,o.z)+.35,o.z);rock.scale.y=.25;rock.rotation.y=o.x*.6;w.scene.add(rock);
+const aura=new T.Mesh(new T.TorusGeometry(o.r+.28,.11,6,40),mat2);aura.position.set(o.x,.46,o.z);aura.rotation.x=-Math.PI/2;w.scene.add(aura)}
+nodes.forEach(makeNode);
+const pts=[],mats=[];for(let i=0;i<160;i++){const x=(P.rnd(10,i,8)-.5)*45,z=(P.rnd(11,i,6)-.5)*43;pts.push(x,w.ground(x,z)+.7+P.rnd(12,i,3)*1.5,z)}
+const fogGeo=new T.BufferGeometry();fogGeo.setAttribute("position",new T.Float32BufferAttribute(pts,3));const motes=new T.Points(fogGeo,new T.PointsMaterial({color:"#9dcbca",size:.085,transparent:true,opacity:.85,depthWrite:false}));w.scene.add(motes);w.motes=motes;
+const can=view.canvas;let sx=0,sy=0,moved=false;
+can.addEventListener("pointerdown",e=>{sx=e.clientX;sy=e.clientY;moved=false;try{can.setPointerCapture(e.pointerId)}catch{}});
+can.addEventListener("pointermove",e=>{if(Math.hypot(e.clientX-sx,e.clientY-sy)>10)moved=true});
+can.addEventListener("pointerup",e=>{if(moved||!running)return;const rect=can.getBoundingClientRect(),p=new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),ray=new T.Raycaster();ray.setFromCamera(p,view.camera);const hits=ray.intersectObjects(meshes,true);if(hits.length)choose(hits[0].object.userData.node);else P.notify("Tocá un nudo iluminado");});
+score();view.renderer.render(w.scene,view.camera)}
+function animate(t){if(!running)return;frame=requestAnimationFrame(animate);const dt=prev?Math.min(.06,(t-prev)/1000):0;prev=t;sec+=dt;for(const e of edges){
+ const mat=e.mesh.material;mat.uniforms.uTime.value=sec;mat.uniforms.uGrowth.value=Math.min(1,(sec-e.created)*.8);e.pulse.visible=lit.has(e.a)||lit.has(e.b);if(e.pulse.visible){const p=e.curve.getPoint((sec*.16+e.index*.093)%1);e.pulse.position.copy(p)}}
+for(const n of nodes){n.ball.rotation.y+=dt*.34;n.ball.position.y=.93+.04*Math.sin(sec*1.4+n.x);n.halo.rotation.z+=dt*.08}
+w.motes.rotation.y=sec*.001;view.renderer.render(w.scene,view.camera);
+const rect=view.canvas.getBoundingClientRect();for(const n of nodes){const p=new T.Vector3(n.x,1.7,n.z).project(view.camera);const visible=p.z>-1&&p.z<1;n.labelEl.style.display=visible?"block":"none";n.labelEl.style.left=(rect.left+p.x*.5*rect.width+rect.width*.5)+"px";n.labelEl.style.top=(rect.top-p.y*.5*rect.height+rect.height*.5)+"px"}
+}
+function reset(){clearEdges();selected=null;lit=new Set(["S"]);$("#win").classList.remove("show");running=true;prev=0;score();animate(0);P.notify("Red reiniciada")}
+$("#undo").addEventListener("click",()=>{if(!edges.length){P.notify("No hay ramas para deshacer");return}const e=edges.pop();w.scene.remove(e.mesh,e.pulse);e.mesh.geometry.dispose();e.mesh.material.dispose();e.pulse.geometry.dispose();e.pulse.material.dispose();selected=null;score();P.notify("Última rama retirada")});
+$("#reset").addEventListener("click",()=>{if(window.confirm("¿Reiniciar la red de conexiones?"))reset()});
+$("#export").addEventListener("click",()=>P.download("jardin-de-ecos.json",{schema:SCHEMA,edges:edges.map(e=>[e.a,e.b])}));
+$("#load").addEventListener("click",()=>$("#file").click());
+$("#file").addEventListener("change",async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>30000)throw Error("Archivo demasiado grande");
+ const d=JSON.parse(await f.text());if(d.schema!==SCHEMA||!Array.isArray(d.edges)||d.edges.length>MAX||d.edges.some(pair=>!Array.isArray(pair)||pair.length!==2||!byId[pair[0]]||!byId[pair[1]]))throw Error("Formato inválido");
+ const saved=d.edges.map(p=>[...p]);clearEdges();lit=new Set(["S"]);for(const p of saved){if(!connect(p[0],p[1]))throw Error("Hay conexiones inválidas en el archivo")};score();P.notify("Puzzle recuperado")}catch(err){clearEdges();lit=new Set(["S"]);score();P.notify("Importación rechazada: "+err.message)}e.target.value=""});
+$("#help").addEventListener("click",()=>{running=false;cancelAnimationFrame(frame);$("#veil").hidden=false;$("#enter").textContent="VOLVER AL JARDÍN"});
+$("#enter").addEventListener("click",()=>{if(!T)return;$("#veil").hidden=true;running=true;prev=0;animate(0)});
+$("#continue").addEventListener("click",()=>{$("#win").classList.remove("show");running=true;prev=0;animate(0)});
+$("#again").addEventListener("click",reset);
+(async()=>{try{if(!P)throw Error("kit.js ausente");T=await import("https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js");build();$("#enter").disabled=false;$("#enter").textContent="ENTRAR AL JARDÍN ↗"}catch(e){console.error(e);$("#error").textContent="No pudo iniciarse Three.js: "+String(e?.message||e);$("#enter").textContent="MOTOR NO DISPONIBLE"}})();
+</script></body></html>
