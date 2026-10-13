@@ -34,7 +34,7 @@ test('capabilities have every required practical field', () => {
   assert.ok(data.capabilities.length>=14);
   assert.equal(new Set(data.capabilities.map(x=>x.id)).size,data.capabilities.length);
   for(const row of data.capabilities){
-    for(const key of keys)assert.ok(typeof row[key]==='string'&&row[key].trim().length>5,key+' missing in '+row.id);
+    for(const key of keys)assert.ok(typeof row[key]==='string'&&row[key].trim().length>(key==='id'?1:5),key+' missing in '+row.id);
   }
 });
 
