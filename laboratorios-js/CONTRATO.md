@@ -15,15 +15,16 @@ El ejemplo es solo una especificación de formato; **NO está publicado**. La ru
 Mantené `v1` y anteriores inalteradas. Las correcciones se publican como `v2`, `v3`, etc. No se renumeran versiones para aparentar progreso. La página ordena por `published_at` y permite cambiar de versión.
 No incluir credenciales, tokens, material privado ni información académica identificable.
 
-## Flujo de un chat especialista
-1. Abrir la constitución vigente de Prometeo, `AGENTS.md`, este contrato y el `registry/<biblioteca>.json` actual; identificar HEAD, cambios concurrentes y propietario.
-2. Investigar proyectos publicados y licencia de todo recurso gráfico/audio/modelo.
-3. Definir criterios visuales y de comportamiento verificables, con ejemplos y TDD.
-4. Desarrollar `widgets/<biblioteca>/<id>/vN/index.html` y recursos relativos. No publicar una pantalla de demostración vacía.
-5. Probar HTML en Chromium/Firefox, escritorio y celular; confirmar no hay regresiones, origen/red/permisos y contenido visible sin un botón «Mostrar».
-6. Trabajar en rama aislada basada en HEAD de `gh-pages`; reconciliar concurrencia. Subir solo cambios de la biblioteca y abrir PR. Publicar/mergear cuando pasen todas las pruebas y se cumplan las aprobaciones aplicables.
-7. Después de que exista la ruta pública, registrar o actualizar únicamente tu JSON; comprobar lectura posterior del JSON y la página servida. Si la publicación falla, dejar el JSON sin anuncios falsos.
-8. Dejar evidencia: commit, fecha argentina, screenshots, resultados, limitaciones y siguiente paso. El nuevo chat recupera esos datos directamente desde GitHub. No inventar comunicación en vivo entre chats.
+## Flujo de un chat especialista (v2 · conversación primero)
+**La primera respuesta de cada chat es SOLO diálogo.** No leer repositorios ni lanzar búsquedas largas de forma automática al pegar el prompt. Presentar 2–3 experiencias plausibles, compararlas y esperar videos, repositorios y críticas del usuario. El objetivo inicial no es una demo, un PR ni una publicación.
+
+1. **Explorar (sin herramientas en el primer turno):** responder rápido con ideas y una recomendación discutible. El usuario puede enviar referencias antes de decidir.
+2. **Aprender juntos (videos/tutoriales):** estudiar en profundidad lo que el usuario proporciona, distinguir contenido accesible de inferencias, extraer técnicas y compararlas con lo anterior como conservar / sumar / reemplazar / descartar. Responder en texto y permitir múltiples rondas.
+3. **Construir (petición explícita):** solo tras una orden de desarrollo, recuperar los prototipos y contratos relevantes, investigar y construir una demo local revisable, con pruebas y arte cuidado. No registrar widgets en la página pública.
+4. **Publicar (segunda aprobación explícita):** después de que el usuario evalúe la demo, la considere suficientemente buena y pida publicar, recién entonces revisar `AGENTS.md`, constitución, este contrato, HEAD, conflictos, permisos y la ruta `registry/<biblioteca>.json`; publicar nueva versión en rama propia y registrar únicamente obras verificadas.
+5. **Verificación:** comprobar el iframe en GitHub Pages, commit/PR, fecha argentina, capturas, pruebas móvil/escritorio y limitaciones. Si GitHub falla, conservar trabajo local sin simular publicación.
+
+No inferir autorización de desarrollo ni publicación por recibir un video de YouTube, dar una crítica o debatir alternativas. No dejar al usuario sin respuesta esperando una conexión a GitHub. El primer mensaje de cada prompt manda por encima del flujo de publicación posterior.
 
 ## Contrato mínimo para widgets
 - HTML real independiente; viewport responsive; navegación por teclado y táctil.
