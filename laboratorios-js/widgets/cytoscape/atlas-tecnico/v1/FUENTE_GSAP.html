@@ -1,0 +1,159 @@
+<!doctype html><html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Despiece técnico GSAP · Atlas Cytoscape</title><style>:root{color-scheme:dark}body{background:#141914;color:#e8ede5;font:17px/1.65 system-ui,sans-serif;margin:0}main{max-width:920px;padding:clamp(18px,4vw,60px);margin:auto}header{padding:18px;background:#202d23}header a{color:#dfc58e}h1,h2,h3{font-family:Georgia,serif;line-height:1.15;font-weight:400;letter-spacing:-.02em}h1{font-size:clamp(40px,6vw,72px)}h2{font-size:35px;border-top:1px solid #455447;padding-top:25px;margin-top:42px}h3{font-size:26px}p{color:#cddbd0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0a100b;border:1px solid #536257;padding:18px;color:#dfe9dd;border-radius:4px;font:13px/1.65 ui-monospace,monospace}a{color:#ebd6a3}p:first-of-type{color:#d6c59d}@media(max-width:600px){h2{font-size:28px}p{font-size:16px}}</style></head><body><header><a href="index.html">← Atlas de Cytoscape.js</a> · <a href="FUENTE_GSAP_ANALISIS.md">Versión estructurada markdown</a></header><main><h1>Fuente recuperada S-GSAP · Despiece técnico original</h1>
+<p>Edición: 2026-10-13. Proveniencia: [VIDEO] una transcripción completa proporcionada en el chat sobre GSAP y landing de cócteles.</p>
+<p>Autor presentado oralmente: Adrian / JSMastery. URL, duración, fecha, versión exacta de GSAP, repositorio, Figma, assets y video original: NO disponibles en el material recibido.</p>
+<p>Este texto es análisis propio y ejemplos originales; no reproduce el guion protegido.</p>
+
+<h2>0. Pregunta técnica central</h2>
+<p>El curso consigue una landing cinematográfica cuyo valor proviene de sincronizar transición, desplazamiento, escena audiovisual y contenido editorial. No enseña Cytoscape.js. Para el laboratorio de grafos, transferimos **secuenciación significativa y narrativa controlable**, nunca el contenido visual comercial. Fuentes independientes de Cytoscape están documentadas en knowledge.json.</p>
+
+<h2>1. Primer bloque: fundamentos de interpolación</h2>
+<h3>1.1 to</h3>
+<p>[VIDEO] `gsap.to(target, vars)` interpola propiedades desde el estado actual hasta valores de destino. Trabaja con X, rotación, duración y curvas ease; `repeat:-1` y `yoyo:true` invierten y repiten.</p>
+<p>[CORRECCIÓN] No usar bucles infinitos como adorno en interfaces de estudio. Una animación debe detenerse al abandonar pantalla o cambiar estado.</p>
+<p>[EXTENSIÓN] Panel contextual de un autor que entra desde el lateral después del foco de Cytoscape.</p>
+<pre><code>
+const tween = gsap.to(panel,{x:0,opacity:1,duration:0.35,ease:&quot;power2.out&quot;});
+
+// En cleanup, tween.kill().
+
+</code></pre>
+<p>Prueba: alternar foco A/B 20 veces, última ficha visible coincide con última selección.</p>
+
+<h3>1.2 from</h3>
+<p>[VIDEO] `gsap.from(target,vars)` parte de valores iniciales y regresa al estilo existente.</p>
+<p>[CORRECCIÓN] Para elementos cargados asíncronamente, establecer el estado visual antes de animar evita destellos inesperados.</p>
+<p>[EXTENSIÓN] Entrada escalonada de resultados de búsqueda y tarjetas bibliográficas.</p>
+
+<h3>1.3 fromTo</h3>
+<p>[VIDEO] Declara explícitamente ambos estados y permite transiciones repetibles.</p>
+<p>[EXTENSIÓN] Animar entre paneles cuando el usuario cambia rápido de autor, con estados de partida determinísticos.</p>
+<pre><code>
+gsap.fromTo(el,{y:20,opacity:0},{y:0,opacity:1,duration:.3});
+
+</code></pre>
+
+<h2>2. Timeline: secuenciar sin bloquear</h2>
+<p>[VIDEO] `gsap.timeline()` agrupa varias animaciones; `play`, `pause`, `reverse` y offsets permiten control. El tutorial encadena transiciones de una caja y botones Play/Pause.</p>
+<p>[CORRECCIÓN] La timeline representa la narración, NO el dato ni la autoridad de la vista. Cancelar una animación no debe cancelar el cambio de selección.</p>
+<p>[EXTENSIÓN] Elegir «Escuela → autor → concepto → obra» revela grupos en secuencia; un botón «Saltar» muestra el estado final.</p>
+<pre><code>
+const tl=gsap.timeline({paused:true});
+
+tl.from(title,{autoAlpha:0,y:12,duration:.25})
+
+  .from(description,{autoAlpha:0,y:12,duration:.25},&quot;-=0.1&quot;);
+
+tl.play();
+
+</code></pre>
+<p>Pruebas: Play/Pause, cambio de pantalla en mitad de la reproducción, preferencia reduced-motion.</p>
+
+<h2>3. Stagger: grupos ordenados</h2>
+<p>[VIDEO] Animación progresiva de elementos que comparten selector; puede distribuirse por eje, grilla o centro.</p>
+<p>[CORRECCIÓN] No aplicar a 500 aristas individuales; dividir por grupos de significado o mostrar resumen.</p>
+<p>[EXTENSIÓN] Al desplegar «Bibliografía», aparecen obras por año o relevancia, en vez de simultáneamente.</p>
+<pre><code>
+gsap.from(cards,{autoAlpha:0,y:9,stagger:0.035,duration:.25});
+
+</code></pre>
+<p>Observación: la transcripción contradice 0.006 y 0.06 segundos. No trasladar ese número como hecho sin código original.</p>
+
+<h2>4. ScrollTrigger: scroll como señal</h2>
+<p>[VIDEO] `start` y `end` combinan posición del elemento y viewport; `scrub` acopla progreso; `pin` mantiene sección fija. El tutorial primero corrige un typo al registrar el plugin.</p>
+<p>[CORRECCIÓN] La consulta de un grafo no debe depender de scroll. Usar sólo en un recorrido narrativo optativo.</p>
+<p>[EXTENSIÓN] «Historia de una teoría» en modo narración; el avance por períodos corresponde a snapshots del dataset, NO a transformaciones visuales arbitrarias.</p>
+<pre><code>
+gsap.registerPlugin(ScrollTrigger);
+
+gsap.to(story,{opacity:1,scrollTrigger:{trigger:chapter,start:&quot;top 75%&quot;,end:&quot;bottom 35%&quot;,scrub:true}});
+
+</code></pre>
+<p>Prueba: teclado puede recorrer la misma narrativa sin rueda de ratón.</p>
+
+<h2>5. Textos</h2>
+<p>[VIDEO] SplitText divide caracteres, palabras y líneas, luego anima con stagger y easing `expo.out`.</p>
+<p>[CORRECCIÓN] Revertir SplitText en cleanup; mantener contenido accesible para lectores de pantalla, respetar reduced-motion.</p>
+<p>[EXTENSIÓN] Destacar términos en explicación relacionada con selección sin retardar párrafos de estudio.</p>
+<p>Prueba: texto completo disponible de inmediato para asistencias; no desaparece al interrumpir.</p>
+
+<h2>6. Puesta en marcha: React, Vite, Tailwind</h2>
+<p>[VIDEO] Inicia con Vite/React, instala GSAP y @gsap/react; registra ScrollTrigger y SplitText. Tailwind CSS organiza clases utilitarias, variables de tema y utilidades repetidas.</p>
+<p>[CORRECCIÓN] Transcripción dictada dice «mpm» pero el comando real es `npm`. El video agrega «use client» a un componente de Vite que ya es cliente: no es requisito general. No copiar rutas ni CSS completo sin consultar compatibilidad.</p>
+<p>[EXTENSIÓN] Nuestros widgets pueden ser vanilla JS + Cytoscape sin React: dependencia más pequeña y menos complejidad en iframe.</p>
+<p>Pruebas: build y ejecución local sin fetch privilegiado, sin claves, HTML ejecutable desde directorio de publicación.</p>
+
+<h2>7. Arquitectura editorial y datos</h2>
+<p>[VIDEO] Divide Navbar, Hero, Cocktails, About, Art, Menu, Contact. Los arrays de contenido viven en constants/index.js; las imágenes, videos y fuentes en public. El instructor usa Figma y un asset kit enlazado desde la descripción del video, no adjuntos aquí.</p>
+<p>[CORRECCIÓN] Estos recursos NO están recuperados ni tienen licencia acreditada. No copiarlos. Mantener datos por separado de composición y estado de interacción.</p>
+<p>[EXTENSIÓN] Separar `graph-data`, `queries`, `ui`, `layout`, `motion`, `sources`.</p>
+
+<h2>8. Barra de navegación</h2>
+<p>[VIDEO] Nav HTML semántico con anclas a secciones y fondo translúcido/blurry al desplazar.</p>
+<p>[EXTENSIÓN] Buscador que permanece visible al abrir paneles densos. En celular, prioridad a texto y control de foco en vez de vidrio decorativo.</p>
+<p>[CORRECCIÓN] Animar color y filtro no debe impedir legibilidad ni consumir CPU continuamente.</p>
+
+<h2>9. Hero tipográfico y parallax de hojas</h2>
+<p>[VIDEO] Título gigante dividido en caracteres, subtítulos por líneas y dos hojas animadas por scroll en direcciones diferentes.</p>
+<p>[CORRECCIÓN] Son recursos narrativos del sitio de cócteles; su traducción literal a grafo reduciría claridad.</p>
+<p>[EXTENSIÓN] Selección: nodo central destaca, comunidades secundarias atenúan mientras el panel bibliográfico entra; NO desplazar posiciones de cada nodo con GSAP.</p>
+
+<h2>10. Scrubbing de video</h2>
+<p>[VIDEO] Video HTML5 muted, playsInline, ref React, sin autoplay final; `loadedmetadata` permite conocer duration; GSAP cambia `video.currentTime` con scroll. En la transcripción un agente genera una primera versión que funciona distinto de lo pedido, y se corrige manualmente. El plugin pin fija el video.</p>
+<p>[VIDEO] Usa FFmpeg para convertir a archivo con keyframe en cada frame y mejorar el seeking al arrastrar scroll.</p>
+<p>[CORRECCIÓN] El all-intra video puede pesar mucho; usar carga diferida y fallback; medir memoria, red y reproducción móvil antes de adoptar.</p>
+<p>[EXTENSIÓN] Un módulo opcional de historia visual, nunca el motor para relaciones ni obligatorio para navegar.</p>
+<p>Algoritmo: esperar metadatos → snapshot duración → programar tween de `currentTime` → control scroll → kill timeline en desmontaje.</p>
+<p>Prueba: saltar al 90%, retroceder al 10%, interrumpir, comprobar frame concordante y ausencia de audio.</p>
+
+<h2>11. Sección de listas: contenido + parallax</h2>
+<p>[VIDEO] Dos listas de cócteles/mocktails basadas en constants, datos estructurados con nombre, país, detalle y precio. Nuevas hojas parallax sincronizadas con entrada en viewport.</p>
+<p>[EXTENSIÓN] Dos columnas «Autores» y «Obras», o una vista de comparación con fuentes, en lugar de menús de bebida.</p>
+<p>[CORRECCIÓN] Evitar precios ficticios o contenido inventado no señalizado en bibliografía; una relación necesita evidencia.</p>
+
+<h2>12. Cuadrícula de imágenes</h2>
+<p>[VIDEO] En About construye mosaico de 12 columnas (3+6+3 / 8+4), título con SplitText.words, imágenes animadas con un offset de solapamiento `-=0.5`.</p>
+<p>[EXTENSIÓN] Vista biblioteca: tarjetas de portadas, fechas y abstract con procedencia, sincronizadas con grafo sin transformarse en nodos innecesarios.</p>
+<p>Prueba: a 360px se apilan sin recortar títulos; sin imágenes la estructura conserva utilidad.</p>
+
+<h2>13. Máscara de revelado</h2>
+<p>[VIDEO] CSS `mask-image`, `mask-size` y `mask-position` utilizan una imagen como máscara sobre otra; un Timeline ScrollTrigger con pin y scrub la expande. Al final aparece texto de cierre.</p>
+<p>[INFERENCIA] Este recurso sugiere una metáfora de profundidad semántica, no produce una relación nueva.</p>
+<p>[EXTENSIÓN] Expansión de comunidad: el panel editorial revela material del siguiente nivel mientras Cytoscape ejecuta su propia transición de foco.</p>
+<p>[CORRECCIÓN] No ocultar operaciones esenciales detrás de una máscara. Saltar/reduced-motion muestran contenido final inmediatamente.</p>
+
+<h2>14. Carrusel de cócteles</h2>
+<p>[VIDEO] Índice `useState`, helper «elemento en desplazamiento», botones previo/siguiente, selección directa, texto descriptivo; GSAP anima imagen y datos cuando `currentIndex` cambia.</p>
+<p>[CORRECCIÓN] Con índices negativos, usar fórmula módulo positivo. Limpiar animaciones al cambio rápido.</p>
+<p>[EXTENSIÓN] Comparador autor A ↔ autor B; cada movimiento actualiza título, relaciones y fuentes, conservando selección en Cytoscape.</p>
+<pre><code>
+const wrap=(i,n)=&gt;((i%n)+n)%n;
+
+function move(delta){index=wrap(index+delta,items.length); selectById(items[index].id);}
+
+</code></pre>
+<p>Pruebas: ciclo prev desde índice cero, selección directa, 20 cambios rápidos sin desincronización de grafo y ficha.</p>
+
+<h2>15. Footer y entrega</h2>
+<p>[VIDEO] Footer con dirección/contacto/horarios/sociales y timeline de entrada; Git commits por funcionalidad y despliegue guiado en Vercel. La transcripción afirma que el despliegue del ejemplo del instructor funcionó en su demostración, no que esté accesible ahora.</p>
+<p>[CORRECCIÓN] Para Prometeo usar repositorio y GitHub Pages existentes, sin servicios pagos ni nuevos repositorios; verificar el contenido servido, no inferirlo por commit.</p>
+
+<h2>16. Matriz de transferencia a Cytoscape</h2>
+<p>CONSERVAR: datos de grafo, identidad, selección, zoom, relaciones y navegación del sistema original (requerimientos, código base aún no visto).</p>
+<p>AGREGAR EN PARALELO: paneles, comparación, biblioteca editorial, narraciones controladas, historial exacto, referencia verificable.</p>
+<p>REEMPLAZAR SOLO SI HAY PARIDAD: animaciones confusas, búsqueda débil, falta de accesibilidad; pruebas deben demostrar que ninguna capacidad se pierde.</p>
+<p>DESCARTAR: parallax ornamental, video pesado automático, bucles infinitos, scroll obligatorio, animar aristas una a una.</p>
+
+<h2>17. Variaciones auténticas construibles</h2>
+<p>A) Cartografía de teorías: pregunta/verifica conexiones; motor Cytoscape, contraste con bibliografía.</p>
+<p>B) Mesa de topologías: experimenta con layouts/algoritmos y mide resultados reproducibles.</p>
+<p>C) Cronoscopio: transforma Timeline/ScrollTrigger en historial determinístico de eventos de una red, con diff y fuentes.</p>
+<p>Las tres están diseñadas en `PLAN_EJECUTABLE.md`; todavía no son widgets terminados.</p>
+
+<h2>18. Pruebas principales</h2>
+<p>- Estructura: ID único, arista apunta a ID existente, sourceUrl validada si se declara hecho documentado.</p>
+<p>- Consulta: filtro sin tildes, comparador A/B correcto, cancelar animación no cancela selección.</p>
+<p>- Reversibilidad: colapsar/expandir conserva dataset, historial vuelve a pan/zoom originales.</p>
+<p>- Temporalidad: scrub temporal hacia adelante y atrás reproduce el mismo snapshot.</p>
+<p>- Móvil: 360px, interacciones por toque y alternativa de teclado.</p>
+<p>- Publicación: registro en JSON, archivos versionados, GitHub Pages sirviendo bytes correctos y sandbox sin localStorage.</p>
+</main></body></html>
