@@ -89,7 +89,7 @@ function syncControls(){for(const name of ['camera','parallax','blur','particles
 function announce(s){$('status').textContent=s}
 document.querySelectorAll('input[type=range]').forEach(n=>n.addEventListener('input',applyControls));
 $('pause').addEventListener('click',()=>{paused=!paused;$('pause').setAttribute('aria-pressed',String(paused));$('pause').textContent=paused?'▶ Reanudar':'⏸ Pausar';announce(paused?'Simulación pausada. Avanzá de a un paso.':'Simulación reanudada.')});
-$('step').addEventListener('click',()=>{if(!paused){paused=true;$('pause').setAttribute('aria-pressed','true');$('pause').textContent='▶ Reanudar'}advance(1/20);render();announce('Avanzaste exactamente un paso de simulación.')});
+$('step').addEventListener('click',()=>{if(!paused){paused=true;$('pause').setAttribute('aria-pressed','true');$('pause').textContent='▶ Reanudar'}advance(1/20,true);render();announce('Avanzaste exactamente un paso de simulación.')});
 $('reset').addEventListener('click',()=>{cfg=structuredClone(defaults);selected=0;paused=false;t=0;steps=0;particles.forEach(p=>{p.x=p.baseX;p.y=p.baseY});$('pause').setAttribute('aria-pressed','false');$('pause').textContent='⏸ Pausar';syncControls();announce('Escena original restaurada.')});
 const presets={calma:defaults,bruma:{camera:24,parallax:45,blur:5,particles:10,speed:.5,scales:[1.15,1.2,1]},vendaval:{camera:70,parallax:100,blur:1,particles:85,speed:2.6,scales:[.9,1.4,1.1]}};
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{cfg=structuredClone(presets[b.dataset.preset]);selected=0;syncControls();document.querySelectorAll('[data-preset]').forEach(x=>x.classList.toggle('active',x===b));announce('Escenario '+b.textContent+' aplicado.')}));
@@ -101,7 +101,7 @@ function setParticles(n){while(particles.length<n){const i=particles.length,p={x
 while(particles.length>n){const p=particles.pop();if(p.view){objects.particles.removeChild(p.view);p.view.destroy()}}
 $('entities').textContent=6+particles.length;
 }
-function advance(dt){if(paused)return;t+=dt*cfg.speed;steps++;particles.forEach((p,i)=>{p.x=(p.baseX+t*(18+i%7*4))%1200;p.y=p.baseY+Math.sin(t*.8+i)*22});$('ticks').textContent=steps;$('time').textContent=t.toFixed(1)+' s'}
+function advance(dt,force=false){if(paused&&!force)return;t+=dt*cfg.speed;steps++;particles.forEach((p,i)=>{p.x=(p.baseX+t*(18+i%7*4))%1200;p.y=p.baseY+Math.sin(t*.8+i)*22});$('ticks').textContent=steps;$('time').textContent=t.toFixed(1)+' s'}
 function resize(){if(app){const b=getView();app.renderer.resize(Math.round(b.w),Math.round(b.h));app.stage.scale.set(b.w/SW,b.h/SH)}if(ctx){const b=getView(),d=Math.min(devicePixelRatio||1,1.5);canvas.width=Math.round(b.w*d);canvas.height=Math.round(b.h*d);ctx.setTransform(d*b.w/SW,0,0,d*b.h/SH,0,0)}}
 function canvasDraw(){const c=ctx;c.save();c.clearRect(0,0,SW,SH);c.drawImage(artImages[0],-cfg.camera*.12*cfg.parallax/100,0);c.drawImage(artImages[1],-cfg.camera*.65*cfg.parallax/100,0);c.drawImage(artImages[2],-cfg.camera,0);
 function sprite(i,x,y){const img=artImages[i+3],s=cfg.scales[i];c.drawImage(img,x-img.width*s/2,y-img.height*s*.85,img.width*s,img.height*s)}
