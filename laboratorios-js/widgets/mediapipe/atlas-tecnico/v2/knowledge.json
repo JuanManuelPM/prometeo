@@ -1,0 +1,503 @@
+{
+  "schema": "prometeo.mediapipe.atlas/v2",
+  "library": "mediapipe",
+  "built_at": "2026-10-13T16:43:48-03:00",
+  "sources": [
+    {
+      "id": "course",
+      "title": "Advanced Computer Vision with Python",
+      "author": "Murtaza Hassan · freeCodeCamp",
+      "url": "https://www.youtube.com/watch?v=01sAkU_NvOY",
+      "lang": "Inglés",
+      "date": "Artículo freeCodeCamp 2021-05-28",
+      "material": "Transcripción completa de 255.930 caracteres",
+      "chapters": 9
+    },
+    {
+      "id": "codingtrain",
+      "title": "Hand Pose Detection with ml5.js",
+      "author": "The Coding Train · Daniel Shiffman",
+      "url": "https://thecodingtrain.com/tracks/ml5js-beginners-guide/ml5/hand-pose",
+      "lang": "Inglés",
+      "date": "2024-10-29 en ficha pública",
+      "material": "Transcripción completa de 13.294 caracteres",
+      "chapters": 1
+    },
+    {
+      "id": "edge",
+      "title": "Google AI Edge, MediaPipe y web ML",
+      "author": "No identificado inequívocamente",
+      "url": null,
+      "lang": "Español",
+      "date": null,
+      "material": "Transcripción completa de 23.241 caracteres",
+      "chapters": 1
+    }
+  ],
+  "chapters": [
+    {
+      "id": "mp-01",
+      "order": 1,
+      "title": "Seguimiento de manos",
+      "source": "course",
+      "goal": "De captura a 21 landmarks reutilizables",
+      "sequence": [
+        "VideoCapture",
+        "validación de frame",
+        "BGR→RGB",
+        "Hands.process",
+        "comprobar multi_hand_landmarks",
+        "enumerar 21 landmarks",
+        "convertir x,y por anchura/altura",
+        "FPS",
+        "encapsular detector."
+      ],
+      "data": "HandFrame={t,hands:[{points[21],handedness}]}; px=(x*width,y*height).",
+      "notes": "El video enseña módulo Python reutilizable. Corrección: descartar datos ausentes, reconciliar identidad y usar MediaPipe Tasks JS moderno para web.",
+      "variations": "Escultura; cursor de acceso; edición textil.",
+      "acceptance": "0/1/2 manos y pérdida en drag sin error."
+    },
+    {
+      "id": "mp-02",
+      "order": 2,
+      "title": "Estimación de postura",
+      "source": "course",
+      "goal": "Del cuerpo a movimientos expresivos",
+      "sequence": [
+        "Capturar video",
+        "Pose.process sobre RGB",
+        "obtener 33 landmarks",
+        "escala a píxeles",
+        "conservar visibility y z",
+        "dibujar solo para debug",
+        "módulo findPose/findPosition."
+      ],
+      "data": "PoseFrame={joints[33]:{x,y,z,visibility}}; joints indexados.",
+      "notes": "El video muestra tracking en CPU. Corrección: las articulaciones ocluidas se estiman; no generar eventos si visibilidad cae.",
+      "variations": "Teatro de sombras; títeres; bosque reactivo.",
+      "acceptance": "Sin pose retorna vacío; ocultar articulación no dispara gesto."
+    },
+    {
+      "id": "mp-03",
+      "order": 3,
+      "title": "Detección facial",
+      "source": "course",
+      "goal": "Cajas para rostro sin identidad",
+      "sequence": [
+        "FaceDetection.process",
+        "recorrer detections",
+        "obtener score y relative_bounding_box",
+        "normalizar a píxeles",
+        "dibujar rectángulo/esquinas",
+        "módulo findFaces."
+      ],
+      "data": "faces=[{bbox:[x,y,w,h],score}]",
+      "notes": "Un umbral 0.75 del ejemplo quitó falsos positivos observados; corregir con validación de falsos negativos y umbrales configurables.",
+      "variations": "Máscaras teatrales; encuadre grupal.",
+      "acceptance": "Sin detección [] y bounding boxes dentro de pantalla."
+    },
+    {
+      "id": "mp-04",
+      "order": 4,
+      "title": "Malla facial",
+      "source": "course",
+      "goal": "468 puntos por rostro",
+      "sequence": [
+        "Configurar FaceMesh y max_num_faces",
+        "RGB→process",
+        "recorrer multi_face_landmarks",
+        "separar por cara",
+        "extraer índice y coordenadas",
+        "overlay opcional",
+        "comparar videos."
+      ],
+      "data": "faces[faceIndex][468] con x,y,z.",
+      "notes": "La enumeración completa saturó visualización y caras cruzadas parpadean. Corregir con anchors específicos, estabilización y expiración.",
+      "variations": "Máscaras de papel; retratos cinéticos.",
+      "acceptance": "Dos caras no comparten puntos; desaparición limpia overlays."
+    },
+    {
+      "id": "mp-05",
+      "order": 5,
+      "title": "Volumen por pinza",
+      "source": "course",
+      "goal": "Distancia continua como instrumento",
+      "sequence": [
+        "Leer thumb tip 4 e index tip 8",
+        "calcular hypot y centro",
+        "feedback del umbral",
+        "interpolar rango [50,300] del video a volumen del sistema",
+        "barra de progreso."
+      ],
+      "data": "ratio=hypot(p4-p8)/palmWidth; value=clamp((ratio-min)/(max-min),0,1).",
+      "notes": "[VIDEO] Rango absoluto experimental en píxeles. [CORRECCIÓN] calibrar por ancho de palma, histéresis y respuesta acotada.",
+      "variations": "Radio de deformación; intensidad de material; apertura de iris.",
+      "acceptance": "Salida estable 0–1, sin saltos si se pierde mano."
+    },
+    {
+      "id": "mp-06",
+      "order": 6,
+      "title": "Conteo de dedos",
+      "source": "course",
+      "goal": "Vector binario de mano",
+      "sequence": [
+        "Puntas [4,8,12,16,20]",
+        "dedos 2–5 con tip.y comparado a articulaciones",
+        "pulgar con eje X",
+        "generar bits y count",
+        "elegir overlay de 0 a 5."
+      ],
+      "data": "fingerBits=[thumb,index,middle,ring,pinky]; count=sum(bits).",
+      "notes": "[VIDEO] Regla distinta para mano derecha e izquierda. [CORRECCIÓN] handedness+ángulos relativos y distinguir combinación de cardinalidad.",
+      "variations": "Acordes; menú gestual; lengua visual.",
+      "acceptance": "Combos 01001 y 01100 son distintos aun si ambos suman 2."
+    },
+    {
+      "id": "mp-07",
+      "order": 7,
+      "title": "Entrenador por ángulos",
+      "source": "course",
+      "goal": "Ángulos y ciclos completos",
+      "sequence": [
+        "Extraer hombro/codo/muñeca 11-13-15 o 12-14-16",
+        "atan2 de vectores",
+        "grados",
+        "interpolar 0..100",
+        "fase arriba/abajo",
+        "sumar por mitad",
+        "dibujar feedback."
+      ],
+      "data": "angle=degrees(atan2(y3-y2,x3-x2)-atan2(y1-y2,x1-x2)); FSM.",
+      "notes": "[VIDEO] Extremos elegidos mirando clip. [CORRECCIÓN] calibración por usuario, histéresis, visibilidad, no diagnóstico físico.",
+      "variations": "Estaciones narrativas activadas por movimiento; escenografía.",
+      "acceptance": "Oscilar en un extremo no cuenta varias veces; fase debe completar ciclo."
+    },
+    {
+      "id": "mp-08",
+      "order": 8,
+      "title": "Pintor virtual",
+      "source": "course",
+      "goal": "Dibujo que conserva trazos",
+      "sequence": [
+        "Importar imagen de paleta",
+        "modo selección con índice y medio",
+        "modo dibujo con solo índice",
+        "posición previa",
+        "línea sobre canvas persistente",
+        "borrador y composición."
+      ],
+      "data": "state={mode,tool,previousPoint,paintLayer}; strokes[] para undo.",
+      "notes": "[CORRECCIÓN] Al cambiar herramienta o perder mano poner previousPoint=null para evitar un trazo largo accidental.",
+      "variations": "Bordado; escultura texturizada; restauración.",
+      "acceptance": "Seleccionar no dibuja; trazo persiste durante video."
+    },
+    {
+      "id": "mp-09",
+      "order": 9,
+      "title": "Mouse gestual",
+      "source": "course",
+      "goal": "Puntero espacial estabilizado",
+      "sequence": [
+        "Capturar índice y medio",
+        "delimitar región activa",
+        "mapear coordenadas de frame a pantalla",
+        "interpolar posición anterior",
+        "reconocer clic por distancia y estado."
+      ],
+      "data": "pointer=lerp(previous,target,alpha); clickFSM enter/exit.",
+      "notes": "[VIDEO] El Python de escritorio puede mover cursor del SO. [CORRECCIÓN] en navegador limitarlo al canvas y ofrecer pointer events manuales.",
+      "variations": "Atlas navegable; editor espacial; instrumentación.",
+      "acceptance": "Clic sostenido único; siempre pointerup al perder detección."
+    },
+    {
+      "id": "mp-10",
+      "order": 10,
+      "title": "HandPose con ml5 y capas p5",
+      "source": "codingtrain",
+      "goal": "Pinza como pincel persistente",
+      "sequence": [
+        "BodyPose→HandPose",
+        "inspeccionar estructura y handedness",
+        "confianza global por mano",
+        "localizar thumb/index",
+        "media de puntas",
+        "umbral mostrado 5 y luego 20px",
+        "createGraphics transparente",
+        "unir coordenadas previas."
+      ],
+      "data": "hands=[{keypoints,confidence,handedness}], paintingBuffer, previousXY.",
+      "notes": "[VIDEO] Superposición 2D no prueba contacto. [CORRECCIÓN] ajustar por escala mano, analizar z cuando sea fiable y usar umbrales entrar/salir.",
+      "variations": "Dibujar sobre arcilla; caligrafía 3D; tinta cinética.",
+      "acceptance": "El dibujo permanece con video activo y termina cuando pinza se abre."
+    },
+    {
+      "id": "mp-11",
+      "order": 11,
+      "title": "Google AI Edge local",
+      "source": "edge",
+      "goal": "Modelos de visión en navegador sin subir video",
+      "sequence": [
+        "Distinguir edge server de on-device",
+        "observar detección objetos, segmentación y gestos",
+        "revisar @mediapipe/tasks-vision, WASM/WebGL",
+        "ejemplos audio/texto",
+        "Gemma local y costo grande",
+        "evaluar PWA offline."
+      ],
+      "data": "camera/audio→model local→detecciones; archivos wasm/model se distribuyen por separado.",
+      "notes": "[VIDEO] Promesa de offline y privacidad. [INVESTIGACIÓN] SDK puede enviar métricas; sin cache ni auditoría de red no garantizar offline/cero tráfico.",
+      "variations": "Siluetas narrativas; máscaras; gestor local de gestos.",
+      "acceptance": "Sin webcam las funciones manuales son completas; detener tracks."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "cap-01",
+      "name": "Captura y permisos",
+      "family": "Entrada",
+      "mechanism": "getUserMedia tras pulsar 'Activar cámara'; video nunca transmitido; detener tracks cuando se desactiva.",
+      "source": "Curso; AI Edge",
+      "risks": "Permiso denegado o iframe sin allow-camera: cambiar a pointer; nunca auto-activar."
+    },
+    {
+      "id": "cap-02",
+      "name": "Localización de manos",
+      "family": "Seguimiento",
+      "mechanism": "HandLandmarker detectForVideo sobre frames nuevos con timestamp monótono; hasta dos manos, 21 landmarks y handedness.",
+      "source": "Curso; Coding Train; Docs oficiales",
+      "risks": "Cambios de ID, espejo, oclusión: asociación temporal y liberación segura."
+    },
+    {
+      "id": "cap-03",
+      "name": "Pinza proporcional",
+      "family": "Gestos",
+      "mechanism": "d=norm(P4-P8)/palmWidth; entrada d<0.28, salida d>0.39; ajustar por calibración.",
+      "source": "Coding Train; control volumen",
+      "risks": "No confiar en 20 px universales, ni inferir contacto 3D de 2D."
+    },
+    {
+      "id": "cap-04",
+      "name": "Control por estados",
+      "family": "Gestos",
+      "mechanism": "IDLE→HOVER→GRAB→DRAG→RELEASE; exigir n cuadros estables y cancelar tras pérdida.",
+      "source": "Mouse virtual; propuesta",
+      "risks": "Sin histéresis el evento oscila; test contar inicios/finales."
+    },
+    {
+      "id": "cap-05",
+      "name": "Conteo de dedos",
+      "family": "Gestos",
+      "mechanism": "Puntas 4,8,12,16,20 frente a articulaciones, orientación y mano dominante.",
+      "source": "Curso, finger counting",
+      "risks": "Comparación solo de Y falla si la mano rota; preferir ángulos."
+    },
+    {
+      "id": "cap-06",
+      "name": "Ángulos de articulaciones",
+      "family": "Postura",
+      "mechanism": "atan2(B→C)-atan2(B→A), normalización angular; 33 puntos Pose Landmarker.",
+      "source": "Curso, AI trainer",
+      "risks": "Comprobar confianza, visibilidad y simetrías; rechazar oclusiones."
+    },
+    {
+      "id": "cap-07",
+      "name": "Secuencias y repeticiones",
+      "family": "Postura",
+      "mechanism": "FSM con puntos de inicio/final y antirrebote en lugar de sumar en cada cuadro.",
+      "source": "Curso, AI trainer",
+      "risks": "Evitar umbrales rígidos; calibrar por persona y objetivo."
+    },
+    {
+      "id": "cap-08",
+      "name": "Malla facial",
+      "family": "Rostro",
+      "mechanism": "Landmarks faciales para expresiones y máscaras; render separado del detector.",
+      "source": "Curso, face mesh",
+      "risks": "468 corresponden al ejemplo antiguo; verificar topología/versiones modernas."
+    },
+    {
+      "id": "cap-09",
+      "name": "Segmentación corporal",
+      "family": "Composición",
+      "mechanism": "Máscara sobre video, dibujar persona y fondo en capas independientes.",
+      "source": "AI Edge",
+      "risks": "Bordes y pelo suelen tener artefactos; no anunciar exactitud universal."
+    },
+    {
+      "id": "cap-10",
+      "name": "Pintura persistente",
+      "family": "Render",
+      "mechanism": "video frame → capa estática transparente de dibujo → UI; guardar puntos anteriores.",
+      "source": "Coding Train, p5.createGraphics",
+      "risks": "No limpiar buffer de trazos en cada requestAnimationFrame."
+    },
+    {
+      "id": "cap-11",
+      "name": "Deformación de superficies",
+      "family": "Edición",
+      "mechanism": "Raycast a malla, desplazar vecindad con núcleo radial suave, guardar historial de operaciones.",
+      "source": "Extensión del pinza+arrastre",
+      "risks": "Limitar amplitud, evitar auto-intersecciones y preservar undo/redo."
+    },
+    {
+      "id": "cap-12",
+      "name": "Mapeo de rango",
+      "family": "Medición",
+      "mechanism": "Transformar distancias/ángulos a intensidad, escala o volumen con clamp e interpolación.",
+      "source": "Curso, control volumen",
+      "risks": "Calibrar rangos dinámicamente; no escribir al sistema operativo desde una web."
+    },
+    {
+      "id": "cap-13",
+      "name": "Adaptadores de entrada",
+      "family": "Accesibilidad",
+      "mechanism": "pointerdown/move/up y gestos emiten Action{phase,x,y,source}, mismo reducer de escena.",
+      "source": "Diseño ESCULTOR",
+      "risks": "Todos los flujos deben completarse sin cámara."
+    },
+    {
+      "id": "cap-14",
+      "name": "Rendimiento real",
+      "family": "Producción",
+      "mechanism": "medir inferencia, render, FPS, interacción y degradación térmica por separado.",
+      "source": "Curso, Docs Web",
+      "risks": "detectForVideo puede bloquear el hilo; usar worker si se demuestra necesario."
+    },
+    {
+      "id": "cap-15",
+      "name": "Privacidad y modelo",
+      "family": "Producción",
+      "mechanism": "inferencias on-device; dependencia de descarga WASM/modelo declarada; sin fetch de frames.",
+      "source": "AI Edge, Docs Web",
+      "risks": "No confundir on-device con funcionamiento offline tras primera visita."
+    },
+    {
+      "id": "cap-16",
+      "name": "Exportación portable",
+      "family": "Persistencia",
+      "mechanism": "generar Blob JSON/PNG/OBJ y permitir importación; no usar localStorage de iframe.",
+      "source": "Contrato Prometeo",
+      "risks": "Importar y exportar sin depender del origen aislado."
+    },
+    {
+      "id": "cap-17",
+      "name": "Deformación de superficies",
+      "family": "Geometría",
+      "mechanism": "Raycast y falloff radial de vértices, normales y undo para agarrar una zona con pinza.",
+      "source": "[EXTENSIÓN] Volumen y pinza de Murtaza + distancia/trazo de Coding Train.",
+      "risks": "No presentado como función original. Probar límites de deformación y export de la malla."
+    }
+  ],
+  "references": [
+    [
+      "Hand Landmarker Web",
+      "https://developers.google.com/mediapipe/solutions/vision/hand_landmarker/web_js",
+      "API oficial; 21 landmarks, coordenadas y handedness."
+    ],
+    [
+      "Gesture Recognizer Web",
+      "https://developers.google.com/mediapipe/solutions/vision/gesture_recognizer/web_js",
+      "Categorías gestuales y landmarks."
+    ],
+    [
+      "Pose Landmarker Web",
+      "https://developers.google.com/mediapipe/solutions/vision/pose_landmarker/web_js",
+      "Articulaciones del cuerpo en navegador."
+    ],
+    [
+      "MediaPipe Samples (GitHub)",
+      "https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/hand_landmarker/js",
+      "Ejemplo abierto; no se copiaron recursos."
+    ],
+    [
+      "p5.js: Speak With Your Hands",
+      "https://p5js.org/tutorials/speak-with-your-hands/",
+      "Ejemplo creativo con HandPose."
+    ],
+    [
+      "The Coding Train",
+      "https://thecodingtrain.com/",
+      "Autor y proyecto educativo mencionado en la transcripción."
+    ],
+    [
+      "Curso completo · freeCodeCamp",
+      "https://www.youtube.com/watch?v=01sAkU_NvOY",
+      "URL del curso largo identificada y corroborada por publicación freeCodeCamp."
+    ],
+    [
+      "The Coding Train · HandPose",
+      "https://thecodingtrain.com/tracks/ml5js-beginners-guide/ml5/hand-pose",
+      "Página original, código y capítulos con tiempos visibles."
+    ],
+    [
+      "MediaPipe Tasks Vision Web",
+      "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js",
+      "API actual para navegador y detectForVideo síncrono."
+    ],
+    [
+      "Face Landmarker Web",
+      "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js",
+      "Resultado facial, blendshapes y matrices."
+    ],
+    [
+      "AR Hand Figures · proyecto",
+      "https://github.com/damiansire/web-ar-hand-tracking",
+      "Comparación de worker MediaPipe y render Three.js. Verificar licencia antes de copiar."
+    ],
+    [
+      "Gesture Globe · p5 / MediaPipe",
+      "https://github.com/Wencle-Sun/globe",
+      "Control por gestos y alternativa mouse/teclado."
+    ],
+    [
+      "Earth in Your Hand",
+      "https://github.com/n07eo/Earth-in-Your-Hand",
+      "Control bimanual, easing y física ligera. Licencia de assets no asumida."
+    ]
+  ],
+  "patterns": [
+    {
+      "id": "fsm-pinch",
+      "pseudocode": "d=distance(thumb,index)/palmWidth; if OPEN && d<enter: GRAB_START; if GRAB && d>exit: GRAB_END; if lost: CANCEL",
+      "proof": "Una secuencia cerca de umbral no alterna."
+    },
+    {
+      "id": "input-adapter",
+      "pseudocode": "hand→Action; mouse→Action; touch→Action; reducer(state,Action)→state",
+      "proof": "Misma acción de esculpir con las tres fuentes."
+    },
+    {
+      "id": "pose-cycle",
+      "pseudocode": "if visibility<min: ignore; angle=atan2(...); phase: extended→flexed→extended = 1 cycle",
+      "proof": "Un ciclo cuenta una vez, baja confianza no cuenta."
+    },
+    {
+      "id": "transparent-layer",
+      "pseudocode": "video actualizado en cada frame; paintBuffer persiste; onUp(): previous=null",
+      "proof": "Dibujo persiste y no traza línea espuria."
+    },
+    {
+      "id": "mesh-deform",
+      "pseudocode": "raycast; for vertex near anchor: position += delta*falloff(distance/radius); computeNormals(); undoCheckpoint()",
+      "proof": "Undo restaura forma y no aparece NaN."
+    }
+  ],
+  "decisions": [
+    "[CONSERVAR] ESCULTOR como emblemático, cámara opcional y control manual completo.",
+    "[AGREGAR] GESTUARIO como banco de reglas; ECO como narración corporal.",
+    "[REEMPLAZAR] Distancia fija en píxeles por tamaño de palma e histéresis; API Python histórica por JS Tasks.",
+    "[DESCARTAR] Cubos/puntos como producto y Gemma grande por defecto."
+  ],
+  "missing": [
+    "URL original del video en español y datos de autor no verificables.",
+    "No hubo código original ni repos de tutorial adjuntos.",
+    "FPS de los tutoriales no probados en hardware del usuario.",
+    "No se verificó webcam ni app futura en Android."
+  ],
+  "next": [
+    "ESCULTOR · Materia viva",
+    "GESTUARIO · Precisión",
+    "ECO · Teatro de sombras"
+  ],
+  "baseAtlasVersion": "v1"
+}
