@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>El bosque de las cartas · PixiJS / Prometeo</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#0b161b;color:#f2efdd}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -30%,#31474a,#0a141b 72%)}
+button{font:inherit}button:focus-visible,#scene:focus-visible{outline:3px solid #f2ca73;outline-offset:3px}
+.shell{max-width:1580px;margin:auto;padding:clamp(10px,1.7vw,24px)}
+.eyebrow{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;color:#c5ba9f;letter-spacing:.16em;font-size:10px;text-transform:uppercase}
+.eyebrow strong{color:#ffdf92;font-weight:650}
+.head{display:flex;justify-content:space-between;align-items:end;gap:18px;margin:5px 0 13px}
+h1{font:normal clamp(28px,4.3vw,57px)/1.01 Georgia,"Times New Roman",serif;letter-spacing:-.035em;margin:0;color:#fff6dc}
+.subtitle{font-size:12px;line-height:1.5;color:#bccbcb;margin:10px 0 0}
+.chapter{flex:0 0 auto;border-left:1px solid #677679;padding-left:17px;font:11px/1.65 ui-monospace,monospace;color:#d6ddcf}
+.chapter b{display:block;color:#ffc978;font-size:21px;font-family:Georgia,serif;font-weight:normal}
+.frame{position:relative;isolation:isolate;overflow:hidden;border:1px solid #6c8176;border-radius:12px;box-shadow:0 22px 75px #010a0d9c;background:#122a33;aspect-ratio:1000/560;max-height:72vh;min-height:300px}
+#scene{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;position:absolute;inset:0}
+#scene canvas{width:100%;height:100%;display:block}
+.scrim{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 110px #05121c44}
+.hud{position:absolute;top:15px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.hudbadge{background:#10252fdb;color:#e9e5cf;border:1px solid #658681aa;padding:10px 14px;border-radius:8px;backdrop-filter:blur(7px);font-size:12px;line-height:1.35}
+.hudbadge b{font-family:Georgia,serif;font-size:19px;font-weight:normal;color:#ffe2a2}
+.hudbadge small{display:block;opacity:.77;letter-spacing:.08em;font-size:10px;margin-bottom:4px}
+.hudbadge.right{max-width:290px;text-align:right}
+#message{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);border:1px solid #d6c29a8e;background:#09191dce;color:#f6e7c9;border-radius:8px;padding:11px 15px;max-width:calc(100% - 26px);font-size:clamp(12px,1.4vw,16px);line-height:1.4;text-align:center;pointer-events:none;backdrop-filter:blur(9px);transition:opacity .22s;box-shadow:0 9px 35px #0005}
+#message:empty{opacity:0}
+.complete{position:absolute;inset:0;background:#071d24c9;backdrop-filter:blur(7px);display:grid;place-items:center;padding:18px;text-align:center}
+.complete[hidden]{display:none}
+.ending{max-width:485px;border:1px solid #f0d39a99;background:#102930f1;padding:24px 25px;border-radius:13px;box-shadow:0 12px 56px #020c12be}
+.ending .kicker{color:#efcb83;letter-spacing:.2em;text-transform:uppercase;font-size:10px}
+.ending h2{font:normal clamp(30px,5vw,58px)/1.04 Georgia,serif;margin:11px 0;color:#fff4d9}
+.ending p{font:15px/1.7 Georgia,serif;color:#dde7d8}
+.cta{border:1px solid #e8c78e;color:#141d22;background:#f1d398;padding:11px 19px;border-radius:6px;cursor:pointer;font-weight:700}
+.under{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap}
+.instructions{color:#cbcec3;font-size:12px;line-height:1.55;margin:0}
+.instructions b{color:#ffe0a0}
+.toolbar{display:flex;gap:6px}
+.iconbtn{border:1px solid #637a77;background:#16282b;color:#f4ecd5;border-radius:6px;padding:8px 12px;min-height:39px;cursor:pointer;font-size:12px}
+.iconbtn:hover{background:#284346}
+.touches{display:none;gap:9px;margin-top:12px;justify-content:center}
+.touches button{background:#22383d;border:1px solid #6d8c85;color:#fff1d5;border-radius:9px;min-width:54px;height:52px;font-size:20px;touch-action:none;user-select:none}
+.touches button:active{background:#607a78}
+.notes{border-top:1px solid #2c4144;margin-top:15px;padding:13px 2px 7px;font-size:11px;line-height:1.7;color:#9cafae;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.notes a{color:#d6cfaa}
+.error{display:block;position:absolute;inset:0;padding:12%;background:#101f2a;color:#fff5df;text-align:center}
+.error[hidden]{display:none}
+@media(max-width:640px){.chapter{display:none}.subtitle{font-size:11px}.frame{min-height:350px;max-height:none;aspect-ratio:3/4}.hudbadge{padding:8px 9px;font-size:11px}.hudbadge b{font-size:16px}.hudbadge.right{max-width:48%}.hudbadge small{font-size:9px}.touches{display:flex}.under{align-items:flex-start}.toolbar{width:100%}.toolbar button{flex:1}.notes{font-size:10px}}
+@media(prefers-reduced-motion:reduce){#message{transition:none}}
+</style>
+</head>
+<body>
+<main class="shell">
+<div class="eyebrow"><span><strong>Prometeo / PixiJS</strong> &nbsp; · &nbsp; Relato interactivo</span><span>Capítulo 01 &nbsp; / &nbsp; v1</span></div>
+<header class="head"><div><h1>El bosque de las cartas</h1><p class="subtitle">Una caminata ilustrada sobre las cosas que no queríamos olvidar.</p></div><div class="chapter">MISIÓN <b>3 cartas perdidas</b>ENCONTRÁ EL FARO</div></header>
+<section class="frame" id="frame" aria-label="Bosque interactivo con tres cartas para recuperar">
+<div id="scene" tabindex="0" role="application" aria-label="Usá A y D o flechas para caminar, W y S para acercarte o alejarte. Hacé clic en el paisaje para ir a un lugar."></div>
+<div class="scrim"></div>
+<div class="hud"><div class="hudbadge"><small>ARCHIVO DEL BOSQUE</small><b id="score">0 / 3 cartas</b></div><div class="hudbadge right"><small>COORDENADAS</small><span id="zone">01 · El umbral</span></div></div>
+<div id="message" role="status" aria-live="polite">Hacé clic en el sendero para caminar. Las cartas brillan entre los árboles.</div>
+<div class="complete" id="complete" hidden><div class="ending"><span class="kicker">Las tres cartas reunidas</span><h2>El bosque te recuerda.</h2><p>«Ninguna historia desaparece mientras alguien todavía quiera contarla.»</p><button class="cta" id="again" type="button">Volver a caminar ↗</button></div></div>
+<div id="error" class="error" hidden></div>
+</section>
+<div class="under"><p class="instructions"><b>Clic / toque</b> para caminar · <b>WASD / flechas</b> para moverte · <b>3 cartas</b> y llegá al faro</p><div class="toolbar"><button class="iconbtn" id="help" type="button">¿Cómo se juega?</button><button class="iconbtn" id="restart" type="button">Reiniciar ↻</button></div></div>
+<div class="touches" aria-label="Controles táctiles"><button data-dir="left" aria-label="Izquierda">←</button><button data-dir="up" aria-label="Arriba">↑</button><button data-dir="down" aria-label="Abajo">↓</button><button data-dir="right" aria-label="Derecha">→</button></div>
+<footer class="notes"><span>Arte botánico original generado como capas SVG; caminante animada con atlas de seis fotogramas. Sin cuentas, seguimiento ni almacenamiento.</span><span>Render: <b id="renderer">iniciando</b> · <a href="CREDITOS.md" target="_blank" rel="noopener">Técnica y créditos ↗</a></span></footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.21.0/dist/pixi.min.js"></script>
+<script>
+(function () {
+"use strict";
+const W=2440,H=560,beacons=[{x:530,y:408,title:"Carta del alba",text:"Hay lugares que conservan nuestros pasos."},{x:1210,y:451,title:"Carta del viento",text:"Escuchar también es una forma de volver."},{x:1920,y:417,title:"Carta del hogar",text:"Una historia puede convertirse en refugio."}];
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const scene=document.getElementById("scene"), score=document.getElementById("score"),zone=document.getElementById("zone"),msg=document.getElementById("message"),done=document.getElementById("complete"),rendererText=document.getElementById("renderer");
+let hero={x:115,y:445,dir:1,frame:0},target=null,cam=0,t=0,found=[false,false,false],ended=false,paused=false,engine="cargando",scale=1,viewW=1000,display=null,app=null,ctx=null,canvas=null,tex={},objects={},messageUntil=Infinity,last=performance.now(),hold=new Set();
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const rand=(seed)=>{let v=seed>>>0;return()=>{v=(v*1664525+1013904223)>>>0;return v/4294967296}};
+const rng=rand(247915);
+const defs="<defs><linearGradient id='sky' x2='0' y2='1'><stop stop-color='#0d2938'/><stop offset='.64' stop-color='#315560'/><stop offset='1' stop-color='#8b9485'/></linearGradient><radialGradient id='halo'><stop stop-color='#f4dda2' stop-opacity='.44'/><stop offset='1' stop-color='#f4dda2' stop-opacity='0'/></radialGradient><linearGradient id='sand' x2='0' y2='1'><stop stop-color='#a8a08a'/><stop offset='1' stop-color='#574d46'/></linearGradient></defs>";
+const svg=(content)=>"<svg xmlns='http://www.w3.org/2000/svg' width='"+W+"' height='"+H+"' viewBox='0 0 "+W+" "+H+"'>"+defs+content+"</svg>";
+const leaf=(cx,cy,s,rot,tint)=>"<path d='M0 0 C "+(-11*s)+" "+(-13*s)+" "+(-6*s)+" "+(-38*s)+" 0 "+(-46*s)+" C "+(15*s)+" "+(-30*s)+" "+(13*s)+" "+(-12*s)+" 0 0Z' transform='translate("+cx+" "+cy+") rotate("+rot+")' fill='"+tint+"' opacity='.88'/>";
+function tree(x,y,sc,shade){
+  let z="<g transform='translate("+x+" "+y+") scale("+sc+")'>";
+  z+="<path d='M-10 2 Q-13 -80 -4 -139 Q-34 -176 -50 -191 M-4 -139 Q20 -172 31 -216 M-8 -85 Q-30 -115 -62 -122' fill='none' stroke='#172f35' stroke-width='14' stroke-linecap='round'/>";
+  z+="<path d='M-3 0 Q-7 -84 2 -152' fill='none' stroke='#52645a' stroke-width='2' opacity='.62'/>";
+  const rs=rand(Math.floor(x*67+sc*992));
+  for(let i=0;i<17;i++){let lx=-73+rs()*145,ly=-156-rs()*112,rz=.68+rs()*.6;z+=leaf(lx,ly,rz,rs()*360-180,shade);}
+  z+="</g>";return z;
+}
+function fern(x,y,s,color){
+ let p="<g transform='translate("+x+" "+y+") scale("+s+")' fill='none' stroke='"+color+"' stroke-linecap='round' stroke-linejoin='round'>";
+ for(let j=0;j<3;j++){let r=(j-1)*20;
+ p+="<g transform='rotate("+r+")'><path d='M0 0 Q3 -36 -3 -96' stroke-width='2'/>";
+ for(let k=0;k<8;k++){let yy=-13-k*9,dx=24-k*1.8;p+="<path d='M-1 "+yy+" Q"+(-dx*.58)+" "+(yy-13)+" "+(-dx)+" "+(yy-6)+" Q"+(-dx*.5)+" "+(yy-5)+" -1 "+(yy+2)+" M-1 "+(yy-2)+" Q"+(dx*.55)+" "+(yy-15)+" "+dx+" "+(yy-9)+" Q"+(dx*.52)+" "+(yy-4)+" -1 "+(yy+1)+"' fill='"+color+"' stroke-width='.8'/>";}
+ p+="</g>";}
+ return p+"</g>";
+}
+function drawSky(){
+ let out="<rect width='"+W+"' height='"+H+"' fill='url(#sky)'/>";
+ out+="<ellipse cx='1842' cy='168' rx='370' ry='238' fill='url(#halo)'/><path d='M1842 112 C1812 112 1788 137 1788 167 C1788 199 1812 223 1842 223 C1872 223 1896 199 1896 167 C1896 137 1872 112 1842 112 Z' fill='#efe2b7' opacity='.94'/>";
+ out+="<path d='M0 377 Q226 267 457 353 Q724 246 960 348 Q1173 277 1452 359 Q1722 259 2002 348 Q2210 283 2440 348 L2440 560H0Z' fill='#4d7775'/>";
+ out+="<path d='M0 420 Q244 353 485 407 Q759 322 1028 413 Q1251 361 1488 403 Q1814 322 2048 415 Q2288 338 2440 405 L2440 560H0Z' fill='#2d585c'/>";
+ let r=rand(97);
+ for(let i=0;i<100;i++){let x=r()*W,yy=318+r()*96,h=18+r()*51;out+="<path d='M"+x+" "+yy+" l"+(-h*.25)+" "+(h*.2)+" l"+(h*.16)+" 0 l"+(-h*.26)+" "+(h*.28)+" l"+(h*.22)+" 0 v"+(h*.34)+" h"+(h*.3)+" v"+(-h*.34)+" l"+(h*.22)+" 0 l"+(-h*.25)+" "+(-h*.28)+" l"+(h*.16)+" 0Z' fill='#1e454c' opacity='.48'/>";}
+ return svg(out);
+}
+function drawWood(){
+ let out="<path d='M0 470 Q520 407 840 470 Q1130 403 1440 475 Q1880 398 2440 459V560H0Z' fill='#305047'/>";
+ out+="<path d='M0 485 Q370 445 600 485 T1200 478 T1800 483 T2440 475 L2440 560H0Z' fill='#3d5147'/>";
+ for(let i=0;i<24;i++){let x=i*113-35,y=478+Math.sin(i*.9)*12,s=.7+(i%5)*.1;out+=tree(x,y,s,i%3?"#426759":"#537568");}
+ out+="<path d='M0 529 Q350 488 710 531 T1420 517 T2100 525 T2440 512 L2440 560 H0Z' fill='#4e6350'/>";
+ return svg(out);
+}
+function drawGround(){
+ let out="<path d='M0 467 C350 429 580 495 890 466 C1310 430 1584 493 1879 460 C2200 432 2320 459 2440 457 L2440 560H0Z' fill='#756c5d'/>";
+ out+="<path d='M0 498 C311 448 665 520 957 496 S1585 517 1903 491 S2210 474 2440 499 L2440 560 H0Z' fill='url(#sand)'/>";
+ out+="<path d='M0 501 Q470 480 1010 506 T2440 495' stroke='#cfbb92' stroke-width='4' opacity='.2' fill='none'/>";
+ for(let i=0;i<113;i++){let x=rng()*W,y=500+rng()*63;out+="<path d='M"+x.toFixed(1)+" "+y.toFixed(1)+" l"+(3+rng()*10).toFixed(1)+" "+(-rng()*3).toFixed(1)+"' stroke='"+(i%2?"#d8c9a2":"#414c45")+"' stroke-width='"+(rng()*.9+.5).toFixed(1)+"' opacity='.45'/>";}
+ // El faro final forma parte del paisaje, no es un botón de interfaz.
+ out+="<g transform='translate(2250 300)'><path d='M-58 174 L-44 -40 Q0 -80 46 -38 L59 174 M-44 2 Q0 -22 46 2 M-45 30 Q0 10 47 32' stroke='#243b3f' stroke-width='23' fill='none'/><path d='M-44 4 Q0 -30 46 4 L38 168 H-39Z' fill='#c5b18a'/><path d='M-22 167 V54 Q0 23 22 54 V167' fill='#193b44'/><path d='M-68 -41 Q0 -92 69 -43 M-51 -48 L-30 -78 M40 -74 L57 -47' fill='none' stroke='#dbcba4' stroke-width='7' stroke-linecap='round'/><path d='M-21 169 L-15 117 M25 167 L15 108' stroke='#e9bd77' stroke-width='2' opacity='.8'/></g>";
+ return svg(out);
+}
+function drawFront(){
+ let out="";
+ const r=rand(973);
+ for(let i=0;i<48;i++){let x=i*53+r()*25,y=540+r()*35,s=.33+r()*.37;out+=fern(x,y,s,i%3===0?"#214945":"#2e5b4c");}
+ for(let i=0;i<55;i++){let x=r()*W,y=519+r()*50;out+="<path d='M"+x+" "+y+" q-3 -14 -13 -25 M"+x+" "+y+" q6 -17 18 -21 M"+x+" "+y+" v-29' fill='none' stroke='#a2a77a' opacity='.5' stroke-width='2'/>";}
+ return svg(out);
+}
+function drawLetter(col){
+ return "<svg xmlns='http://www.w3.org/2000/svg' width='92' height='124' viewBox='0 0 92 124'><defs><radialGradient id='a'><stop stop-color='"+col+"' stop-opacity='.57'/><stop offset='1' stop-color='"+col+"' stop-opacity='0'/></radialGradient></defs><ellipse cx='46' cy='56' rx='43' ry='51' fill='url(#a)'/><path d='M27 32 Q25 27 31 25 L65 21 Q68 21 69 28 L65 67 Q65 70 60 70 L30 73 Q26 71 26 67Z' fill='#f3e9c9' stroke='#293a3b' stroke-width='3'/><path d='M30 28 L46 47 L66 25 M31 56 L45 58 M31 62 L57 63' fill='none' stroke='#ab8355' stroke-width='2'/><path d='M46 17 L48 8 M15 45 L9 45 M76 48 L83 48 M17 24 L12 18' stroke='"+col+"' stroke-width='2' stroke-linecap='round'/></svg>";
+}
+function decode(src){return new Promise((ok,fail)=>{const img=new Image();img.onload=()=>ok(img);img.onerror=()=>fail(Error("No se pudo decodificar una ilustración."));img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(src)});}
+function makeWalker(){
+ const c=document.createElement("canvas");c.width=96*6;c.height=128;const z=c.getContext("2d");
+ for(let i=0;i<6;i++){const p=i/6*Math.PI*2,leg=Math.sin(p)*11,bob=Math.abs(Math.sin(p))*3,x=96*i;
+ z.save();z.translate(x+48,110-bob);z.lineJoin="round";z.lineCap="round";
+ // Botas con dos cuadros de paso y sombra dibujada a mano.
+ z.strokeStyle="#122d33";z.lineWidth=7;z.beginPath();z.moveTo(-11,-32);z.lineTo(-14-leg*.8,-5);z.lineTo(-22-leg*.8,0);z.moveTo(12,-31);z.lineTo(12+leg*.8,-5);z.lineTo(21+leg*.8,1);z.stroke();
+ z.strokeStyle="#d5b68c";z.lineWidth=3;z.beginPath();z.moveTo(-13,-31);z.lineTo(-17-leg*.8,-8);z.moveTo(12,-31);z.lineTo(12+leg*.8,-8);z.stroke();
+ // Capa de viaje con bordes y movimiento de tela.
+ z.fillStyle="#ca7656";z.strokeStyle="#152d37";z.lineWidth=3;z.beginPath();z.moveTo(-19,-75);z.quadraticCurveTo(-35,-58,-25-leg*.25,-25);z.quadraticCurveTo(4,-15,23,-29);z.lineTo(16,-73);z.closePath();z.fill();z.stroke();
+ z.fillStyle="#efe0b7";z.beginPath();z.moveTo(-19,-72);z.quadraticCurveTo(-3,-81,19,-72);z.lineTo(20,-44);z.quadraticCurveTo(0,-35,-20,-45);z.closePath();z.fill();z.stroke();
+ // Cuello, cuello alto y cabeza de personaje dibujado.
+ z.strokeStyle="#22353b";z.lineWidth=3;z.fillStyle="#eac29c";z.beginPath();z.moveTo(-14,-76);z.bezierCurveTo(-22,-92,-15,-104,1,-104);z.bezierCurveTo(18,-106,24,-93,17,-79);z.quadraticCurveTo(4,-70,-14,-76);z.fill();z.stroke();
+ z.fillStyle="#192d36";z.beginPath();z.moveTo(-18,-93);z.quadraticCurveTo(-19,-114,1,-115);z.quadraticCurveTo(22,-114,22,-95);z.quadraticCurveTo(10,-102,-1,-99);z.quadraticCurveTo(-9,-94,-18,-93);z.fill();
+ z.fillStyle="#122e33";z.beginPath();z.ellipse(10,-89,2,2.5,0,0,7);z.fill();
+ // Pañuelo nudo y extremo que oscila cuando camina.
+ z.strokeStyle="#f0c18b";z.lineWidth=5;z.beginPath();z.moveTo(-19,-74);z.lineTo(13,-77);z.quadraticCurveTo(20,-78,19,-71);z.lineTo(29+Math.sin(p)*4,-63);z.stroke();
+ z.strokeStyle="#203d41";z.lineWidth=2;z.beginPath();z.moveTo(-19,-61);z.lineTo(-28+leg*.15,-43);z.moveTo(20,-61);z.lineTo(28-leg*.15,-46);z.stroke();
+ z.fillStyle="#f1d5a4";z.beginPath();z.ellipse(-28+leg*.15,-43,4,5,0,0,7);z.ellipse(28-leg*.15,-46,4,5,0,0,7);z.fill();
+ z.restore();
+ }
+ return c;
+}
+let walkerAtlas;
+function tell(text,duration=4300){msg.textContent=text;messageUntil=t+duration/1000;}
+function reset(){hero={x:115,y:445,dir:1,frame:0};target=null;cam=0;t=0;found=[false,false,false];ended=false;paused=false;done.hidden=true;score.textContent="0 / 3 cartas";zone.textContent="01 · El umbral";tell("Hacé clic en el sendero para caminar. Las cartas brillan entre los árboles.",6500);sync();}
+function finish(){if(ended)return;ended=true;target=null;done.hidden=false;msg.textContent="";messageUntil=0;}
+function sync(){if(objects.letters)objects.letters.forEach((s,i)=>{s.visible=!found[i];});}
+function logic(dt){
+ if(paused||ended)return;
+ dt=Math.min(dt,.055);t+=dt;
+ let vx=0,vy=0;
+ if(hold.has("left"))vx-=1;if(hold.has("right"))vx+=1;if(hold.has("up"))vy-=1;if(hold.has("down"))vy+=1;
+ let active=!!(vx||vy);
+ if(active){target=null;let norm=Math.hypot(vx,vy);vx/=norm;vy/=norm;}
+ else if(target){let dx=target.x-hero.x,dy=target.y-hero.y,dist=Math.hypot(dx,dy);if(dist<7){target=null}else{vx=dx/dist;vy=dy/dist;active=true;}}
+ const step=dt*220;
+ if(active){hero.x=clamp(hero.x+vx*step,38,W-50);hero.y=clamp(hero.y+vy*step*.74,400,497);if(vx)hero.dir=vx<0?-1:1;hero.frame=(hero.frame+dt*9)%6;}else hero.frame=0;
+ const desired=clamp(hero.x-viewW*.40,0,Math.max(0,W-viewW));
+ cam+=(desired-cam)*Math.min(1,dt*6);
+ let count=found.filter(Boolean).length;
+ beacons.forEach((b,i)=>{if(!found[i]&&Math.hypot(hero.x-b.x,hero.y-b.y)<61){found[i]=true;count++;score.textContent=count+" / 3 cartas";tell(b.title+" · «"+b.text+"»",6200);sync();}});
+ if(hero.x>2160&&count===3)finish();
+ else if(hero.x>2160&&count<3&&t>messageUntil)tell("Al faro le faltan "+(3-count)+" cartas. Volvé a buscarlas.",4200);
+ zone.textContent=hero.x<790?"01 · El umbral":hero.x<1600?"02 · El claro":"03 · El faro";
+ if(t>messageUntil){msg.textContent="";messageUntil=Infinity;}
+}
+function cameraPosition(e){const r=scene.getBoundingClientRect(),xx=(e.clientX-r.left)/r.width,yy=(e.clientY-r.top)/r.height;return {x:clamp(cam+xx*viewW,38,W-50),y:clamp(yy*H,400,497)};}
+function bind(){
+ scene.addEventListener("pointerdown",e=>{if(e.button!==0)return;scene.focus({preventScroll:true});target=cameraPosition(e);tell("Destino marcado · caminando",1600);});
+ document.addEventListener("keydown",e=>{const v={arrowleft:"left",a:"left",arrowright:"right",d:"right",arrowup:"up",w:"up",arrowdown:"down",s:"down"}[e.key.toLowerCase()];if(v&&!e.altKey&&!e.ctrlKey){hold.add(v);e.preventDefault();}if(e.key.toLowerCase()==="r")reset();});
+ document.addEventListener("keyup",e=>{const v={arrowleft:"left",a:"left",arrowright:"right",d:"right",arrowup:"up",w:"up",arrowdown:"down",s:"down"}[e.key.toLowerCase()];if(v)hold.delete(v);});
+ window.addEventListener("blur",()=>hold.clear());document.addEventListener("visibilitychange",()=>{paused=document.hidden;hold.clear()});
+ document.querySelectorAll("[data-dir]").forEach(b=>{const dir=b.dataset.dir;b.addEventListener("pointerdown",e=>{b.setPointerCapture(e.pointerId);hold.add(dir);e.preventDefault()});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>hold.delete(dir));});
+ document.getElementById("again").addEventListener("click",reset);document.getElementById("restart").addEventListener("click",reset);
+ document.getElementById("help").addEventListener("click",()=>tell("Caminá tocando el sendero o con WASD. Acercate a las tres cartas; después andá al faro del extremo derecho.",8500));
+}
+function resize(){
+ const r=scene.getBoundingClientRect();let cw=Math.max(300,Math.round(r.width)),ch=Math.max(280,Math.round(r.height));
+ scale=ch/H;viewW=cw/scale;
+ if(app){app.renderer.resize(cw,ch);app.stage.scale.set(scale);}
+ if(ctx){let pixel=Math.min(1.5,devicePixelRatio||1);canvas.width=Math.round(cw*pixel);canvas.height=Math.round(ch*pixel);ctx.setTransform(pixel,0,0,pixel,0,0);}
+}
+async function loadArt(){
+ const names=["sky","wood","ground","front"],funcs=[drawSky,drawWood,drawGround,drawFront],imgs=await Promise.all(funcs.map(f=>decode(f())));
+ const letterImages=await Promise.all(["#ffd799","#b9e7dd","#f7b3a4"].map(c=>decode(drawLetter(c))));
+ return {imgs,letterImages};
+}
+async function startPixi(art){
+ const PIXI=window.PIXI;
+ app=new PIXI.Application();
+ await app.init({width:1000,height:560,backgroundColor:0x102c38,preference:"webgl",antialias:false,resolution:Math.min(1.5,devicePixelRatio||1),autoDensity:true});
+ canvas=app.canvas;scene.appendChild(canvas);canvas.setAttribute("aria-hidden","true");app.ticker.maxFPS=60;
+ const layers=art.imgs.map(img=>new PIXI.Sprite(PIXI.Texture.from(img)));
+ const letters=art.letterImages.map((im,i)=>{const o=new PIXI.Sprite(PIXI.Texture.from(im));o.anchor.set(.5,.83);o.position.set(beacons[i].x,beacons[i].y-8);return o});
+ const atex=PIXI.Texture.from(walkerAtlas),frames=[];
+ for(let i=0;i<6;i++)frames.push(new PIXI.Texture({source:atex.source,frame:new PIXI.Rectangle(i*96,0,96,128)}));
+ const walker=new PIXI.AnimatedSprite(frames);walker.anchor.set(.5,.89);walker.animationSpeed=.16;walker.gotoAndStop(0);
+ const far=new PIXI.Container(),wood=new PIXI.Container(),near=new PIXI.Container(),front=new PIXI.Container();
+ far.addChild(layers[0]);wood.addChild(layers[1]);near.addChild(layers[2],...letters,walker);front.addChild(layers[3]);
+ app.stage.addChild(far,wood,near,front);objects={far,wood,near,front,walker,letters};
+ if(!reduce&&PIXI.BlurFilter&&innerWidth>900){try{wood.filters=[new PIXI.BlurFilter({strength:1.0,quality:1})];}catch(e){}}
+ resize();engine="PixiJS 8.21 · WebGL";rendererText.textContent=engine;
+ app.ticker.add(ticker=>{
+  logic(ticker.deltaMS/1000);
+  far.x=-cam*.10*scale;wood.x=-cam*.42*scale;near.x=-cam*scale;front.x=-cam*1.08*scale;
+  walker.x=hero.x;walker.y=hero.y+(reduce?0:Math.sin(t*3)*1.1);walker.scale.x=hero.dir;
+  if(Math.abs(walker.currentFrame-Math.floor(hero.frame))>=1)walker.gotoAndStop(Math.floor(hero.frame));
+  letters.forEach((s,i)=>{if(!found[i]){s.y=beacons[i].y-8+(reduce?0:Math.sin(t*1.3+i)*4);s.rotation=reduce?0:Math.sin(t+i)*.035;}});
+ });
+}
+function startCanvas(art){
+ app=null;canvas=document.createElement("canvas");scene.appendChild(canvas);ctx=canvas.getContext("2d",{alpha:false});if(!ctx)throw Error("Tu navegador no ofrece Canvas 2D.");
+ resize();engine="Canvas 2D · modo de compatibilidad";rendererText.textContent=engine;
+ function draw(now){const dt=(now-last)/1000;last=now;logic(dt);const c=ctx;const ww=canvas.clientWidth,hh=canvas.clientHeight;
+  c.save();c.clearRect(0,0,ww,hh);c.scale(scale,scale);
+  c.fillStyle="#122832";c.fillRect(0,0,viewW,H);
+  c.drawImage(art.imgs[0],-cam*.10,0);c.drawImage(art.imgs[1],-cam*.42,0);c.drawImage(art.imgs[2],-cam,0);
+  art.letterImages.forEach((im,i)=>{if(found[i])return;c.drawImage(im,beacons[i].x-cam-46,beacons[i].y-100+(reduce?0:Math.sin(t*1.3+i)*4),92,124)});
+  c.save();c.translate(hero.x-cam,hero.y);c.scale(hero.dir,1);c.drawImage(walkerAtlas,Math.floor(hero.frame)*96,0,96,128,-48,-114,96,128);c.restore();
+  c.drawImage(art.imgs[3],-cam*1.08,0);c.restore();if(canvas.isConnected)requestAnimationFrame(draw);
+ }
+ requestAnimationFrame(draw);
+}
+function fail(e){console.error("[pixijs-bosque]",e);document.getElementById("error").hidden=false;document.getElementById("error").textContent="La escena no se pudo iniciar. "+String(e.message||e);rendererText.textContent="error";}
+async function main(){
+ try{bind();walkerAtlas=makeWalker();const art=await loadArt();
+ if(window.PIXI){try{await startPixi(art)}catch(e){console.warn("PixiJS no disponible, activando Canvas 2D",e);if(app){try{app.destroy(true)}catch(_){}app=null}scene.replaceChildren();await startCanvas(art);}}
+ else await startCanvas(art);
+ const obs=new ResizeObserver(resize);obs.observe(scene);reset();
+ }catch(e){fail(e);}
+}
+window.__PIXILAB__={getState:()=>({engine,x:hero.x,y:hero.y,camera:cam,letters:found.slice(),completed:ended,target}),getVersion:()=> "v1",restart:()=>reset(),goTo:(x,y)=>{target={x:clamp(x,38,W-50),y:clamp(y,400,497)}}};
+main();
+})();
+</script>
+</body>
+</html>
