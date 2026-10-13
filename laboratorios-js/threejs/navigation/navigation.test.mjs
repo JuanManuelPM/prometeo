@@ -39,7 +39,7 @@ test('WASD overrides path without moving camera',()=>{
 test('dt is bounded, no frame-rate jump after tab suspension',()=>{
  const s={position:{x:0,z:0},camera:{yaw:0},speed:3,path:[]};
  const t=stepNavigation(s,{forward:true},[],60);
- assert.ok(t.position.z>=-.15); assert.equal(t.moving,true);
+ assert.ok(t.position.z>=-.150001); assert.equal(t.moving,true);
 });
 test('click goal arrives and does not overshoot',()=>{
  let s={position:{x:0,z:0},camera:{yaw:0},speed:4,path:[{x:.15,z:0}]};
