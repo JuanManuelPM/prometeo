@@ -16,3 +16,10 @@ Nueve escritorios independientes: Three.js, PixiJS, Tone.js, MediaPipe, D3.js, C
 
 **Importante:** copiar un prompt **no crea un chat**, ni instala skills, ni inicia procesos en segundo plano. Los nuevos chats necesitan el conector GitHub autorizado para escribir. El sitio es de lectura pública; sólo quienes tengan permisos de repositorio pueden publicar. Los nueve JSON separados reducen conflictos entre especialistas.
 Leé `CONTRATO.md` para rutas, formato, aceptación y seguridad. No modificamos la página principal ni sustituimos el sistema de estado de Prometeo.
+
+## Avances visibles antes de la publicación (actualización)
+La página ahora distingue dos secciones:
+1. **Avances de los especialistas:** consulta dinámicamente PRs públicos de GitHub dirigidos a `gh-pages`, examina sus archivos bajo `laboratorios-js/<biblioteca>/` o `laboratorios-js/widgets/<biblioteca>/` y muestra título, fecha, estado **borrador/en revisión/integrado**, enlaces al PR y a documentos/código. No hace merge ni publica una demo. La API REST pública de GitHub es de lectura y puede estar limitada por red o cuota; en ese caso el sitio muestra un error explícito y un enlace a GitHub, nunca «sin avances» falso. El botón «Actualizar publicaciones» actualiza ambas secciones.
+2. **Widgets publicados:** únicamente archivos servidos desde GitHub Pages y registrados en `registry/<biblioteca>.json`, con versiones.
+
+Los chats pueden seguir conversaciones y guardar análisis como **PR borrador** sin autorización de publicación de un widget. Si guardan archivos bajo la ruta de su biblioteca y orientan el PR a `gh-pages`, la página los detectará sin modificar manifiestos. Si NO se pide ni guardar en GitHub, nada se sube automáticamente. La página no lee conversaciones privadas de ChatGPT.

@@ -35,3 +35,14 @@ No inferir autorización de desarrollo ni publicación por recibir un video de Y
 
 ## Ruta pública
 https://juanmanuelpm.github.io/prometeo/laboratorios-js/?lab=<biblioteca>
+
+## Diferencia entre borrador visible y widget publicado (aclaración)
+Un análisis de video, un experimento local o un PR draft NO equivalen a widget publicado. Sin embargo, si el especialista ya guardó trabajo en GitHub en una rama pública y abrió un PR hacia `gh-pages`, se puede mostrar como **avance consultable** sin hacer merge ni cambiar `registry/<biblioteca>.json`.
+
+La página consulta la API pública REST de PRs. Para que detecte automáticamente los avances, cada PR de especialista debe:
+- tener como destino `gh-pages`;
+- contener archivos bajo `laboratorios-js/<biblioteca>/` o `laboratorios-js/widgets/<biblioteca>/`;
+- utilizar un título o descripción que mencione la biblioteca (por ejemplo `[LAB:pixijs] Tutorial Snake`), para permitir un filtrado liviano antes de comprobar archivos;
+- identificar honestamente si se trata de aprendizaje, código candidato, revisión o publicación terminada.
+
+**No es necesario pedir aprobación para VER metadatos de PRs que el propio especialista ya publicó en un repositorio público**, pero esto no lo autoriza a crear un PR si el usuario todavía quiere hablar sin usar GitHub. Para jugar un HTML en la página, sigue siendo necesaria la aprobación humana, una versión real y el registro servido. Los cambios en los archivos compartidos de la galería deben realizarse de manera aislada, sin alterar escritorios ajenos.
