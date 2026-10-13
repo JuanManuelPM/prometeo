@@ -1,0 +1,582 @@
+{
+  "schema": "prometeo.lectura-knowledge/v1",
+  "version": "2",
+  "library": "lectura",
+  "date": "2026-10-13",
+  "sourceCount": 10,
+  "videoCount": 1,
+  "sources": [
+    {
+      "id": "video-01",
+      "type": "Tutorial recibido",
+      "title": "Generador de facturas PDF con React, Next.js y jsPDF",
+      "url": null,
+      "author": "Autor/canal no identificables",
+      "notes": "[VIDEO] Transcripción inglesa completa aportada en el chat, una sola línea. Edición de factura, ítems, cálculo, vista previa, descarga. Sin URL, duración, fecha ni versión exacta."
+    },
+    {
+      "id": "pdfjs-guia",
+      "type": "Documentación oficial",
+      "title": "PDF.js: Getting Started",
+      "url": "https://mozilla.github.io/pdf.js/getting_started/",
+      "author": "Mozilla PDF.js",
+      "notes": "[INVESTIGACIÓN] Capas Core, Display y Viewer; el visor existente es punto de partida, no conviene reimplementar el parseo de PDF."
+    },
+    {
+      "id": "pdfjs-ejemplos",
+      "type": "Ejemplo oficial",
+      "title": "PDF.js: Examples",
+      "url": "https://github.com/mozilla/pdf.js/blob/master/docs/contents/examples/index.md",
+      "author": "Mozilla PDF.js",
+      "notes": "[INVESTIGACIÓN] getDocument devuelve tarea asíncrona; acceso a páginas y render mediante viewport/canvas."
+    },
+    {
+      "id": "epubjs-api",
+      "type": "Documentación técnica",
+      "title": "EPUB.js: API y anotaciones",
+      "url": "https://github.com/futurepress/epub.js/blob/master/documentation/md/API.md",
+      "author": "FuturePress",
+      "notes": "[INVESTIGACIÓN] Rendition, secciones, locations/CFI, estilos y anotaciones; algunos métodos documentados no están implementados."
+    },
+    {
+      "id": "epubjs-types",
+      "type": "Código fuente",
+      "title": "EPUB.js: Rendition types",
+      "url": "https://github.com/futurepress/epub.js/blob/master/types/rendition.d.ts",
+      "author": "FuturePress",
+      "notes": "[INVESTIGACIÓN] flow, spread, relocated, selected, navegación y ubicación; comprobar contra versión concreta."
+    },
+    {
+      "id": "jspdf-doc",
+      "type": "Repositorio oficial",
+      "title": "jsPDF: generación de PDF en el navegador",
+      "url": "https://github.com/parallax/jsPDF",
+      "author": "parallax/jsPDF",
+      "notes": "[INVESTIGACIÓN] Crear documentos PDF client-side; el tutorial muestra coordenadas rígidas, que deben evolucionar a paginación de bloques."
+    },
+    {
+      "id": "calibre-manual",
+      "type": "Manual oficial",
+      "title": "Calibre: servidor de contenidos",
+      "url": "https://manual.calibre-ebook.com/es/server.html",
+      "author": "Calibre",
+      "notes": "[INVESTIGACIÓN] Biblioteca de portadas, metadatos, lectura móvil, búsqueda y servidor opcional; cuidar autenticación y HTTPS al exponer fuera de la red."
+    },
+    {
+      "id": "koreader",
+      "type": "Proyecto real",
+      "title": "KOReader",
+      "url": "https://github.com/koreader/koreader",
+      "author": "KOReader contributors",
+      "notes": "[INVESTIGACIÓN] PDF, EPUB, ajustes tipográficos, reflow, navegación, anotaciones, OPDS y comodidad en dispositivos reales. Software nativo, no componente web."
+    },
+    {
+      "id": "foliate",
+      "type": "Proyecto real",
+      "title": "Foliate",
+      "url": "https://github.com/johnfactotum/foliate",
+      "author": "John Factotum y comunidad",
+      "notes": "[INVESTIGACIÓN] Referencia editorial de e-books, tipografía, columnas, marcadores y notas. No trasladar sin más su arquitectura GTK a web."
+    },
+    {
+      "id": "mdn-tts",
+      "type": "Documentación web",
+      "title": "MDN: evento boundary de SpeechSynthesisUtterance",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisUtterance/boundary_event",
+      "author": "MDN",
+      "notes": "[INVESTIGACIÓN] Seguimiento por palabra/oración no funciona uniformemente en navegadores; alternativa fiable: resaltar por oración."
+    }
+  ],
+  "chronology": [
+    {
+      "id": "paso-01",
+      "title": "Inicio y stack",
+      "video": "[VIDEO] Next.js/TypeScript; Tailwind y shadcn/ui; separa form y preview.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] No imponer Next.js al atlas estático ni hacer depender widgets de servicios."
+    },
+    {
+      "id": "paso-02",
+      "title": "Diseño de detalles",
+      "video": "[VIDEO] Cards, labels, inputs, date; responsive 1/2 columnas.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Controles táctiles de 44px y ancho de texto cómodo."
+    },
+    {
+      "id": "paso-03",
+      "title": "Contactos",
+      "video": "[VIDEO] Secciones from/to duplican estructura de campos.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Reemplazar por metadatos bibliográficos, ficha y citas."
+    },
+    {
+      "id": "paso-04",
+      "title": "Ítems",
+      "video": "[VIDEO] Array de filas, map(), key, grilla 12 columnas 5+2+2+2+1.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Evitar grilla densa de escritorio en móvil."
+    },
+    {
+      "id": "paso-05",
+      "title": "Tipos",
+      "video": "[VIDEO] InvoiceItem e InvoiceData tipados; datos iniciales con un ítem.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Modelos originales Document/Anchor/Annotation/ExportDraft."
+    },
+    {
+      "id": "paso-06",
+      "title": "Context Provider",
+      "video": "[VIDEO] InvoiceProvider expone invoice a componentes y usa useInvoice.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Seccionar estado para evitar rerender de todo el visor."
+    },
+    {
+      "id": "paso-07",
+      "title": "Edición controlada",
+      "video": "[VIDEO] value/onChange + updateInvoice({campo:valor}) con spread.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Separar borrador de valor guardado y validar."
+    },
+    {
+      "id": "paso-08",
+      "title": "Agregar ítem",
+      "video": "[VIDEO] addItem genera ID y suma al array.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] ID estable; crypto.randomUUID y actualizaciones funcionales."
+    },
+    {
+      "id": "paso-09",
+      "title": "Eliminar ítem",
+      "video": "[VIDEO] removeItem por índice con filter; impide quitar última fila.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Borrar por ID, no posición mutable."
+    },
+    {
+      "id": "paso-10",
+      "title": "Actualizar ítem",
+      "video": "[VIDEO] updateItem(index,field,value) recrea el objeto.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Evitar mutaciones y estado obsoleto en actualizaciones."
+    },
+    {
+      "id": "paso-11",
+      "title": "Números editables",
+      "video": "[VIDEO] Valor vacío como string; onBlur normaliza cantidad=1 y tarifa=0.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] No forzar cambios mientras se está escribiendo una nota."
+    },
+    {
+      "id": "paso-12",
+      "title": "Cálculos",
+      "video": "[VIDEO] amount=quantity*rate; reduce para subtotal; porcentaje de impuesto; total.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Separar funciones puras; no duplicar estado derivado."
+    },
+    {
+      "id": "paso-13",
+      "title": "Preview sincronizado",
+      "video": "[VIDEO] Vista HTML lee el mismo Context que el formulario y usa formatters.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Misma fuente para anotaciones, cuaderno y PDF generado."
+    },
+    {
+      "id": "paso-14",
+      "title": "PDF con jsPDF",
+      "video": "[VIDEO] Genera textos, tabla y totales mediante posiciones x/y.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Medir líneas, saltos de página, tipografías y Unicode."
+    },
+    {
+      "id": "paso-15",
+      "title": "Preview de PDF",
+      "video": "[VIDEO] doc.output('blob'), URL.createObjectURL, iframe local.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Revocar object URLs; no guardar archivos personales en Pages."
+    },
+    {
+      "id": "paso-16",
+      "title": "Descarga",
+      "video": "[VIDEO] doc.save(nombre.pdf) al cerrar el tutorial.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Exportación de cuadernos propios y datos JSON editables."
+    },
+    {
+      "id": "paso-17",
+      "title": "Pruebas ausentes",
+      "video": "[VIDEO] No aparece una suite automática de tests ni prueba móvil exhaustiva.",
+      "improvement": "[CORRECCIÓN/EXTENSIÓN] Especificación por ejemplos y E2E de navegador reales antes de publicar."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "cap-01",
+      "family": "Archivos",
+      "title": "Carga PDF local",
+      "how": "File→Uint8Array→getDocument({data})→page render",
+      "components": "PDF.js + File API",
+      "limits": "Encriptado/escaneos; PDF enorme",
+      "acceptance": "PDF seleccionado se ve y sus bytes no viajan por red",
+      "variation": "Un visor sin servidor",
+      "sourceIds": [
+        "pdfjs-guia",
+        "pdfjs-ejemplos"
+      ],
+      "pattern": "Adapter 01: File→Uint8Array→getDocument({data})→page render",
+      "pitfall": "No fingir carga pdf local si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Carga PDF local',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-02",
+      "family": "Archivos",
+      "title": "Carga EPUB local",
+      "how": "File→ArrayBuffer→ePub(bytes)→rendition.display()",
+      "components": "EPUB.js, ZIP interno, File API",
+      "limits": "DRM, HTML potencialmente activo",
+      "acceptance": "EPUB libre abre dos capítulos; scripts embebidos no se ejecutan",
+      "variation": "Lector reflowable",
+      "sourceIds": [
+        "epubjs-api",
+        "epubjs-types"
+      ],
+      "pattern": "Adapter 02: File→ArrayBuffer→ePub(bytes)→rendition.display()",
+      "pitfall": "No fingir carga epub local si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Carga EPUB local',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-03",
+      "family": "Navegación",
+      "title": "Anclas PDF y EPUB",
+      "how": "PDF{page,rect,text}; EPUB{cfi,text}",
+      "components": "AnchorAdapter, EPUB CFI, textLayer",
+      "limits": "CFI no equivale a página física; offsets visuales cambian",
+      "acceptance": "Retoma al mismo párrafo tras recarga/importación",
+      "variation": "Lectura interrumpible",
+      "sourceIds": [
+        "video-01",
+        "epubjs-api"
+      ],
+      "pattern": "Adapter 03: PDF{page,rect,text}; EPUB{cfi,text}",
+      "pitfall": "No fingir anclas pdf y epub si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Anclas PDF y EPUB',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-04",
+      "family": "Render",
+      "title": "Render PDF fluido",
+      "how": "Viewport, escala, DPR limitado y cola cancelable",
+      "components": "PDFPageProxy, canvas, worker",
+      "limits": "Fugas de memoria y renders antiguos",
+      "acceptance": "20 cambios de zoom no superponen páginas",
+      "variation": "Visor de papers",
+      "sourceIds": [
+        "pdfjs-guia",
+        "pdfjs-ejemplos"
+      ],
+      "pattern": "Adapter 04: Viewport, escala, DPR limitado y cola cancelable",
+      "pitfall": "No fingir render pdf fluido si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Render PDF fluido',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-05",
+      "family": "Render",
+      "title": "Reflow EPUB",
+      "how": "Theme + flow + spread; mantener CFI al variar fuente",
+      "components": "Rendition, temas CSS",
+      "limits": "EPUB con estilos rígidos, imágenes anchas",
+      "acceptance": "Tamaño de fuente cambia sin perder sección",
+      "variation": "Novelas y manuales",
+      "sourceIds": [
+        "epubjs-api",
+        "epubjs-types"
+      ],
+      "pattern": "Adapter 05: Theme + flow + spread; mantener CFI al variar fuente",
+      "pitfall": "No fingir reflow epub si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Reflow EPUB',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-06",
+      "family": "Render",
+      "title": "Margen y columna PDF",
+      "how": "Recorte reversible, coordenadas inversas",
+      "components": "CropPreset, viewport transform",
+      "limits": "Columna rota, recorte de notas laterales",
+      "acceptance": "Deshacer crop recupera contenido y anclas",
+      "variation": "Lectura de dos columnas",
+      "sourceIds": [
+        "pdfjs-guia",
+        "pdfjs-ejemplos"
+      ],
+      "pattern": "Adapter 06: Recorte reversible, coordenadas inversas",
+      "pitfall": "No fingir margen y columna pdf si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Margen y columna PDF',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-07",
+      "family": "Buscar",
+      "title": "Índice textual progresivo",
+      "how": "Extraer por página/sección, normalizar, indexar y navegar",
+      "components": "getTextContent; texto EPUB; SearchIndex",
+      "limits": "PDF escaneado carece de texto",
+      "acceptance": "Buscar retorna ubicaciones reales y puede cancelarse",
+      "variation": "Buscador documental",
+      "sourceIds": [
+        "pdfjs-guia",
+        "pdfjs-ejemplos"
+      ],
+      "pattern": "Adapter 07: Extraer por página/sección, normalizar, indexar y navegar",
+      "pitfall": "No fingir índice textual progresivo si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Índice textual progresivo',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-08",
+      "family": "Anotar",
+      "title": "Selección y subrayado",
+      "how": "PDF rect/texto; EPUB CFI; guardar nota separada",
+      "components": "AnnotationStore, SelectionAdapter",
+      "limits": "Selección de PDF puede fragmentarse",
+      "acceptance": "Anotación se mantiene tras zoom/reflow",
+      "variation": "Comentarios y fichas",
+      "sourceIds": [
+        "video-01",
+        "epubjs-api"
+      ],
+      "pattern": "Adapter 08: PDF rect/texto; EPUB CFI; guardar nota separada",
+      "pitfall": "No fingir selección y subrayado si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Selección y subrayado',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-09",
+      "family": "Privacidad",
+      "title": "Backup local verificable",
+      "how": "Exportar/importar JSON versionado, validar IDs/anclas",
+      "components": "Blob, descarga, parser, schema",
+      "limits": "Iframe sandbox no garantiza localStorage",
+      "acceptance": "JSON export/import conserva notas sin POST",
+      "variation": "Archivo personal",
+      "sourceIds": [
+        "video-01",
+        "epubjs-api"
+      ],
+      "pattern": "Adapter 09: Exportar/importar JSON versionado, validar IDs/anclas",
+      "pitfall": "No fingir backup local verificable si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Backup local verificable',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-10",
+      "family": "Audio",
+      "title": "Voz y seguimiento",
+      "how": "Segmentos por oración, speechSynthesis, fallback sin boundary",
+      "components": "SpeechController, Web Speech API",
+      "limits": "Voces y eventos varían por navegador",
+      "acceptance": "Play/pause/stop y resaltado honesto por oración",
+      "variation": "Lectura caminando",
+      "sourceIds": [
+        "mdn-tts"
+      ],
+      "pattern": "Adapter 10: Segmentos por oración, speechSynthesis, fallback sin boundary",
+      "pitfall": "No fingir voz y seguimiento si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Voz y seguimiento',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-11",
+      "family": "Biblioteca",
+      "title": "Estantería editorial",
+      "how": "Metadatos, autor, obra, tags y progreso sin portadas falsas",
+      "components": "CatalogEntry, cover extractor",
+      "limits": "Rutas locales no sobreviven al iframe sin permiso",
+      "acceptance": "Filtrar por autor y abrir libro importado",
+      "variation": "Biblioteca visual",
+      "sourceIds": [
+        "calibre-manual",
+        "foliate"
+      ],
+      "pattern": "Adapter 11: Metadatos, autor, obra, tags y progreso sin portadas falsas",
+      "pitfall": "No fingir estantería editorial si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Estantería editorial',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-12",
+      "family": "Biblioteca",
+      "title": "Calibre opcional",
+      "how": "Adaptador OPDS/servidor sin acoplar lectura local",
+      "components": "CalibreAdapter separado",
+      "limits": "CORS, autenticación, red local",
+      "acceptance": "Sin Calibre el lector local sigue completo",
+      "variation": "Colecciones LAN",
+      "sourceIds": [
+        "calibre-manual",
+        "koreader"
+      ],
+      "pattern": "Adapter 12: Adaptador OPDS/servidor sin acoplar lectura local",
+      "pitfall": "No fingir calibre opcional si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Calibre opcional',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-13",
+      "family": "Estado",
+      "title": "Arquitectura React reusable",
+      "how": "Provider/reducer/selector de documento sin duplicar derivado",
+      "components": "DocumentStore, reducers",
+      "limits": "Context muy global produce rerenders",
+      "acceptance": "Actualizar nota refleja preview inmediatamente",
+      "variation": "Editor académico",
+      "sourceIds": [
+        "video-01"
+      ],
+      "pattern": "Adapter 13: Provider/reducer/selector de documento sin duplicar derivado",
+      "pitfall": "No fingir arquitectura react reusable si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Arquitectura React reusable',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-14",
+      "family": "Estado",
+      "title": "Validación amable",
+      "how": "onChange borrador, onBlur validación, mensajes visibles",
+      "components": "EditableField, validator",
+      "limits": "IME y campos numéricos vacíos",
+      "acceptance": "No perder texto inválido sin advertir",
+      "variation": "Formulario de referencia",
+      "sourceIds": [
+        "video-01"
+      ],
+      "pattern": "Adapter 14: onChange borrador, onBlur validación, mensajes visibles",
+      "pitfall": "No fingir validación amable si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Validación amable',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-15",
+      "family": "Exportar",
+      "title": "Compositor PDF multipágina",
+      "how": "Bloques medibles, wrap, salto, título/citas/referencias",
+      "components": "jsPDF, PageComposer",
+      "limits": "Fuentes, Unicode, saltos, márgenes",
+      "acceptance": "40 fichas no se cortan ni salen de página",
+      "variation": "Cuaderno académico",
+      "sourceIds": [
+        "video-01",
+        "jspdf-doc"
+      ],
+      "pattern": "Adapter 15: Bloques medibles, wrap, salto, título/citas/referencias",
+      "pitfall": "No fingir compositor pdf multipágina si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Compositor PDF multipágina',input); assert(state); return state; }"
+    },
+    {
+      "id": "cap-16",
+      "family": "Pruebas",
+      "title": "Aceptación integral",
+      "how": "Given/When/Then con fixtures locales y navegador móvil/escritorio",
+      "components": "Node tests, Playwright/Chromium",
+      "limits": "Test de sintaxis no verifica interfaz",
+      "acceptance": "390×844, 1440×900, teclado y sin red pasan",
+      "variation": "Suite de calidad",
+      "sourceIds": [
+        "video-01",
+        "epubjs-api"
+      ],
+      "pattern": "Adapter 16: Given/When/Then con fixtures locales y navegador móvil/escritorio",
+      "pitfall": "No fingir aceptación integral si la prueba de aceptación falla.",
+      "pseudo": "function capability(input) { validate(input); const state=apply('Aceptación integral',input); assert(state); return state; }"
+    }
+  ],
+  "references": [
+    {
+      "id": "koreader",
+      "title": "KOReader",
+      "url": "https://github.com/koreader/koreader",
+      "assessment": "Muy profundo para PDF y EPUB, gestos y OPDS; aplicación nativa, no dependencia para nuestro HTML.",
+      "reuse": "Reflow PDF y ergonomía repetible",
+      "licensing": "Auditar licencia si se reutiliza código, no copiar interfaz."
+    },
+    {
+      "id": "foliate",
+      "title": "Foliate",
+      "url": "https://github.com/johnfactotum/foliate",
+      "assessment": "Calidad tipográfica y notas; referente en escritorio GTK, no plantilla web.",
+      "reuse": "Diseño de página y controles discretos",
+      "licensing": "Tomar principios UX, no activos ni código ajeno."
+    },
+    {
+      "id": "calibre",
+      "title": "Calibre Content Server",
+      "url": "https://manual.calibre-ebook.com/es/server.html",
+      "assessment": "Biblioteca real con metadatos, portadas y visor móvil; servidor opcional posterior, cuidado con credenciales.",
+      "reuse": "Biblioteca, OPDS y búsqueda",
+      "licensing": "No copiar contenido bibliográfico de usuarios."
+    },
+    {
+      "id": "pdfjs",
+      "title": "PDF.js Viewer",
+      "url": "https://mozilla.github.io/pdf.js/web/viewer.html",
+      "assessment": "Base madura de navegación PDF y búsqueda; adaptar a interacción móvil sin reimplementar motor.",
+      "reuse": "Render y acceso al texto",
+      "licensing": "Verificar paquete y avisos legales al incorporar."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "dec-01",
+      "title": "Conservar",
+      "body": "Lector académico móvil (A), biblioteca visual Calibre opcional (B), voz/anotaciones (C); privacidad local y claridad editorial."
+    },
+    {
+      "id": "dec-02",
+      "title": "Agregar en paralelo",
+      "body": "Cuaderno académico exportable (D) nacido del tutorial jsPDF, sin sustituir visor PDF/EPUB."
+    },
+    {
+      "id": "dec-03",
+      "title": "Reemplazar",
+      "body": "Factura, cálculos de impuestos y PDF de coordenadas fijas se vuelven fichas, enlaces al origen y motor de paginación."
+    },
+    {
+      "id": "dec-04",
+      "title": "Descartar",
+      "body": "Archivos personales publicados, servidores obligatorios, falsa persistencia del iframe, OCR sin motor, DRM bypass, UI decorativa."
+    },
+    {
+      "id": "dec-05",
+      "title": "Condición técnica",
+      "body": "La galería usa iframe sandbox sin allow-same-origin. El atlas no depende de red, scripts externos ni localStorage; futuros widgets exportarán/importarán JSON."
+    },
+    {
+      "id": "dec-06",
+      "title": "Concurrencia preservada",
+      "body": "Otro atlas v1 apareció en gh-pages durante la preparación. Esta versión v2 añade la descomposición extensa y los archivos recuperables; v1 no se edita."
+    }
+  ],
+  "experiences": [
+    {
+      "id": "faro",
+      "title": "FARO · Lector académico",
+      "type": "Proyecto emblemático",
+      "concept": "Lector de PDF/EPUB local con experiencia móvil refinada y biblioteca editorial de sesión; búsqueda, anotaciones, posición y TTS progresivo.",
+      "interaction": "Abrir, navegar, seleccionar, marcar, escuchar, exportar anotaciones, restaurar JSON",
+      "design": "Papel cálido y noche grafito, tipografía editorial, controles discretos grandes, sin adornos geométricos",
+      "architecture": "FileAdapter, PdfEngine, EpubEngine, AnchorAdapter, SearchIndex, AnnotationStore, SpeechController, BackupPort",
+      "deps": "PDF.js, EPUB.js empaquetados localmente + Web Speech API nativa, cero API pagas",
+      "tests": "PDF de varias páginas + EPUB con 3 capítulos; móvil 390px; búsqueda, zoom/reflow, anotaciones roundtrip, TTS pause; ningún upload",
+      "growth": "Calibre OPDS opcional y colecciones."
+    },
+    {
+      "id": "mesa",
+      "title": "MESA · Laboratorio de paginación",
+      "type": "Laboratorio interactivo",
+      "concept": "Comparador de render reales para aprender por experimentación: mismos archivos en dos paneles con parámetros diferentes y resultados observables.",
+      "interaction": "Variar escala PDF, DPR, rotación, crop reversible y tipografía/flow EPUB; ver tiempos medidos, presets JSON",
+      "design": "Superficies A/B editoriales, regla de margen y medición discreta, nada de botones vacíos",
+      "architecture": "ComparisonViewport, RenderQueue, Engines, ProfileStore, MetricsTimer",
+      "deps": "PDF.js, EPUB.js, Performance API, cero servicios",
+      "tests": "Cambios producen diferencias visibles; CFI persistente; renders cancelables; métricas medidas o explícitamente estimadas",
+      "growth": "Comparador accesibilidad y PDFs complejos."
+    },
+    {
+      "id": "traza",
+      "title": "TRAZA · Cuaderno de citas",
+      "type": "Variación radical del tutorial",
+      "concept": "Transformar el CRUD de facturas y jsPDF en editor de fichas/citas con atribución, notas propias, reordenamiento y PDF multipágina real.",
+      "interaction": "Añadir cita desde lector o manualmente, editar, reordenar, exportar PDF y JSON, previsualizar usando PDF.js",
+      "design": "Fichas sobrias y composición tipográfica A4, no tablas comerciales",
+      "architecture": "CitationModel, FormStore, LayoutEngine, jsPDF adapter, PdfPreview, JSONBackup",
+      "deps": "jsPDF y PDF.js en versión empaquetada sin cuenta externa",
+      "tests": "40 fichas sin cortes ni Unicode roto; respaldo JSON; teclado/móvil; URL blob revocada",
+      "growth": "Bibliografías comprobables y plantillas."
+    }
+  ],
+  "knownGaps": [
+    "URL, autor, duración, fecha y versión del video no disponibles",
+    "Código completo del tutorial no adjunto",
+    "No se accedió a PDFs/EPUB personales ni se publicarán",
+    "Ninguno de los tres widgets finales construido todavía"
+  ],
+  "licenseNote": "Análisis original con enlaces, no transcripción copiada",
+  "continuity": {
+    "root": "laboratorios-js/widgets/lectura/atlas-tecnico/v2/",
+    "plan": "PLAN_EJECUTABLE.md",
+    "structured": "conocimiento.json",
+    "whenDot": "Ejecutar fase 2 con tres widgets completos, pruebas reales y publicación solo verificada"
+  }
+}
