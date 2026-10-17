@@ -298,6 +298,9 @@ body{min-height:100svh;padding:clamp(8px,2vw,24px)}
 .sync-desc{margin:0;color:#aaa;font-size:11px;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.lyric-row{transition:none}}
 
+.sync-settings[hidden]{display:none!important}
+.widget[data-view="none"] .screen .lyrics-view{display:none!important}
+.widget[data-view="video"] .screen .lyrics-view{display:none!important}
 </style>
 </head>
 <body>
@@ -399,16 +402,16 @@ function currentVideoId(){
  return data&&/^[a-zA-Z0-9_-]{11}$/.test(data.video_id||'')?data.video_id:state.seed.id;
 }
 function showArtwork(){
- thumb(currentVideoId());
+ thumb(state.mode==='seed'&&!state.playing?state.seed.id:currentVideoId());
  $('widget').classList.add('artwork-view');
  $('cover').classList.remove('hidden');
  $('start').setAttribute('aria-label','Reanudar reproducción');
 }
 function showVideo(){
- // Mantener la carátula, sin mostrar las superposiciones nativas de YouTube.
+ // En Letras/Nada queda el reproductor detrás; Video permite verlo desde el mismo widget.
  $('widget').classList.add('artwork-view');
  $('cover').classList.remove('hidden');
- thumb(currentVideoId());
+ thumb(state.mode==='seed'&&!state.playing?state.seed.id:currentVideoId());
 }
 function setTitle(song){$('title').textContent=song.title;$('artist').textContent=song.artist}
 function updateButtons(){
@@ -440,7 +443,7 @@ const lyricsState={
 const lyricsCache=new Map();
 const offsetKey=id=>'frecuencia.lyrics.offset.'+id;
 function lyricOffsetFor(id){
- try{const v=Number(localStorage.getItem(offsetKey(id)));return Number.isFinite(v)&&v>=-20&&v<=30?v:1.5}
+ try{const stored=localStorage.getItem(offsetKey(id));if(stored===null)return 1.5;const v=Number(stored);return Number.isFinite(v)&&v>=-20&&v<=30?v:1.5}
  catch{return 1.5}
 }
 function setOffset(value,store=true){
@@ -475,6 +478,7 @@ function clearLyrics(){
  lyricsState.request++;
  if(lyricsState.controller){lyricsState.controller.abort();lyricsState.controller=null}
  lyricsState.lines=[];lyricsState.type='';lyricsState.index=-2;lyricsState.video='';lyricsState.rows=[];
+ lyricsState.stableCandidate='';lyricsState.candidateSeen=0;
  lyricsState.manualUntil=0;
  $('lyricLines').replaceChildren();
  $('lyricsView').classList.remove('plain');
