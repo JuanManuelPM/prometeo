@@ -301,6 +301,8 @@ body{min-height:100svh;padding:clamp(8px,2vw,24px)}
 .sync-settings[hidden]{display:none!important}
 .widget[data-view="none"] .screen .lyrics-view{display:none!important}
 .widget[data-view="video"] .screen .lyrics-view{display:none!important}
+.widget[data-layout="compact"] .lyrics-view.plain .lyric-lines{display:none!important}
+.widget[data-layout="compact"] .lyrics-view.plain .plain-lines{display:block}
 </style>
 </head>
 <body>
@@ -438,7 +440,7 @@ function syncCurrent(){
 const lyricsState={
  view:'lyrics',request:0,video:'',lines:[],type:'',index:-2,controller:null,
  rows:[],offset:1.5,manualUntil:0,stableCandidate:'',candidateSeen:0,expected:'',
- lastTrackChange:0
+ lastTrackChange:0,awaitingMetadata:false
 };
 const lyricsCache=new Map();
 const offsetKey=id=>'frecuencia.lyrics.offset.'+id;
@@ -479,7 +481,7 @@ function clearLyrics(){
  if(lyricsState.controller){lyricsState.controller.abort();lyricsState.controller=null}
  lyricsState.lines=[];lyricsState.type='';lyricsState.index=-2;lyricsState.video='';lyricsState.rows=[];
  lyricsState.stableCandidate='';lyricsState.candidateSeen=0;
- lyricsState.manualUntil=0;
+ lyricsState.manualUntil=0;lyricsState.awaitingMetadata=false;
  $('lyricLines').replaceChildren();
  $('lyricsView').classList.remove('plain');
  $('plainLyrics').textContent='';
@@ -607,13 +609,23 @@ function startLyricsFor(video,meta){
  lyricsState.offset=lyricOffsetFor(video);
  $('syncOffset').value=String(lyricsState.offset);
  $('syncValue').textContent=(lyricsState.offset>0?'+':'')+lyricsState.offset.toFixed(1).replace('.',',')+' s';
- searchLyrics(meta,video);
+ if(meta.title==='Canción agregada'||meta.artist==='YouTube')lyricsState.awaitingMetadata=true;
+ else searchLyrics(meta,video);
 }
 function syncLyricsTrack(){
  if(!state.ready||!state.started||!state.player)return;
  const data=safe(()=>state.player.getVideoData(),null),id=data&&data.video_id;
  if(!id||!/^[\w-]{11}$/.test(id))return;
- if(id===lyricsState.video){lyricsState.stableCandidate='';lyricsState.candidateSeen=0;return}
+ if(id===lyricsState.video){
+  lyricsState.stableCandidate='';lyricsState.candidateSeen=0;
+  if(lyricsState.awaitingMetadata){
+   const realMeta=songMetadata(data);
+   if(realMeta.title && realMeta.artist && realMeta.title!=='Canción agregada' && realMeta.artist!=='YouTube'){
+    lyricsState.awaitingMetadata=false;searchLyrics(realMeta,id);
+   }
+  }
+  return;
+ }
  // Un getVideoData momentáneamente viejo no debe sobreescribir la canción recién elegida.
  const since=Date.now()-lyricsState.lastTrackChange;
  if(since<1600&&id!==state.seed.id&&state.mode==='seed')return;
