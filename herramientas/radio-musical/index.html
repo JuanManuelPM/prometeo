@@ -59,7 +59,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #fff;
 .settings .caption{font-size:11px;color:#b2b2b3}
 .seeds{display:grid;gap:7px}
 .seed{display:flex;align-items:center;gap:10px;text-align:left;width:100%;border:1px solid transparent;padding:7px;background:transparent;border-radius:9px}
-.seed:hover{background:#313133}.seed[aria-pressed="true"]{border-color:#67676a;background:#363638}
+.seed:hover{background:#313133}.seed.selected,.seed[aria-pressed="true"]{border-color:#67676a;background:#363638}
 .seed img{width:58px;height:58px;flex:none;object-fit:cover;border-radius:6px;background:#333}
 .seed .meta strong{display:block;font-size:13px;font-weight:600;line-height:1.25}
 .seed .meta span{display:block;margin-top:3px;font-size:11px;color:#c4c4c4;line-height:1.2}
@@ -141,7 +141,7 @@ function status(t){$('status').textContent=t}
 function thumb(){ $('coverImg').src='https://i.ytimg.com/vi/'+state.seed.id+'/hqdefault.jpg'}
 function setTitle(song){$('title').textContent=song.title;$('artist').textContent=song.artist}
 function updateButtons(){
- for(const id of ['prev','pause','next'])$(id).disabled=!state.ready||!state.started;
+ for(const id of ['prev','pause','next'])$(id).disabled=false;
  $('pause').setAttribute('aria-label',state.playing?'Pausar':'Reproducir');$('pause').title=state.playing?'Pausar':'Reproducir';
  $('playIcon').innerHTML=state.playing?'<path d="M8 6h6v20H8zm10 0h6v20h-6z"/>':'<path d="M10 6 26 16 10 26z"/>';
 }
@@ -194,13 +194,14 @@ function start(){
  selectSong(state.seed);
 }
 function playOrPause(){
- const p=state.player;if(!p||!state.ready)return;
+ const p=state.player;if(!p||!state.ready){state.started=true;status('Cargando YouTube…');return}
  if(!state.started){start();return}
  const playing=safe(()=>p.getPlayerState()===1,false);
  if(playing)p.pauseVideo();else{p.unMute();p.setVolume(state.volume);p.playVideo()}
 }
 function advance(direction){
- if(!state.ready||!state.player||!state.started)return;
+ if(!state.ready||!state.player){if(!state.started){selectSong(SONGS[(SONGS.indexOf(state.seed)+direction+SONGS.length)%SONGS.length])}return}
+ if(!state.started){selectSong(SONGS[(SONGS.indexOf(state.seed)+direction+SONGS.length)%SONGS.length]);return}
  if(state.mode==='checking'){status('Esperá a que se cargue la radio…');return}
  const p=state.player;
  if(state.mode==='mix'||state.mode==='examples'){
