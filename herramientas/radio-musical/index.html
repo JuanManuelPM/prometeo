@@ -19,7 +19,11 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #fff;
 .pill:hover:before,.pill[aria-expanded="true"]:before{width:78px}
 .screen{border-radius:21px;overflow:hidden;position:relative;width:100%;aspect-ratio:1;background:#080808;isolation:isolate}
 .frame{position:absolute;inset:0;background:#000;overflow:hidden}
-.widget.artwork-view .frame{visibility:hidden}
+.widget.artwork-view .frame{visibility:visible}
+/* La carátula se mantiene estable durante toda la reproducción. */
+.screen .cover,.screen .cover.hidden{display:block}
+.screen .screenTap{display:none}
+.screen .frame{pointer-events:none}
 .widget.artwork-view .screenTap{display:none}
 .widget.artwork-view .cover{display:block}
 .video-wide{position:absolute;top:0;left:-38.889%;width:177.778%;height:100%}
@@ -154,8 +158,10 @@ function showArtwork(){
  $('start').setAttribute('aria-label','Reanudar reproducción');
 }
 function showVideo(){
- $('widget').classList.remove('artwork-view');
- $('cover').classList.add('hidden');
+ // Mantener la carátula, sin mostrar las superposiciones nativas de YouTube.
+ $('widget').classList.add('artwork-view');
+ $('cover').classList.remove('hidden');
+ thumb(currentVideoId());
 }
 function setTitle(song){$('title').textContent=song.title;$('artist').textContent=song.artist}
 function updateButtons(){
@@ -170,6 +176,7 @@ function syncCurrent(){
  const known=byId.get(data.video_id);
  $('title').textContent=known?known.title:(data.title||'Tema de YouTube');
  $('artist').textContent=known?known.artist:(data.author||'Reproducción de YouTube');
+ thumb(data.video_id);
 }
 function fallback(request){
  if(request!==state.request||!state.ready||!state.player)return;
@@ -196,7 +203,7 @@ function selectSong(song){
  state.mode='checking';state.started=true;state.playing=false;
  clearTimeout(mixTimer);clearTimeout(startTimer);
  $('error').classList.remove('show');$('cover').classList.remove('hidden');
- $('widget').classList.remove('artwork-view');
+ $('widget').classList.add('artwork-view');
  $('eyebrow').textContent='BUSCANDO RADIO';
  setTitle(song);thumb();renderSeeds();updateRadioLink();status('Probando la radio Mix de YouTube…');updateButtons();
  if(!state.ready||!state.player){
@@ -219,7 +226,7 @@ function playOrPause(){
  const playing=safe(()=>p.getPlayerState()===1,false);
  if(playing){p.pauseVideo();state.playing=false;showArtwork();updateButtons()}
  else{
-  $('widget').classList.remove('artwork-view');
+  showArtwork();
   p.unMute();p.setVolume(state.volume);p.playVideo();
  }
 }
