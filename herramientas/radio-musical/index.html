@@ -254,6 +254,50 @@ body{min-height:100svh;padding:clamp(8px,2vw,24px)}
  max-height:6em;overflow:hidden;
 }
 
+
+/* Vistas independientes. El reproductor de YouTube permanece montado. */
+.widget .screen{container-type:size}
+.widget[data-view="video"] .screen .cover,
+.widget[data-view="video"] .screen .cover.hidden,
+.widget[data-view="none"] .screen .cover,
+.widget[data-view="none"] .screen .cover.hidden{display:none!important}
+.widget[data-view="video"] .lyrics-view,
+.widget[data-view="none"] .lyrics-view{display:none!important}
+.widget[data-view="none"] .frame{visibility:hidden!important}
+.widget[data-view="none"] .screen{background:#0b0b0c}
+.widget[data-view="video"] .screenTap{display:block;z-index:6;pointer-events:auto}
+.widget[data-view="lyrics"] .lyrics-view{display:none}
+.widget[data-view="lyrics"].lyrics-visible .lyrics-view{display:block}
+.lyrics-view{padding:0!important;background:#101012;overflow:hidden}
+.lyrics-view:before,.lyrics-view:after{content:"";position:absolute;left:0;right:0;height:12%;z-index:2;pointer-events:none}
+.lyrics-view:before{top:0;background:linear-gradient(#101012e8,transparent)}
+.lyrics-view:after{bottom:0;background:linear-gradient(transparent,#101012e8)}
+.lyric-lines{display:block;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#45454a transparent;
+ width:100%;height:100%;padding:0 12%;scroll-behavior:auto}
+.lyric-row{display:block;text-align:left;color:#8e8e94;background:none;border:0;width:100%;padding:10px 0;
+ font-size:clamp(12px,5.1cqw,20px);line-height:1.35;font-weight:550;letter-spacing:-.01em;
+ overflow-wrap:anywhere;transition:color .15s ease}
+.lyric-row.active{font-weight:750;color:#fafafa;font-size:clamp(14px,5.65cqw,23px);line-height:1.27}
+.lyric-row:hover{color:#e0e0e3}
+.plain-lines{padding:14% 11%;font-size:clamp(13px,4.5cqw,20px);line-height:1.6;scrollbar-width:thin;white-space:pre-line}
+.lyrics-view.plain .plain-lines{display:block}
+.lyrics-view.plain .lyric-lines{display:none}
+.widget[data-layout="compact"] .lyric-lines{display:flex;align-items:center;justify-content:center;overflow:hidden;padding:4px 10%}
+.widget[data-layout="compact"] .lyric-row{display:none}
+.widget[data-layout="compact"] .lyric-row.active{display:block;text-align:center;padding:0;font-size:clamp(11px,11cqw,15px);line-height:1.25}
+.widget[data-layout="compact"] .plain-lines{padding:6px;font-size:clamp(10px,9cqw,13px)}
+.mode-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mode-options button{min-height:42px;background:#2a2a2e;border:1px solid #54545a;border-radius:6px;font-size:12px;color:#eee}
+.mode-options button[aria-pressed=true]{background:#f1f0ec;color:#101013;border-color:#fff;font-weight:700}
+.sync-settings{display:grid;gap:8px}
+.sync-settings .sync-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#c8c8cc}
+.sync-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px}
+.sync-actions button{padding:9px 5px;border:1px solid #5c5c60;background:#29292d;color:#f3f3f3;border-radius:6px;font-size:12px}
+.sync-actions button:disabled{opacity:.5}
+.sync-settings input[type=range]{width:100%;accent-color:#f0f0f0}
+.sync-desc{margin:0;color:#aaa;font-size:11px;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.lyric-row{transition:none}}
+
 </style>
 </head>
 <body>
@@ -265,7 +309,7 @@ body{min-height:100svh;padding:clamp(8px,2vw,24px)}
   <div class="cover" id="cover"><img id="coverImg" src="https://i.ytimg.com/vi/5NV6Rdv1a3I/hqdefault.jpg" alt=""><button id="start" type="button" aria-label="Reproducir video">Reproducir</button></div>
 
   <div id="lyricsView" class="lyrics-view" aria-hidden="true" aria-label="Letra de la canción">
-    <div class="lyrics-stack" id="lyricsStack"><p class="lyrics-prev" id="lyricsPrev"></p><p class="lyrics-current" id="lyricsNow"></p><p class="lyrics-next" id="lyricsNext"></p></div>
+    <div class="lyric-lines" id="lyricLines" tabindex="0" aria-label="Letras sincronizadas: tocá una línea para avanzar"></div>
     <div id="plainLyrics" class="plain-lines" tabindex="0" aria-label="Letra sin sincronización"></div>
   </div>
 
@@ -299,7 +343,20 @@ body{min-height:100svh;padding:clamp(8px,2vw,24px)}
   <p class="size-caption">También podés arrastrar la esquina inferior derecha para darle cualquier tamaño.</p>
   <div class="seeds" id="seeds"></div>
   <form id="addForm"><fieldset><legend>O pegá una canción de YouTube</legend><div class="link-form"><input id="url" type="url" inputmode="url" placeholder="https://youtu.be/…" aria-label="Enlace de canción"><button type="submit">Abrir</button></div></fieldset></form>
-  <button id="lyricsToggle" class="view-toggle" type="button" aria-pressed="true">Letras activadas · mostrar portada</button>
+  <fieldset aria-label="Visualización"><legend>Vista</legend><div class="mode-options" id="viewModes">
+    <button type="button" data-view-mode="lyrics" aria-pressed="true">Letras</button>
+    <button type="button" data-view-mode="video" aria-pressed="false">Video</button>
+    <button type="button" data-view-mode="none" aria-pressed="false">Nada</button>
+  </div></fieldset>
+  <div class="sync-settings" id="syncSettings">
+    <div class="sync-head"><span>Sincronización de letras</span><output id="syncValue" for="syncOffset">+1,5 s</output></div>
+    <input id="syncOffset" type="range" min="-20" max="30" step="0.5" value="1.5" aria-label="Desfase de letras en segundos">
+    <div class="sync-actions">
+      <button type="button" id="syncEarlier">Antes −1 s</button>
+      <button type="button" id="syncLater">Después +1 s</button>
+    </div>
+    <p class="sync-desc">Si la letra aparece antes de que se cante, tocá «Después». Se guarda para cada video.</p>
+  </div>
   <p id="status" class="info-line" role="status" aria-live="polite">Elegí una canción para iniciar la radio.</p>
   <a id="original" class="radio-link" target="_blank" rel="noopener noreferrer" href="https://www.youtube.com/watch?v=5NV6Rdv1a3I&list=RD5NV6Rdv1a3I&start_radio=1">Escuchar la radio en YouTube ↗</a>
   <p id="moreInfo" class="settings-foot">El reproductor prueba una lista Mix. Si YouTube la bloquea, continúa con los ejemplos.</p>
@@ -363,6 +420,8 @@ function syncCurrent(){
  if(!state.player||!state.ready)return;
  const data=safe(()=>state.player.getVideoData(),null);
  if(!data||!data.video_id)return;
+ // Los metadatos antiguos se descartan durante los cambios de tema.
+ if(state.mode==='seed'&&data.video_id!==state.seed.id&&Date.now()-lyricsState.lastTrackChange<2200)return;
  const known=byId.get(data.video_id);
  $('title').textContent=known?known.title:(data.title||'Tema de YouTube');
  $('artist').textContent=known?known.artist:(data.author||'Reproducción de YouTube');
@@ -371,47 +430,98 @@ function syncCurrent(){
 }
 
 // YouTube no proporciona letras por la IFrame API. La fuente independiente es LRCLIB.
-const lyricsState={enabled:true,request:0,video:'',lines:[],plain:'',type:'',index:-2,controller:null};
+
+/* Letras desde LRCLIB; los tiempos del videoclip pueden variar respecto del disco. */
+const lyricsState={
+ view:'lyrics',request:0,video:'',lines:[],type:'',index:-2,controller:null,
+ rows:[],offset:1.5,manualUntil:0,stableCandidate:'',candidateSeen:0,expected:'',
+ lastTrackChange:0
+};
 const lyricsCache=new Map();
-function lyricsVisible(visible){
- $('widget').classList.toggle('lyrics-visible',!!visible && lyricsState.enabled);
- $('lyricsView').setAttribute('aria-hidden',String(!visible||!lyricsState.enabled));
+const offsetKey=id=>'frecuencia.lyrics.offset.'+id;
+function lyricOffsetFor(id){
+ try{const v=Number(localStorage.getItem(offsetKey(id)));return Number.isFinite(v)&&v>=-20&&v<=30?v:1.5}
+ catch{return 1.5}
+}
+function setOffset(value,store=true){
+ const offset=Math.max(-20,Math.min(30,Math.round(Number(value)*2)/2));
+ lyricsState.offset=Number.isFinite(offset)?offset:1.5;
+ $('syncOffset').value=String(lyricsState.offset);
+ $('syncValue').textContent=(lyricsState.offset>0?'+':'')+lyricsState.offset.toFixed(1).replace('.',',')+' s';
+ if(store&&lyricsState.video){try{localStorage.setItem(offsetKey(lyricsState.video),String(lyricsState.offset))}catch{}}
+ lyricsState.index=-2;
+ const sec=safe(()=>state.player.getCurrentTime(),0)||0;
+ paintLyrics(sec,true);
+}
+function applyView(){
+ const mode=lyricsState.view;
+ $('widget').dataset.view=mode;
+ $('lyricsView').setAttribute('aria-hidden',String(mode!=='lyrics'||!lyricsState.type));
+ $('syncSettings').hidden=mode!=='lyrics';
+ for(const b of $('viewModes').querySelectorAll('[data-view-mode]'))b.setAttribute('aria-pressed',String(b.dataset.viewMode===mode));
+}
+function setView(mode){
+ if(!['lyrics','video','none'].includes(mode))return;
+ lyricsState.view=mode;
+ try{localStorage.setItem('frecuencia.lyrics.view.v2',mode)}catch{}
+ applyView();
+ if(mode==='lyrics'){syncLyricsTrack();const sec=safe(()=>state.player.getCurrentTime(),0)||0;paintLyrics(sec,true)}
+}
+function lyricsVisible(yes){
+ $('widget').classList.toggle('lyrics-visible',!!yes);
+ $('lyricsView').setAttribute('aria-hidden',String(!yes||lyricsState.view!=='lyrics'));
 }
 function clearLyrics(){
  lyricsState.request++;
  if(lyricsState.controller){lyricsState.controller.abort();lyricsState.controller=null}
- lyricsState.lines=[];lyricsState.plain='';lyricsState.type='';lyricsState.index=-2;lyricsState.video='';
+ lyricsState.lines=[];lyricsState.type='';lyricsState.index=-2;lyricsState.video='';lyricsState.rows=[];
+ lyricsState.manualUntil=0;
+ $('lyricLines').replaceChildren();
  $('lyricsView').classList.remove('plain');
- $('lyricsPrev').textContent='';$('lyricsNow').textContent='';$('lyricsNext').textContent='';
  $('plainLyrics').textContent='';
  lyricsVisible(false);
 }
 function cleanName(t){
- return (t||'').replace(/\([^)]*(official|audio|video|lyrics|lyric|visualizer|hd|4k|feat\.?|ft\.?)[^)]*\)/ig,'')
+ return String(t||'').replace(/\([^)]*(official|audio|video|lyrics|lyric|visualizer|hd|4k|feat\.?|ft\.?)[^)]*\)/ig,'')
   .replace(/\[[^\]]*(official|audio|video|lyrics|lyric|visualizer|hd|4k|feat\.?|ft\.?)[^\]]*\]/ig,'')
   .replace(/\s+(official (music )?video|official audio|lyrics video|lyric video|visualizer|audio only)\b.*$/i,'')
   .replace(/\s+/g,' ').trim();
 }
 function songMetadata(info){
- const videoTitle=(info&&info.title||'').trim();
- const known=byId.get(info&&info.video_id);
+ const known=byId.get(info?.video_id);
  if(known)return {title:known.title,artist:known.artist.split(' · ')[0].trim()};
- const parts=videoTitle.split(/\s+[-–—]\s+/);
+ const parts=String(info?.title||'').split(/\s+[-–—]\s+/);
  if(parts.length>=2)return {artist:cleanName(parts[0]),title:cleanName(parts.slice(1).join(' - '))};
- const a=(info&&info.author||'').replace(/(?:VEVO| - Topic|Topic|Official)$/i,'').trim();
- return {title:cleanName(videoTitle),artist:a};
+ const a=String(info?.author||'').replace(/(?:VEVO| - Topic|Topic|Official)$/i,'').trim();
+ return {title:cleanName(info?.title),artist:a};
 }
 function parseLRC(raw){
  const out=[];
  for(const row of String(raw||'').split(/\r?\n/)){
-  const re=/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;let match,last=0;
-  const stamps=[];
-  while((match=re.exec(row))){stamps.push(Number(match[1])*60+Number(match[2])+Number(('0.'+(match[3]||'0'))));last=re.lastIndex}
+  const re=/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+  let m,last=0;const stamps=[];
+  while((m=re.exec(row))){stamps.push(Number(m[1])*60+Number(m[2])+Number('0.'+(m[3]||'0')));last=re.lastIndex}
   const lyric=row.slice(last).trim();
   if(!lyric||!stamps.length)continue;
-  for(const seconds of stamps)if(Number.isFinite(seconds))out.push({time:seconds,text:lyric});
+  for(const time of stamps)if(Number.isFinite(time))out.push({time,text:lyric});
  }
- return out.sort((a,b)=>a.time-b.time);
+ return out.sort((a,b)=>a.time-b.time).slice(0,500);
+}
+function renderLyricRows(){
+ const list=$('lyricLines'),frag=document.createDocumentFragment();
+ const lines=lyricsState.lines;
+ const rows=[];
+ for(let i=0;i<lines.length;i++){
+  const b=document.createElement('button');
+  b.type='button';b.className='lyric-row';
+  b.textContent=lines[i].text;
+  b.dataset.index=String(i);
+  b.setAttribute('aria-label','Ir a '+lines[i].text.slice(0,100));
+  frag.append(b);rows.push(b);
+ }
+ list.replaceChildren(frag);
+ lyricsState.rows=rows;
+ list.scrollTop=0;
 }
 function useLyrics(record,request,video){
  if(request!==lyricsState.request || lyricsState.video!==video)return;
@@ -420,91 +530,111 @@ function useLyrics(record,request,video){
  if(synced.length){
   lyricsState.type='sync';lyricsState.lines=synced;lyricsState.index=-2;
   $('lyricsView').classList.remove('plain');
-  lyricsVisible(true);
-  paintLyrics(0);
+  renderLyricRows();lyricsVisible(true);
+  paintLyrics(safe(()=>state.player.getCurrentTime(),0)||0,true);
   return;
  }
- const plain=(record.plainLyrics||'').trim();
+ const plain=String(record.plainLyrics||'').trim();
  if(plain){
-  lyricsState.type='plain';lyricsState.plain=plain;
-  $('lyricsView').classList.add('plain');
-  $('plainLyrics').textContent=plain;
-  $('plainLyrics').scrollTop=0;
-  lyricsVisible(true);
-  return;
+  lyricsState.type='plain';$('lyricsView').classList.add('plain');
+  $('plainLyrics').textContent=plain;$('plainLyrics').scrollTop=0;
+  lyricsVisible(true);return;
  }
  lyricsVisible(false);
 }
-function paintLyrics(time){
+function paintLyrics(seconds,force=false){
  if(lyricsState.type!=='sync'||!lyricsState.lines.length)return;
  const lines=lyricsState.lines;
+ const t=Number(seconds)-lyricsState.offset;
  let low=0,high=lines.length-1,i=-1;
- while(low<=high){
-  const m=(low+high)>>1;
-  if(lines[m].time<=time){i=m;low=m+1}else high=m-1;
+ while(low<=high){const m=(low+high)>>1;if(lines[m].time<=t){i=m;low=m+1}else high=m-1}
+ if(i===lyricsState.index&&!force)return;
+ const old=lyricsState.index;lyricsState.index=i;
+ if(old>=0&&lyricsState.rows[old]){lyricsState.rows[old].classList.remove('active');lyricsState.rows[old].removeAttribute('aria-current')}
+ if(i>=0&&lyricsState.rows[i]){
+  lyricsState.rows[i].classList.add('active');lyricsState.rows[i].setAttribute('aria-current','true');
  }
- if(i===lyricsState.index)return;
- lyricsState.index=i;
- $('lyricsPrev').textContent=i>0?lines[i-1].text:'';
- $('lyricsNow').textContent=i>=0?lines[i].text:'♪';
- $('lyricsNext').textContent=lines[i+1]?lines[i+1].text:'';
+ if(lyricsState.view!=='lyrics'||Date.now()<lyricsState.manualUntil)return;
+ const list=$('lyricLines'),row=lyricsState.rows[Math.max(i,0)];
+ if(row){
+  const top=row.offsetTop - list.offsetTop + row.offsetHeight/2-list.clientHeight/2;
+  list.scrollTop=Math.max(0,top);
+ }
 }
 async function searchLyrics(meta,video){
  const request=++lyricsState.request;
  if(lyricsState.controller)lyricsState.controller.abort();
- lyricsState.controller=new AbortController();
- const signal=lyricsState.controller.signal;
+ const ctl=lyricsState.controller=new AbortController(), signal=ctl.signal;
  const title=cleanName(meta.title),artist=cleanName(meta.artist);
  if(!title||!artist||title.length>110||artist.length>90){lyricsVisible(false);return}
  const cacheKey=artist.toLowerCase()+'|'+title.toLowerCase();
  if(lyricsCache.has(cacheKey)){useLyrics(lyricsCache.get(cacheKey),request,video);return}
  try{
-  const q=new URLSearchParams({track_name:title,artist_name:artist});
-  const res=await fetch('https://lrclib.net/api/get?'+q,{
-   method:'GET',headers:{'Lrclib-Client':'Frecuencia/1.1 (https://juanmanuelpm.github.io/prometeo/herramientas/radio-musical/)'},
-   signal
-  });
+  const headers={'Lrclib-Client':'Frecuencia/2.0 (https://juanmanuelpm.github.io/prometeo/herramientas/radio-musical/)'};
   let record=null;
-  if(res.ok)record=await res.json();
-  if(res.status===429)throw Error('LRCLIB_LIMIT');
-  if(!res.ok&&res.status!==404)throw Error('HTTP '+res.status);
+  const q=new URLSearchParams({track_name:title,artist_name:artist});
+  const r=await fetch('https://lrclib.net/api/get?'+q,{signal,headers});
+  if(r.ok)record=await r.json();
+  if(!r.ok&&r.status!==404)throw Error('HTTP '+r.status);
   if(signal.aborted||request!==lyricsState.request)return;
   if(!record){
-   // Busca variantes solo si la coincidencia exacta no existe.
-   await new Promise((resolve,reject)=>{const t=setTimeout(resolve,300);signal.addEventListener('abort',()=>{clearTimeout(t);reject(Error('abort'))},{once:true})});
-   const search=new URLSearchParams({track_name:title,artist_name:artist});
-   const sr=await fetch('https://lrclib.net/api/search?'+search,{signal,headers:{'Lrclib-Client':'Frecuencia/1.1 (https://juanmanuelpm.github.io/prometeo/herramientas/radio-musical/)'}});
-   if(sr.ok){
-    const records=await sr.json();
-    const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-    const titleNorm=norm(title),artistNorm=norm(artist);
-    if(Array.isArray(records))record=records.find(v=>norm(v.trackName)===titleNorm&&norm(v.artistName).includes(artistNorm));
-   }
+   const rr=await fetch('https://lrclib.net/api/search?'+q,{signal,headers});
+   if(!rr.ok)throw Error('HTTP '+rr.status);
+   const records=await rr.json();
+   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+   const t=norm(title),a=norm(artist);
+   if(Array.isArray(records))record=records.find(v=>norm(v.trackName)===t&&(norm(v.artistName)===a||norm(v.artistName).includes(a)));
   }
   if(signal.aborted||request!==lyricsState.request)return;
   lyricsCache.set(cacheKey,record||null);
   useLyrics(record,request,video);
  }catch(e){
-  if(e.name==='AbortError'||signal.aborted)return;
-  // Sin datos confiables, queda la portada. Nada de letra inventada.
-  if(request===lyricsState.request)lyricsVisible(false);
+  if(signal.aborted||e.name==='AbortError')return;
+  if(request===lyricsState.request){lyricsVisible(false);status('No se pudieron cargar letras para este tema. El audio sigue disponible.')}
  }
 }
-function syncLyricsTrack(){
- if(!state.ready||!state.started||!state.player||!lyricsState.enabled)return;
- const info=safe(()=>state.player.getVideoData(),null);
- const id=info&&info.video_id;
- if(!id||!/^[a-zA-Z0-9_-]{11}$/.test(id)||lyricsState.video===id)return;
+function startLyricsFor(video,meta){
+ if(!/^[\w-]{11}$/.test(video))return;
+ if(lyricsState.video===video)return;
  clearLyrics();
- lyricsState.video=id;
- searchLyrics(songMetadata(info),id);
+ lyricsState.video=video;
+ lyricsState.expected=video;
+ lyricsState.lastTrackChange=Date.now();
+ lyricsState.offset=lyricOffsetFor(video);
+ $('syncOffset').value=String(lyricsState.offset);
+ $('syncValue').textContent=(lyricsState.offset>0?'+':'')+lyricsState.offset.toFixed(1).replace('.',',')+' s';
+ searchLyrics(meta,video);
 }
-$('lyricsToggle').addEventListener('click',()=>{
- lyricsState.enabled=!lyricsState.enabled;
- $('lyricsToggle').setAttribute('aria-pressed',String(lyricsState.enabled));
- $('lyricsToggle').textContent=lyricsState.enabled?'Letras activadas · mostrar portada':'Mostrar letras cuando estén disponibles';
- if(!lyricsState.enabled){clearLyrics()}else{clearLyrics();syncLyricsTrack()}
+function syncLyricsTrack(){
+ if(!state.ready||!state.started||!state.player)return;
+ const data=safe(()=>state.player.getVideoData(),null),id=data&&data.video_id;
+ if(!id||!/^[\w-]{11}$/.test(id))return;
+ if(id===lyricsState.video){lyricsState.stableCandidate='';lyricsState.candidateSeen=0;return}
+ // Un getVideoData momentáneamente viejo no debe sobreescribir la canción recién elegida.
+ const since=Date.now()-lyricsState.lastTrackChange;
+ if(since<1600&&id!==state.seed.id&&state.mode==='seed')return;
+ if(lyricsState.stableCandidate!==id){lyricsState.stableCandidate=id;lyricsState.candidateSeen=1;return}
+ lyricsState.candidateSeen++;
+ if(lyricsState.candidateSeen<3)return;
+ lyricsState.stableCandidate='';lyricsState.candidateSeen=0;
+ startLyricsFor(id,songMetadata(data));
+}
+$('lyricLines').addEventListener('click',e=>{
+ const row=e.target.closest('button[data-index]');
+ if(!row||!state.ready||!state.player)return;
+ const i=Number(row.dataset.index),line=lyricsState.lines[i];
+ if(!line)return;
+ state.player.seekTo(Math.max(0,line.time+lyricsState.offset),true);
+ lyricsState.manualUntil=0;paintLyrics(line.time+lyricsState.offset,true);
 });
+$('lyricLines').addEventListener('wheel',e=>{if(e.isTrusted)lyricsState.manualUntil=Date.now()+3500},{passive:true});
+$('lyricLines').addEventListener('touchstart',()=>lyricsState.manualUntil=Date.now()+3500,{passive:true});
+$('viewModes').addEventListener('click',e=>{const b=e.target.closest('button[data-view-mode]');if(b){setView(b.dataset.viewMode);showSettings(false)}});
+$('syncOffset').addEventListener('input',e=>setOffset(Number(e.target.value)));
+$('syncEarlier').addEventListener('click',()=>setOffset(lyricsState.offset-1));
+$('syncLater').addEventListener('click',()=>setOffset(lyricsState.offset+1));
+try{const saved=localStorage.getItem('frecuencia.lyrics.view.v2');if(['lyrics','video','none'].includes(saved))lyricsState.view=saved}catch{}
+applyView();
 
 function fallback(request){
  if(request!==state.request||!state.ready||!state.player)return;
@@ -513,7 +643,7 @@ function fallback(request){
  $('eyebrow').textContent='MODO EJEMPLOS';
  status('YouTube no habilitó Mix dentro del reproductor. Siguen los 3 ejemplos, no recomendaciones.');
  const start=SONGS.findIndex(s=>s.id===state.seed.id);
- const playlist=[...SONGS.slice(start),...SONGS.slice(0,start)].map(s=>s.id);
+ const playlist=[...SONGS.slice(start+1),...SONGS.slice(0,start+1)].map(s=>s.id);
  safe(()=>{state.player.loadPlaylist(playlist,0,0);state.player.setLoop(true);state.player.setVolume(state.volume);state.player.unMute()});
  state.started=true;$('cover').classList.add('hidden');updateButtons();
 }
@@ -527,22 +657,16 @@ function checkMix(request){
  fallback(request);
 }
 function selectSong(song){
- state.seed=song;state.request+=1;const req=state.request;
- state.mode='checking';state.started=true;state.playing=false;
+ state.seed=song;state.request++;state.mode='seed';state.started=true;state.playing=false;
  clearTimeout(mixTimer);clearTimeout(startTimer);
- $('error').classList.remove('show');$('cover').classList.remove('hidden');
- $('widget').classList.add('artwork-view');
- $('eyebrow').textContent='BUSCANDO RADIO';
- clearLyrics();
- setTitle(song);thumb();renderSeeds();updateRadioLink();status('Probando la radio Mix de YouTube…');updateButtons();
- if(!state.ready||!state.player){
-  status('Cargando reproductor de YouTube…');$('cover').classList.remove('hidden');
-  return;
- }
- const mix='RD'+song.id;
- const ok=safe(()=>{state.player.loadPlaylist({listType:'playlist',list:mix,index:0,startSeconds:0});state.player.unMute();state.player.setVolume(state.volume);return true},false);
- if(!ok){fallback(req);return}
- mixTimer=setTimeout(()=>checkMix(req),6500);
+ $('error').classList.remove('show');
+ $('eyebrow').textContent='CANCIÓN';
+ setTitle(song);thumb();renderSeeds();updateRadioLink();updateButtons();
+ // La búsqueda usa la canción elegida sin esperar getVideoData, que puede estar atrasado.
+ startLyricsFor(song.id,{title:song.title,artist:song.artist.split(' · ')[0]});
+ status('Reproduciendo el tema. Al terminar o avanzar, se intentará la radio.');
+ if(!state.ready||!state.player){status('Cargando YouTube…');return}
+ safe(()=>{state.player.loadVideoById(song.id);state.player.unMute();state.player.setVolume(state.volume)});
 }
 function start(){
  if(!state.ready){state.started=true;status('Cargando YouTube…');return}
@@ -560,22 +684,32 @@ function playOrPause(){
  }
 }
 function advance(direction){
- if(!state.ready||!state.player){if(!state.started){selectSong(SONGS[(SONGS.indexOf(state.seed)+direction+SONGS.length)%SONGS.length])}return}
+ if(!state.ready||!state.player){if(!state.started)selectSong(SONGS[(SONGS.indexOf(state.seed)+direction+SONGS.length)%SONGS.length]);return}
  if(!state.started){selectSong(SONGS[(SONGS.indexOf(state.seed)+direction+SONGS.length)%SONGS.length]);return}
- if(state.mode==='checking'){status('Esperá a que se cargue la radio…');return}
- const p=state.player;
+ if(state.mode==='seed'){
+  if(direction<0){const t=safe(()=>state.player.getCurrentTime(),0);if(t>3){state.player.seekTo(0,true);return}
+   const idx=SONGS.findIndex(s=>s.id===state.seed.id);
+   selectSong(SONGS[(idx-1+SONGS.length)%SONGS.length]);return}
+  state.mode='checking';state.request++;const req=state.request;
+  status('Cargando radio de YouTube…');
+  clearTimeout(mixTimer);
+  const ok=safe(()=>{state.player.loadPlaylist({listType:'playlist',list:'RD'+state.seed.id,index:1,startSeconds:0});return true},false);
+  if(!ok){fallback(req);return}
+  mixTimer=setTimeout(()=>checkMix(req),6000);
+  return;
+ }
+ if(state.mode==='checking'){status('Cargando radio…');return}
  if(state.mode==='mix'||state.mode==='examples'){
-  const index=safe(()=>p.getPlaylistIndex(),0);
-  const list=safe(()=>p.getPlaylist(),[]);
-  const canGo=Array.isArray(list)&&list.length>1;
-  if(canGo){
-   if(direction>0 && index===list.length-1)p.playVideoAt(0);
-   else if(direction<0 && index===0)p.playVideoAt(list.length-1);
-   else if(direction>0)p.nextVideo();else p.previousVideo();
+  const index=safe(()=>state.player.getPlaylistIndex(),0);
+  const list=safe(()=>state.player.getPlaylist(),[]);
+  if(Array.isArray(list)&&list.length>1){
+   if(direction>0&&index===list.length-1)state.player.playVideoAt(0);
+   else if(direction<0&&index===0)state.player.playVideoAt(list.length-1);
+   else if(direction>0)state.player.nextVideo();
+   else state.player.previousVideo();
    return;
   }
  }
- // Fallback ante una cola que haya dejado de estar disponible.
  const idx=SONGS.findIndex(s=>s.id===state.seed.id);
  selectSong(SONGS[(idx+direction+SONGS.length)%SONGS.length]);
 }
@@ -589,7 +723,8 @@ function onState(e){
   showArtwork();
  }else if(e.data===0){
   showArtwork();
-  if(state.mode==='examples'){
+  if(state.mode==='seed'){advance(1);}
+  else if(state.mode==='examples'){
    const list=safe(()=>state.player.getPlaylist(),[]);
    if(!Array.isArray(list)||list.length<2)advance(1);
   }
