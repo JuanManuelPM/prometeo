@@ -3,97 +3,148 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080809">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<title>YouTube · Ventana</title>
+<title>C5N en vivo · Ventana</title>
 <style>
-:root{color-scheme:dark;font:14px system-ui,-apple-system,Arial,sans-serif;background:#080809;color:#f1f1f2}
-*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0}body{display:grid;place-items:center;padding:10px}
-button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:2px}
-.window{width:min(980px,100%);height:min(610px,calc(100dvh - 20px));min-width:310px;min-height:250px;display:flex;flex-direction:column;resize:both;overflow:hidden;border:1px solid #333338;border-radius:9px;background:#101013;box-shadow:0 30px 80px #0008}
-.header{height:44px;display:flex;align-items:center;gap:12px;padding:0 10px 0 15px;flex:none;background:#19191c;border-bottom:1px solid #333338;cursor:grab;touch-action:none;user-select:none}
-.dot{width:8px;height:8px;border-radius:50%;background:#aaa}.title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;max-width:56%}.spacer{flex:1}
-.icon{display:grid;place-items:center;width:33px;height:33px;border:0;background:transparent;color:#ddd;border-radius:4px;text-decoration:none;font-size:19px}.icon:hover{background:#333}
-.edit{display:none;gap:7px;padding:9px;background:#17171b;border-bottom:1px solid #333338}.edit.open{display:flex}
-.edit input{flex:1;min-width:0;background:#09090a;color:#eee;border:1px solid #555;border-radius:5px;padding:8px 10px}
-.edit button,.sound{background:#29292e;color:#eee;border:1px solid #505055;padding:7px 12px;border-radius:5px}
-.frame{flex:1;min-height:0;background:black}.frame iframe{display:block;width:100%;height:100%;border:0;background:#000}
-.foot{height:43px;background:#17171a;border-top:1px solid #333338;display:flex;align-items:center;padding:5px 9px;gap:10px;flex:none}
-.sound{font-size:12px}.sound:hover,.edit button:hover{background:#38383d}
-.note{color:#aaa;font-size:11px;margin-left:auto}
-.window.max{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;border:0;border-radius:0;resize:none;z-index:3}
-@media(max-width:600px){body{padding:0}.window{width:100vw;height:100dvh;min-width:0;min-height:0;resize:none;border-radius:0;border:0}.header{touch-action:auto;cursor:default}.note{display:none}.title{max-width:44%}}
+:root{font:14px system-ui,-apple-system,"Segoe UI",sans-serif;background:#09090a;color:#eee;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{display:grid;place-items:center;padding:15px}
+button,input{font:inherit}
+button{cursor:pointer;border:0;color:#ddd;background:transparent}
+button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.window{position:relative;display:flex;flex-direction:column;width:min(1080px,100%);height:min(660px,calc(100dvh - 30px));min-width:310px;min-height:250px;resize:both;overflow:hidden;background:#000;border:1px solid #303034;border-radius:10px;box-shadow:0 25px 65px #000a}
+.handle{height:22px;flex:none;display:flex;align-items:center;justify-content:flex-end;cursor:grab;background:#171719;touch-action:none}
+.menu-toggle{height:22px;min-width:40px;font-size:22px;line-height:16px;color:#a5a5a9}
+.menu-toggle:hover{color:white;background:#2d2d32}
+.menu{display:none;flex:none;gap:7px;align-items:center;flex-wrap:wrap;padding:9px;background:#171719;border-bottom:1px solid #333}
+.window[data-menu="open"] .menu{display:flex}
+.menu button,.menu a{display:inline-block;padding:7px 10px;color:#eee;text-decoration:none;border-radius:5px;border:1px solid #414149;background:#252528;white-space:nowrap;font-size:13px}
+.menu button:hover,.menu a:hover{background:#37373d}
+.menu input{min-width:150px;flex:1;color:#eee;background:#101013;padding:7px;border:1px solid #414149;border-radius:5px}
+.menu form{display:flex;gap:7px;align-items:center;flex:1;min-width:min(260px,100%)}
+.frame{flex:1;min-height:0;position:relative;overflow:hidden;background:#000}
+#player,#player iframe{width:100%;height:100%;border:0;display:block}
+.message{position:absolute;inset:0;display:none;place-items:center;align-content:center;gap:9px;background:#111;text-align:center;padding:20px;line-height:1.5;z-index:1}
+.message.show{display:grid}
+.message a{color:#ddd}
+.window:fullscreen{height:100dvh!important;width:100vw!important;min-width:0;min-height:0;resize:none;border:0;border-radius:0}
+.window:fullscreen .frame{flex:1}
+@media(max-width:600px){body{padding:0}.window{width:100vw;height:100dvh;min-width:0;min-height:0;border:0;border-radius:0;resize:none}.handle{height:26px;touch-action:auto}.menu-toggle{height:26px}.menu{max-height:45dvh;overflow:auto}.menu form{flex-basis:100%}}
 </style>
 </head>
 <body>
-<section class="window" id="window" aria-label="Ventana de YouTube">
- <header class="header" id="header">
-  <span class="dot" aria-hidden="true"></span><strong class="title" id="title">Brown noise</strong><span class="spacer"></span>
-  <button class="icon" id="editBtn" type="button" title="Cambiar video" aria-label="Cambiar video">+</button>
-  <a class="icon" id="external" href="https://www.youtube.com/watch?v=HPauaZfL6BI" target="_blank" rel="noopener" title="Ver en YouTube" aria-label="Ver en YouTube">↗</a>
-  <button class="icon" id="maxBtn" type="button" aria-label="Maximizar" title="Maximizar">⛶</button>
- </header>
- <form class="edit" id="edit"><input id="url" aria-label="Enlace de video" placeholder="Pegá un enlace de YouTube" inputmode="url" autocomplete="off"><button>Cargar</button></form>
- <div class="frame" id="frame"></div>
- <footer class="foot"><button class="sound" type="button" id="sound">Activar sonido</button><span class="note">YouTube · Reproducción automática silenciada</span></footer>
-</section>
+<main class="window" id="win" data-menu="closed" aria-label="Reproductor minimalista">
+ <div class="handle" id="handle"><button class="menu-toggle" id="menuToggle" type="button" title="Controles" aria-label="Mostrar controles" aria-expanded="false">···</button></div>
+ <div class="menu" id="menu">
+  <button id="toggle" type="button">Pausar</button>
+  <button id="audio" type="button">Activar sonido</button>
+  <button id="live" type="button">C5N en vivo</button>
+  <button id="brown" type="button">Brown noise</button>
+  <form id="form"><input id="url" type="text" autocomplete="off" spellcheck="false" placeholder="Enlace de YouTube" aria-label="Enlace de YouTube"><button type="submit">Abrir</button></form>
+  <button id="fullscreen" type="button">⛶</button>
+  <a id="out" href="https://www.youtube.com/watch?v=j6oh4Kqz3UM" target="_blank" rel="noopener noreferrer">YouTube ↗</a>
+ </div>
+ <div class="frame"><div id="player"></div><div class="message" id="error" role="status"><span>No se pudo reproducir este video dentro de la ventana.</span><a id="fallback" target="_blank" rel="noopener noreferrer">Abrir en YouTube ↗</a></div></div>
+</main>
 <script>
-(function(){
 'use strict';
-const DEFAULT='HPauaZfL6BI', BASE='https://www.youtube.com/watch?v=';
+(()=>{
+const LIVE='j6oh4Kqz3UM', BROWN='HPauaZfL6BI';
 const $=id=>document.getElementById(id);
-let id=DEFAULT,player=null;const win=$('window'),frame=$('frame'),edit=$('edit'),input=$('url');
-function valid(x){return /^[a-zA-Z0-9_-]{11}$/.test(x||'')?x:null}
-function parse(value){
- const str=value.trim();if(valid(str))return str;let u;
- try{u=new URL(str)}catch{return null}
- if(!['http:','https:'].includes(u.protocol))return null;
+let player=null, ready=false, current=LIVE, pending=null, state=-1, retryTimer=null, retrying=false;
+const win=$('win'), error=$('error');
+function parse(s){
+ s=(s||'').trim();
+ if(/^[\w-]{11}$/.test(s))return s;
+ let u;try{u=new URL(s)}catch{return null}
+ if(!/^https?:$/.test(u.protocol))return null;
  const h=u.hostname.toLowerCase(),p=u.pathname.split('/').filter(Boolean);
- if(['youtu.be','www.youtu.be'].includes(h))return valid(p[0]);
- if(!['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtube-nocookie.com','www.youtube-nocookie.com'].includes(h))return null;
- if(p[0]==='watch')return valid(u.searchParams.get('v'));
- if(['embed','shorts','live','v'].includes(p[0]))return valid(p[1]);
- return null;
+ if(h==='youtu.be'||h==='www.youtu.be')return /^[\w-]{11}$/.test(p[0]||'')?p[0]:null;
+ if(!['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','www.youtube-nocookie.com','youtube-nocookie.com'].includes(h))return null;
+ let id=p[0]==='watch'?u.searchParams.get('v'):['live','shorts','embed','v'].includes(p[0])?p[1]:null;
+ return /^[\w-]{11}$/.test(id||'')?id:null;
 }
-function load(video){
- id=video;const url=BASE+id;
- $('external').href=url;
- $('title').textContent=id===DEFAULT?'Brown noise · 10 horas':'Video de YouTube';
- const params=new URLSearchParams({autoplay:'1',mute:'1',playsinline:'1',controls:'1',enablejsapi:'1',rel:'0',origin:location.origin});
- const el=document.createElement('iframe');
- el.title='Video de YouTube';el.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';el.allowFullscreen=true;
- el.referrerPolicy='strict-origin-when-cross-origin';
- el.src='https://www.youtube.com/embed/'+id+'?'+params;
- frame.replaceChildren(el);player=el;
- input.value=url;edit.classList.remove('open');
- try{localStorage.setItem('youtube-window-video',id)}catch{}
+function setMenu(open){
+ win.dataset.menu=open?'open':'closed';
+ $('menuToggle').setAttribute('aria-expanded',String(open));
+ $('menuToggle').setAttribute('aria-label',open?'Ocultar controles':'Mostrar controles');
 }
-$('editBtn').onclick=()=>{edit.classList.toggle('open');if(edit.classList.contains('open')){input.value=BASE+id;input.focus();input.select()}};
-edit.onsubmit=e=>{e.preventDefault();const result=parse(input.value);if(result)load(result);else{input.setCustomValidity('Pegá un enlace válido de YouTube');input.reportValidity()}};
-input.oninput=()=>input.setCustomValidity('');
-$('sound').onclick=()=>{
- if(!player)return;
- try{const api=player.contentWindow;for(const func of ['unMute','playVideo'])api.postMessage(JSON.stringify({event:'command',func,args:[]}), 'https://www.youtube.com');api.postMessage(JSON.stringify({event:'command',func:'setVolume',args:[75]}),'https://www.youtube.com')}catch{}
- $('sound').textContent='Sonido de YouTube ↗';
-};
-$('maxBtn').onclick=()=>{win.classList.toggle('max');$('maxBtn').textContent=win.classList.contains('max')?'▢':'⛶'};
-let drag=null;const header=$('header');
-header.addEventListener('pointerdown',e=>{
- if(innerWidth<600||e.button!==0||e.target.closest('button,a')||win.classList.contains('max'))return;
- const r=win.getBoundingClientRect();drag={x:e.clientX,y:e.clientY,left:r.left,top:r.top};
+function startWithSound(){
+ if(!player||!ready)return;
+ try{player.unMute();player.setVolume(75);player.playVideo()}catch{}
+}
+function retryMuted(){
+ if(!ready||state===1||retrying||!player)return;
+ retrying=true;
+ try{player.mute();player.playVideo()}catch{}
+ $('audio').textContent='Activar sonido';
+}
+function queueAutoplay(){
+ clearTimeout(retryTimer);retrying=false;
+ startWithSound();
+ retryTimer=setTimeout(()=>{if(state!==1)retryMuted()},2400);
+}
+function setVideo(id){
+ if(!id)return;
+ current=id; state=-1; error.classList.remove('show');
+ try{localStorage.setItem('youtube-mini-video',id)}catch{}
+ $('out').href=$('fallback').href='https://www.youtube.com/watch?v='+id;
+ $('url').value='';
+ setMenu(false);
+ if(player&&ready){try{player.loadVideoById(id);queueAutoplay()}catch{}}
+ else pending=id;
+}
+function playerError(ev){
+ if(ev&&ev.data===5)return;
+ error.classList.add('show');
+}
+function boot(){
+ if(player||!window.YT||!YT.Player)return;
+ player=new YT.Player('player',{
+  videoId:current,
+  width:'100%',height:'100%',
+  playerVars:{autoplay:1,controls:0,playsinline:1,iv_load_policy:3,rel:0,fs:1,origin:location.origin},
+  events:{
+   onReady:e=>{ready=true;pending=null;queueAutoplay()},
+   onStateChange:e=>{
+    state=e.data;
+    if(state===1){clearTimeout(retryTimer);error.classList.remove('show')}
+    $('toggle').textContent=state===1?'Pausar':'Reproducir';
+    if(ready&&player&&typeof player.isMuted==='function')$('audio').textContent=player.isMuted()?'Activar sonido':'Silenciar';
+   },
+   onError:playerError,
+   onAutoplayBlocked:()=>retryMuted()
+  }
+ });
+}
+window.onYouTubeIframeAPIReady=boot;
+$('menuToggle').addEventListener('click',()=>{
+ const opening=win.dataset.menu!=='open';setMenu(opening);
+ // Este clic es un gesto del usuario, aprovechable para activar el audio.
+ if(opening&&ready&&player)startWithSound();
+});
+$('toggle').onclick=()=>{if(!ready)return;try{if(player.getPlayerState()===1)player.pauseVideo();else{player.playVideo();startWithSound()}}catch{}};
+$('audio').onclick=()=>{if(!ready)return;try{if(player.isMuted()){startWithSound()}else player.mute();$('audio').textContent=player.isMuted()?'Activar sonido':'Silenciar'}catch{}};
+$('live').onclick=()=>setVideo(LIVE);
+$('brown').onclick=()=>setVideo(BROWN);
+$('form').onsubmit=e=>{e.preventDefault();const id=parse($('url').value);if(id){setVideo(id)}else{$('url').setCustomValidity('Pegá un enlace de YouTube válido');$('url').reportValidity()}};
+$('url').oninput=()=>$('url').setCustomValidity('');
+$('fullscreen').onclick=()=>{if(!document.fullscreenElement)win.requestFullscreen?.();else document.exitFullscreen?.()};
+document.addEventListener('keydown',e=>{if((e.code==='Space'||e.key.toLowerCase()==='k')&&!e.target.closest('input,button')){e.preventDefault();$('toggle').click()}});
+let drag=null,handle=$('handle');
+handle.addEventListener('pointerdown',e=>{
+ if(e.button!==0||e.target.closest('button')||innerWidth<601||document.fullscreenElement)return;
+ let r=win.getBoundingClientRect();drag={x:e.clientX,y:e.clientY,l:r.left,t:r.top};
  Object.assign(win.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});
- header.setPointerCapture(e.pointerId);
+ handle.setPointerCapture(e.pointerId);
 });
-header.addEventListener('pointermove',e=>{
- if(!drag)return;
- win.style.left=Math.min(innerWidth-55,Math.max(0,drag.left+e.clientX-drag.x))+'px';
- win.style.top=Math.min(innerHeight-44,Math.max(0,drag.top+e.clientY-drag.y))+'px';
-});
-header.addEventListener('pointerup',()=>drag=null);header.addEventListener('pointercancel',()=>drag=null);
-let first=new URLSearchParams(location.search).get('v');
-if(!valid(first)){try{first=localStorage.getItem('youtube-window-video')}catch{}}
-load(valid(first)||DEFAULT);
+handle.addEventListener('pointermove',e=>{if(!drag)return;win.style.left=Math.max(0,Math.min(innerWidth-60,drag.l+e.clientX-drag.x))+'px';win.style.top=Math.max(0,Math.min(innerHeight-30,drag.t+e.clientY-drag.y))+'px'});
+handle.addEventListener('pointerup',()=>drag=null);handle.addEventListener('pointercancel',()=>drag=null);
+try{let q=new URLSearchParams(location.search).get('v'); current=parse(q)||parse(localStorage.getItem('youtube-mini-video'))||LIVE}catch{current=LIVE}
+$('out').href=$('fallback').href='https://www.youtube.com/watch?v='+current;
+const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.async=true;s.onerror=()=>error.classList.add('show');document.head.appendChild(s);
+setTimeout(()=>{if(!player&&!window.YT)error.classList.add('show')},12000);
 })();
 </script>
-</body>
-</html>
+</body></html>
