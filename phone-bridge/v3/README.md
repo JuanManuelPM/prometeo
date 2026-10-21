@@ -77,3 +77,15 @@ El usuario abre **Acciones → Conectar GitHub**: si falta `gh`, un proceso de T
 Se prueban en forma aislada dos topologías del instalador: con puente Work activo y sin puente Work (el antiguo 404). Prueba local del **reinicio real**: servidor viejo 404 → aplicación parcheada → nueva ruta 200, recibo `ACTIVE`. Prueba local de **reversión forzada**: fallo simulado al reiniciar → archivos anteriores restituidos → API antigua responde y ruta GitHub vuelve a 404, recibo `RESTORED`. Ninguna de estas pruebas equivale a OAuth real ni ejecución en Android.
 
 **Límites:** la pantalla del Tank real no ha sido comprobada visualmente; el navegador de pruebas aislado bloqueó la navegación localhost/file. No se debe instalar el paquete por inferencia del CI ni anunciar dispositivo emparejado sin el estado real. Mantener PR como candidato hasta validación en el Tank.
+
+## Una acción en la ventana Prometeo Acciones (cuando se apruebe el candidato)
+
+`instalar_desde_acciones.py` es un instalador legible y pequeño, no un ZIP nuevo. Su SHA-256 fijado por CI es:
+
+`b9a582fb273950d58c1c7da425bf689ad05eb03c7481b075d92170019b298df7`
+
+Descargarlo usando **la URL raw del commit que lo publicó** (no `main` mutable), verificar ese SHA antes de ejecutarlo y lanzar Python. El propio instalador descarga el kit desde el commit fijo `95c718f9e2e486e16625cef6750b53d65547281d` y verifica SHA-256 comprimido + descomprimido. Si no coinciden, no cambia el teléfono. El instalador sólo ejecuta la intervención local previamente autorizada; no se publica ninguna clave.
+
+Concluida la actualización, la persona abre Prometeo → Acciones → **Conectar GitHub**. La operación OAuth requiere que apruebe el código en `github.com/login/device`. El agent relay pendiente comienza automáticamente después de que `gh` confirme acceso al repositorio **privado**. La autorización no puede transferirse desde los conectores de este chat al dispositivo.
+
+**QA adicional local:** reinicio real exitoso (HTTP 404 anterior → 200 nueva ruta, recibo `ACTIVE`), fallo simulado de arranque → reversión exacta del HTML/servidor, HTTP `/api/health` restaurado y recibo `RESTORED`. No comprobado todavía en dispositivo físico. No configurar un servidor público accesible desde Internet.
