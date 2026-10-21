@@ -89,11 +89,29 @@ def install(home: Path, *, test_mode: bool = False) -> dict:
         "server_restarted": False,
     }
 
+def undo(home: Path, *, test_mode: bool = False) -> dict:
+    """Undo ONLY the exact hook created by this installer; keep any user-owned file."""
+    home = home.expanduser().resolve()
+    if not test_mode and os.environ.get("PREFIX") != "/data/data/com.termux/files/usr":
+        raise RuntimeError("Only Termux on Android is supported; nothing removed")
+    target = home / ".termux" / "boot" / FILENAME
+    if target.is_symlink():
+        raise RuntimeError("Refusing symlinked boot hook")
+    if not target.exists():
+        state = "not_present"
+    elif not target.is_file() or target.read_bytes() != HOOK.encode("utf-8"):
+        raise RuntimeError("Different boot hook owned by someone else; nothing removed")
+    else:
+        target.unlink()
+        state = "removed"
+    return {"protocol": VERSION, "state": state, "projects_touched": False,
+            "server_restarted": False}
+
 if __name__ == "__main__":
     try:
         testing = os.environ.get("PROMETEO_BOOT_TEST_MODE") == "1"
         home = Path(os.environ.get("PROMETEO_BOOT_TEST_HOME", str(Path.home())))
-        result = install(home, test_mode=testing)
+        result = undo(home, test_mode=testing) if sys.argv[1:] == ["--undo"] else install(home, test_mode=testing)
     except (OSError, RuntimeError) as exc:
         print(json.dumps({"protocol": VERSION, "state": "not_installed", "reason": str(exc)}))
         sys.exit(1)
