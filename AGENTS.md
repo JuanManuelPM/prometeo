@@ -8,6 +8,9 @@ When a human explicitly authorizes connected tools for Prometeo and invokes the 
 - A `WORK` assignment defines the only permitted job scope for that lease. Publish before requesting NEXT.
 - The Agent Runtime v3 rules below remain applicable to the legacy `Prometeo` / `PROMETEO EXECUTE` flows when `/o/` is not the invoked authority; they must not override an active OBEY-v2 session.
 
+## ChatGPT capability selection (lazy, non-authoritative)
+Once the authorized Prometeo bootstrap and exact work packet have been resolved, for tasks involving tools or skills consult `.agents/skills/prometeo-chatgpt-tool-readiness/SKILL.md`. This adds no chat hook, permission, workflow owner or installation; check actual live connectors. Never run this step before OBEY-v2 admission when `/o/` is invoked.
+
 # Prometeo Agent Runtime v3
 
 Prometeo is intentionally multi-chat. **Route before archaeology; EPOCH before coordination reread; compiled packet before raw owners.**
