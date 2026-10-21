@@ -63,3 +63,17 @@ El manifiesto se publica **al final**. El teléfono rechaza piezas ausentes, nom
 ## Fricción humana
 
 No se pide ninguna intervención en esta etapa. La autorización GitHub y los permisos Android son acciones futuras separadas, cuando la UI de emparejamiento haya sido construida y probada.
+
+
+## GitHub privado en Android · Autorización independiente de Work
+
+El paquete `github-device-kit.tar.br.b64` contiene seis fuentes auditables:
+`github-auth.mjs`, `github-device.py`, `github-auth-ui.js`, `github-auth-ui.css`, `install.py`, `test_device_auth.py`.
+
+**La instalación no requiere que exista el endpoint `/api/bridge/status`.** Trabaja sobre el servidor de Prometeo Acciones ya instalado y añade `/api/github-auth/status` y `/api/github-auth/start`. Es reversible y preserva el HTML de Riel, proyectos, conversaciones, historial, servicio local y perfil del navegador. Para revisar código sin ejecutarlo: convertir base64 a bytes, comprobar `device_auth.archive_sha256` del manifiesto, descomprimir Brotli, comprobar `device_auth.tar_sha256`, extraer el TAR en directorio temporal e inspeccionar los seis archivos. CI automatiza esta verificación.
+
+El usuario abre **Acciones → Conectar GitHub**: si falta `gh`, un proceso de Termux instala el paquete oficial; si está, `gh auth login --web --scopes repo` muestra su código en el panel. El helper envía el Enter que requiere la CLI, abre `https://github.com/login/device` **sólo por iniciativa explícita del usuario**, y verifica `gh api repos/JuanManuelPM/pruebas --jq .private` antes de anunciar **Conectado**. El token lo guarda GitHub CLI en su almacenamiento local; no pasa por HTML, reportes ni GitHub público. Una vez autorizado intenta reactivar el relay local preexistente sin ejecutar instrucciones remotas arbitrarias.
+
+Se prueban en forma aislada dos topologías del instalador: con puente Work activo y sin puente Work (el antiguo 404). Prueba local del **reinicio real**: servidor viejo 404 → aplicación parcheada → nueva ruta 200, recibo `ACTIVE`. Prueba local de **reversión forzada**: fallo simulado al reiniciar → archivos anteriores restituidos → API antigua responde y ruta GitHub vuelve a 404, recibo `RESTORED`. Ninguna de estas pruebas equivale a OAuth real ni ejecución en Android.
+
+**Límites:** la pantalla del Tank real no ha sido comprobada visualmente; el navegador de pruebas aislado bloqueó la navegación localhost/file. No se debe instalar el paquete por inferencia del CI ni anunciar dispositivo emparejado sin el estado real. Mantener PR como candidato hasta validación en el Tank.
