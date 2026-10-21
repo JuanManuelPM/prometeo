@@ -1,0 +1,37 @@
+name: Verificar Prometeo Phone Bridge
+on:
+  push:
+    paths:
+      - 'phone-bridge/**'
+      - '.github/workflows/phone-bridge-integrity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned bundles and source syntax
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,subprocess, tempfile
+          from pathlib import Path
+          m=json.loads(Path('phone-bridge/v2/manifest.json').read_text())
+          assert m['schema']=='prometeo.release/v1'
+          with tempfile.TemporaryDirectory() as d:
+            for name,expected in m['files']:
+              raw=Path(name).read_text().strip()
+              code=gzip.decompress(base64.b64decode(raw,validate=True))
+              digest=hashlib.sha256(code).hexdigest()
+              if digest!=expected: raise SystemExit('BAD SHA-256: '+name)
+              if name.endswith('.mjs.gz.b64'):
+                path=Path(d)/'module.mjs'
+                path.write_bytes(code)
+                subprocess.run(['node','--check',str(path)],check=True)
+              else:
+                compile(code,name,'exec')
+              print('VERIFIED',name,len(code),digest[:12])
+          PY
