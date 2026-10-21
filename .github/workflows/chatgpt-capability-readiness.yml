@@ -1,0 +1,50 @@
+name: ChatGPT Capability Readiness (non-destructive)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tooling/chatgpt-readiness/**'
+      - '.agents/skills/prometeo-chatgpt-tool-readiness/**'
+      - '.github/workflows/chatgpt-capability-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: prometeo-chatgpt-readiness-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-skill-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Node script
+        run: node --check tooling/chatgpt-readiness/readiness.cjs
+      - name: Validate 30 unique capabilities and safe gates
+        run: node tooling/chatgpt-readiness/readiness.cjs --self-test
+      - name: Verify ready-only selection and full plan in dry run
+        run: |
+          node tooling/chatgpt-readiness/readiness.cjs --all --json > readiness-all.json
+          node tooling/chatgpt-readiness/readiness.cjs --zero-friction --json > readiness-zero.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const all=JSON.parse(fs.readFileSync('readiness-all.json'));
+          const ready=JSON.parse(fs.readFileSync('readiness-zero.json'));
+          if(!all.dry_run || !all.no_side_effects || all.actions.length !== 30) throw Error('Invalid 30-skill plan');
+          if(!ready.actions.length) throw Error('No existing-capability candidates');
+          if(ready.actions.some(x=>!x.execute_now || x.human_actions_min !== 0)) throw Error('Unsafe ready-only selection');
+          if(!all.actions.find(x=>x.id==='context7' && x.readiness==='awaiting_oauth')) throw Error('OAuth must remain unconfirmed');
+          if(!all.actions.find(x=>x.id==='superpowers' && x.readiness==='connected_unverified')) throw Error('Plugin operation must remain unverified');
+          console.log('PASS: 30 staged, '+ready.actions.length+' zero-friction candidates, no authorization or installs');
+          NODE
+      - name: Upload tested activation manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-readiness-dryrun
+          path: |
+            readiness-all.json
+            readiness-zero.json
+          retention-days: 30
