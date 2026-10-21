@@ -69,6 +69,17 @@ class BootRecoveryTest(unittest.TestCase):
             if previous is None: os.environ.pop("PREFIX", None)
             else: os.environ["PREFIX"] = previous
 
+    def test_undo_exact_hook_and_preserve_user_files(self):
+        receipt = mod.install(self.home, test_mode=True)
+        hook = Path(receipt["boot_hook"])
+        self.assertEqual(mod.undo(self.home, test_mode=True)["state"], "removed")
+        self.assertFalse(hook.exists())
+        self.assertEqual(mod.undo(self.home, test_mode=True)["state"], "not_present")
+        hook.write_text("USER DATA")
+        with self.assertRaisesRegex(RuntimeError, "owned by someone else"):
+            mod.undo(self.home, test_mode=True)
+        self.assertEqual(hook.read_text(), "USER DATA")
+
     def test_explicit_truth_boundaries(self):
         receipt = mod.install(self.home, test_mode=True)
         self.assertIn("NOT_RUN", receipt["android_reboot_test"])
