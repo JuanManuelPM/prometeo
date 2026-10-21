@@ -1,0 +1,127 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Óptica de píxeles · Laboratorio PixiJS</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#e5eadf;background:#101718}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}a{color:#b8e4d0}
+main{max-width:1550px;margin:auto;padding:clamp(12px,2.5vw,28px)}header{display:flex;gap:20px;justify-content:space-between;align-items:end;flex-wrap:wrap;padding:14px 0 22px}
+header h1{font:400 clamp(34px,5.4vw,70px)/.96 Georgia,serif;letter-spacing:-.045em;margin:6px 0;color:#f1ddba}
+header p{font-size:14px;color:#bacfc7;max-width:540px;margin:0;line-height:1.55}
+.kicker{font:11px/1.3 ui-monospace,monospace;letter-spacing:.15em;color:#e0b47d;text-transform:uppercase}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 325px;gap:16px;align-items:start}
+.stage{border:1px solid #71887a;border-radius:10px;overflow:hidden;position:relative;background:#1d3338;aspect-ratio:1100 / 620;min-height:290px}
+#screen{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#screen canvas{display:block;width:100%;height:100%}
+.overlay{position:absolute;top:11px;left:12px;right:12px;display:flex;gap:8px;justify-content:space-between;pointer-events:none}
+.pill{background:#0b2128d9;padding:7px 10px;border:1px solid #91a7a177;border-radius:5px;font-size:12px;color:#f0ebdc}
+.panel{background:#1a2829;border:1px solid #465d59;border-radius:9px;padding:16px 17px;overflow:hidden}
+.panel h2{font:400 28px Georgia,serif;color:#f3d5a8;margin:2px 0 12px}
+.panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#bacec0;margin:20px 0 10px}
+.controls{display:grid;gap:12px}
+label{display:flex;justify-content:space-between;align-items:baseline;gap:10px;color:#d8e5dd;font-size:13px}
+output{font-family:ui-monospace,monospace;color:#f0d9ad}
+input[type=range]{width:100%;accent-color:#eac58a;margin:2px 0;cursor:pointer}
+button{border:1px solid #6b877a;color:#f8edd9;background:#29423d;padding:10px 12px;border-radius:6px}
+button[aria-pressed=true],button.active{background:#e8c995;color:#122626;border-color:#e8c995}
+button:hover{filter:brightness(1.1)}
+.actions,.presets{display:flex;flex-wrap:wrap;gap:8px}
+.actions button,.presets button{flex:1;min-width:74px;font-size:12px}
+.under{padding:15px 0;display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+.info{background:#192729;border:1px solid #45615b;padding:16px;border-radius:8px}
+.info h2{font:400 25px Georgia,serif;color:#e7d0ad;margin:0 0 7px}
+.info p{color:#bfd0c7;font-size:13px;line-height:1.6;margin:0}
+.stat{display:flex;gap:12px;flex-wrap:wrap;color:#becfc9;font:12px ui-monospace,monospace}
+.stat b{font-size:19px;color:#edd6b0}
+footer{font-size:11px;line-height:1.7;color:#abc0b7;padding:14px 0}
+#status{min-height:20px;font-size:12px;color:#d6ddb8}button:focus-visible,input:focus-visible{outline:3px solid #ffdb8d;outline-offset:3px}
+@media(max-width:950px){.workspace{grid-template-columns:1fr}.panel{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}.panel>h2,.panel>h3,.panel>.actions,.panel>.presets,.panel>#status,.panel>#load{grid-column:1/-1}.under{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){header h1{font-size:37px}.panel{display:block}.stage{aspect-ratio:4/3;min-height:330px}.under{grid-template-columns:1fr}main{padding:12px}.overlay .pill{font-size:10px}}
+</style></head><body><main>
+<header><div><span class="kicker">Prometeo · PixiJS / Laboratorio 02</span><h1>Óptica de píxeles</h1><p>Un pequeño escenario vivo para estudiar cámara, capas, textura, movimiento, filtros y costo de render. Todos los controles cambian esta escena de verdad.</p></div><span class="kicker">Estudio de render · v1</span></header>
+<div class="workspace"><section>
+<div class="stage" id="stage"><div id="screen" tabindex="0" role="application" aria-label="Escena editable: tocá el personaje, el arbusto o la farola para inspeccionarlos"></div><div class="overlay"><span class="pill" id="engine">Preparando render...</span><span class="pill" id="metrics">Midiendo...</span></div></div>
+<div class="under"><div class="info"><h2 id="selected">Objeto: caminante</h2><p id="description">Tocá un elemento para editar su escala. La cámara, el cielo y el follaje están separados en capas.</p></div><div class="info"><div class="stat"><span>FOTOGRAMA<br><b id="ticks">0</b></span><span>ENTIDADES<br><b id="entities">0</b></span><span>TIEMPO SIMULADO<br><b id="time">0.0 s</b></span></div><p style="margin-top:10px">Las métricas proceden de la ejecución actual y no son cifras decorativas.</p></div></div>
+</section><aside class="panel"><span class="kicker">Mesa de operaciones</span><h2>Modificar la escena</h2>
+<div class="actions"><button id="pause" aria-pressed="false">⏸ Pausar</button><button id="step">+ 1 paso</button><button id="reset">Restaurar</button></div>
+<h3>Atmósfera y cámara</h3><div class="controls">
+<div><label for="camera">Cámara <output id="cameraOut">0</output></label><input id="camera" type="range" min="0" max="100" value="0"></div>
+<div><label for="parallax">Profundidad <output id="parallaxOut">70%</output></label><input id="parallax" type="range" min="0" max="100" value="70"></div>
+<div><label for="blur">Desenfoque (PixiJS) <output id="blurOut">0</output></label><input id="blur" type="range" min="0" max="8" value="0"></div>
+<div><label for="particles">Hojas visibles <output id="particlesOut">28</output></label><input id="particles" type="range" min="0" max="85" value="28"></div></div>
+<h3>Movimiento y sujeto seleccionado</h3><div class="controls">
+<div><label for="speed">Velocidad <output id="speedOut">1.0×</output></label><input id="speed" type="range" min="0" max="3" step=".1" value="1"></div>
+<div><label for="scale">Escala del objeto <output id="scaleOut">1.0×</output></label><input id="scale" type="range" min=".6" max="1.7" step=".1" value="1"></div></div>
+<h3>Escenarios</h3><div class="presets"><button data-preset="calma" class="active">Calma</button><button data-preset="bruma">Bruma</button><button data-preset="vendaval">Vendaval</button></div>
+<h3>Archivo de escena</h3><div class="actions"><button id="export">↓ Exportar JSON</button><button id="import">↑ Importar JSON</button><input type="file" id="load" accept=".json,application/json" hidden></div>
+<p id="status" role="status">PixiJS se cargará desde CDN. Sin red, modo Canvas 2D identificado.</p></aside></div>
+<footer>Arte botánico y personaje trazados localmente en Canvas y convertidos a texturas para PixiJS 8.22.0. No hay seguimiento, cuentas ni almacenamiento persistente. El modo de compatibilidad no demuestra filtros WebGL. <a href="https://pixijs.com/8.x/guides" target="_blank" rel="noopener">Referencia PixiJS ↗</a></footer></main>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.22.0/dist/pixi.min.js"></script><script>
+(function(){'use strict';
+const $=id=>document.getElementById(id),SW=1100,SH=620,screen=$('screen'),stage=$('stage'),names=['Caminante','Arbusto de hojas','Farola del sendero'];
+const descriptions=['Sprite ilustrado que sigue un recorrido; cada objeto guarda una escala y un estado independiente.','Masa de follaje con dos tonos; podés ajustar su tamaño sin afectar al resto.','Farola del sendero: escena, profundidad y primer plano permanecen independientes.'];
+const defaults={camera:0,parallax:70,blur:0,particles:28,speed:1,scales:[1,1,1]};
+let cfg=structuredClone(defaults),selected=0,paused=false,steps=0,t=0,engine='iniciando',app=null,ctx=null,canvas=null,objects=null,layerTextures=null,particles=[],last=performance.now(),frames=0,measure=last,measuredFPS=0,resizeObs=null,raf=0;
+const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function makeCanvas(w,h,painter){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');painter(x,w,h);return c}
+const fill=(c,color)=>{c.fillStyle=color};
+function ellipse(c,x,y,rx,ry,color){fill(c,color);c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill()}
+function path(c,pts,color){fill(c,color);c.beginPath();c.moveTo(pts[0][0],pts[0][1]);pts.slice(1).forEach(p=>c.lineTo(p[0],p[1]));c.closePath();c.fill()}
+function leaf(c,x,y,s,angle,col){c.save();c.translate(x,y);c.rotate(angle);fill(c,col);c.beginPath();c.moveTo(0,0);c.bezierCurveTo(s*.6,-s*1.5,s*1.6,-s*1.3,s*2,0);c.bezierCurveTo(s*.9,s*.6,s*.3,s*.5,0,0);c.fill();c.restore()}
+function art(){
+const sky=makeCanvas(1650,620,(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#264451');g.addColorStop(.6,'#658b88');g.addColorStop(1,'#d1ac83');fill(c,g);c.fillRect(0,0,w,h);ellipse(c,1040,124,59,59,'#f8e8b6');for(let i=0;i<45;i++)ellipse(c,(i*191)%w,33+(i*71)%190,1.2,1.5,'#ffe0a6');path(c,[[0,390],[190,235],[360,355],[600,226],[800,362],[990,205],[1200,343],[1450,240],[1650,345],[1650,620],[0,620]],'#365b65');path(c,[[0,446],[160,330],[400,433],[720,295],[980,440],[1250,330],[1650,440],[1650,620],[0,620]],'#45716d')});
+const mid=makeCanvas(1650,620,(c,w,h)=>{for(let i=0;i<18;i++){const x=(i*239+55)%w,y=435+(i%3)*23;fill(c,i%2?'#173c3d':'#1b4741');c.fillRect(x-6,y-115,12,160);for(let a=0;a<7;a++){const yy=y-128+a*21,wide=80-a*8;ellipse(c,x,yy,wide,30+a*2,i%2?'#234f49':'#2d6356')}}});
+const ground=makeCanvas(1650,620,(c,w,h)=>{const g=c.createLinearGradient(0,430,0,620);g.addColorStop(0,'#668069');g.addColorStop(1,'#233d3d');fill(c,g);c.fillRect(0,435,w,185);path(c,[[0,578],[270,500],[550,510],[930,555],[1200,505],[1650,545],[1650,620],[0,620]],'#b1a17d');path(c,[[0,600],[255,530],[550,541],[930,575],[1220,530],[1650,570],[1650,620],[0,620]],'#e0bb83');for(let i=0;i<170;i++){const x=(i*173)%w,y=475+(i*71)%144;leaf(c,x,y,3.5,(i%6)-2,i%2?'#a4a56c':'#5f9879')}});
+const subject=makeCanvas(118,150,(c)=>{ellipse(c,59,145,30,6,'#172b2b55');fill(c,'#59392d');c.fillRect(42,94,12,42);c.fillRect(68,94,12,42);fill(c,'#f0d2a7');c.fillRect(42,46,34,29);ellipse(c,59,29,23,26,'#f2c89b');fill(c,'#322b31');c.beginPath();c.ellipse(59,18,25,15,0,Math.PI,Math.PI*2);c.fill();ellipse(c,51,34,2,2,'#372b26');ellipse(c,68,34,2,2,'#372b26');fill(c,'#aa544c');c.beginPath();c.moveTo(49,63);c.lineTo(77,63);c.lineTo(91,112);c.lineTo(34,112);c.closePath();c.fill();leaf(c,80,75,10,.5,'#ddba78')});
+const shrub=makeCanvas(180,158,(c)=>{for(let i=0;i<38;i++){const x=70+Math.sin(i*3.8)*61,y=100+Math.cos(i*8.2)*45;ellipse(c,x,y,15+(i%5)*2,10+(i%3)*4,i%3?'#2a6c57':'#90a36c')}fill(c,'#513d31');c.fillRect(78,100,8,45)});
+const lamp=makeCanvas(90,220,(c)=>{ellipse(c,46,206,31,8,'#13282950');fill(c,'#352f32');c.fillRect(40,39,11,165);ellipse(c,46,43,29,28,'#e8b86d66');ellipse(c,46,42,14,20,'#ffe4a3');fill(c,'#463935');c.fillRect(30,19,33,6);c.fillRect(35,59,23,5)});
+return [sky,mid,ground,subject,shrub,lamp];
+}
+const artImages=art();
+const pickPositions=[{x:450,y:385},{x:755,y:444},{x:980,y:349}];
+function getView(){const b=screen.getBoundingClientRect();return {w:Math.max(320,b.width),h:Math.max(290,b.height),sx:b.width/SW,sy:b.height/SH}}
+function trace(x,y){const b=screen.getBoundingClientRect();return{x:(x-b.left)*SW/b.width,y:(y-b.top)*SH/b.height}}
+function picked(e){const p=trace(e.clientX,e.clientY);let near=-1,dist=75;pickPositions.forEach((o,i)=>{const xx=o.x+((i===0)?Math.sin(t*.7)*35:0)-cfg.camera*(i===1?.6:1),yy=o.y;const d=Math.hypot(p.x-xx,p.y-yy);if(d<dist){dist=d;near=i}});if(near>=0){selected=near;syncControls();announce('Seleccionado: '+names[near]);}}
+screen.addEventListener('pointerdown',picked);
+function applyControls(){
+ for(const name of ['camera','parallax','blur','particles','speed'])cfg[name]=Number($(name).value);
+ cfg.scales[selected]=Number($('scale').value);
+ for(const name of ['camera','parallax','blur','particles','speed','scale'])$(name+'Out').textContent=name==='parallax'?cfg.parallax+'%':name==='speed'?cfg.speed.toFixed(1)+'×':name==='scale'?cfg.scales[selected].toFixed(1)+'×':String(cfg[name]);
+ if(objects?.mid){objects.mid.filters=cfg.blur>0&&window.PIXI?.BlurFilter?[new PIXI.BlurFilter({strength:cfg.blur})]:[];}setParticles(cfg.particles);
+}
+function syncControls(){for(const name of ['camera','parallax','blur','particles','speed'])$(name).value=cfg[name];$('scale').value=cfg.scales[selected];$('selected').textContent='Objeto: '+names[selected];$('description').textContent=descriptions[selected];applyControls();}
+function announce(s){$('status').textContent=s}
+document.querySelectorAll('input[type=range]').forEach(n=>n.addEventListener('input',applyControls));
+$('pause').addEventListener('click',()=>{paused=!paused;$('pause').setAttribute('aria-pressed',String(paused));$('pause').textContent=paused?'▶ Reanudar':'⏸ Pausar';announce(paused?'Simulación pausada. Avanzá de a un paso.':'Simulación reanudada.')});
+$('step').addEventListener('click',()=>{if(!paused){paused=true;$('pause').setAttribute('aria-pressed','true');$('pause').textContent='▶ Reanudar'}advance(1/20,true);render();announce('Avanzaste exactamente un paso de simulación.')});
+$('reset').addEventListener('click',()=>{cfg=structuredClone(defaults);selected=0;paused=false;t=0;steps=0;particles.forEach(p=>{p.x=p.baseX;p.y=p.baseY});$('pause').setAttribute('aria-pressed','false');$('pause').textContent='⏸ Pausar';syncControls();announce('Escena original restaurada.')});
+const presets={calma:defaults,bruma:{camera:24,parallax:45,blur:5,particles:10,speed:.5,scales:[1.15,1.2,1]},vendaval:{camera:70,parallax:100,blur:1,particles:85,speed:2.6,scales:[.9,1.4,1.1]}};
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{cfg=structuredClone(presets[b.dataset.preset]);selected=0;syncControls();document.querySelectorAll('[data-preset]').forEach(x=>x.classList.toggle('active',x===b));announce('Escenario '+b.textContent+' aplicado.')}));
+$('export').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({schema:'prometeo.pixi.optica/v1',settings:cfg,selected},null,2)],{type:'application/json'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download='escena-optica.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);announce('Configuración exportada.')});
+$('import').addEventListener('click',()=>$('load').click());
+$('load').addEventListener('change',async e=>{try{const txt=await e.target.files[0].text();const payload=JSON.parse(txt);if(payload.schema!=='prometeo.pixi.optica/v1')throw Error('Formato incompatible');const v=payload.settings;for(const k of ['camera','parallax','blur','particles','speed'])if(!Number.isFinite(v[k]))throw Error('Parámetro no válido: '+k);if(!Array.isArray(v.scales)||v.scales.length!==3)throw Error('Escalas inválidas');cfg={camera:Math.max(0,Math.min(100,v.camera)),parallax:Math.max(0,Math.min(100,v.parallax)),blur:Math.max(0,Math.min(8,v.blur)),particles:Math.max(0,Math.min(85,Math.round(v.particles))),speed:Math.max(0,Math.min(3,v.speed)),scales:v.scales.map(x=>Math.max(.6,Math.min(1.7,Number(x)||1)))};selected=Math.max(0,Math.min(2,Number(payload.selected)||0));syncControls();announce('Archivo importado; escenario reconstruido.')}catch(err){announce('No pude importar: '+err.message)}e.target.value=''});
+const leafImg=makeCanvas(24,18,c=>{leaf(c,3,9,7,-.2,'#dfca8c')});
+function setParticles(n){while(particles.length<n){const i=particles.length,p={x:(i*107+83)%1120,y:(i*73+15)%480,baseX:(i*107+83)%1120,baseY:(i*73+15)%480,view:null};if(objects){const sprite=new PIXI.Sprite(PIXI.Texture.from(leafImg));sprite.width=15;sprite.height=11;objects.particles.addChild(sprite);p.view=sprite}particles.push(p)}
+while(particles.length>n){const p=particles.pop();if(p.view){objects.particles.removeChild(p.view);p.view.destroy()}}
+$('entities').textContent=6+particles.length;
+}
+function advance(dt,force=false){if(paused&&!force)return;t+=dt*cfg.speed;steps++;particles.forEach((p,i)=>{p.x=(p.baseX+t*(18+i%7*4))%1200;p.y=p.baseY+Math.sin(t*.8+i)*22});$('ticks').textContent=steps;$('time').textContent=t.toFixed(1)+' s'}
+function resize(){if(app){const b=getView();app.renderer.resize(Math.round(b.w),Math.round(b.h));app.stage.scale.set(b.w/SW,b.h/SH)}if(ctx){const b=getView(),d=Math.min(devicePixelRatio||1,1.5);canvas.width=Math.round(b.w*d);canvas.height=Math.round(b.h*d);ctx.setTransform(d*b.w/SW,0,0,d*b.h/SH,0,0)}}
+function canvasDraw(){const c=ctx;c.save();c.clearRect(0,0,SW,SH);c.drawImage(artImages[0],-cfg.camera*.12*cfg.parallax/100,0);c.drawImage(artImages[1],-cfg.camera*.65*cfg.parallax/100,0);c.drawImage(artImages[2],-cfg.camera,0);
+function sprite(i,x,y){const img=artImages[i+3],s=cfg.scales[i];c.drawImage(img,x-img.width*s/2,y-img.height*s*.85,img.width*s,img.height*s)}
+sprite(1,pickPositions[1].x-cfg.camera*.6,pickPositions[1].y);sprite(2,pickPositions[2].x-cfg.camera,pickPositions[2].y);
+for(const p of particles)c.drawImage(leafImg,p.x-cfg.camera,p.y,15,11);
+sprite(0,pickPositions[0].x+Math.sin(t*.7)*35-cfg.camera,pickPositions[0].y+Math.sin(t*5)*3);c.restore()}
+function render(){if(objects){const o=objects;o.sky.x=-cfg.camera*.12*cfg.parallax/100;o.mid.x=-cfg.camera*.65*cfg.parallax/100;o.ground.x=-cfg.camera;
+o.subjects.forEach((v,i)=>{v.x=pickPositions[i].x-(i===1?cfg.camera*.6:cfg.camera)+(i===0?Math.sin(t*.7)*35:0);v.y=pickPositions[i].y+(i===0?Math.sin(t*5)*3:0);v.scale.set(cfg.scales[i]);v.alpha=selected===i?1:.90});
+particles.forEach(p=>{if(p.view){p.view.x=p.x-cfg.camera;p.view.y=p.y}});
+}else if(ctx)canvasDraw()}
+function heartbeat(now){if(!Number.isFinite(last))last=now;const dt=Math.min((now-last)/1000,.09);last=now;frames++;if(now-measure>=900){measuredFPS=Math.round(frames*1000/(now-measure));frames=0;measure=now;$('metrics').textContent=measuredFPS+' FPS medidos · '+particles.length+' hojas'}
+if(!paused)advance(dt);render();raf=requestAnimationFrame(heartbeat)}
+function fail(err){console.error('[optica]',err);announce('Error del render: '+(err?.message||err));$('engine').textContent='Render no disponible'}
+async function start(){try{if(window.PIXI){const P=window.PIXI;app=new P.Application();await app.init({width:SW,height:SH,backgroundColor:0x122c36,preference:'webgl',resolution:Math.min(devicePixelRatio||1,1.5),autoDensity:true});canvas=app.canvas;screen.appendChild(canvas);
+const imgs=artImages.map(x=>P.Texture.from(x));const sky=new P.Sprite(imgs[0]),mid=new P.Sprite(imgs[1]),ground=new P.Sprite(imgs[2]),subjects=[new P.Sprite(imgs[3]),new P.Sprite(imgs[4]),new P.Sprite(imgs[5])],leafLayer=new P.Container();subjects.forEach((s,i)=>{s.anchor.set(.5,.85)});
+app.stage.addChild(sky,mid,ground,subjects[1],subjects[2],leafLayer,subjects[0]);objects={sky,mid,ground,subjects,particles:leafLayer};engine='PixiJS 8.22 · WebGL';}
+else throw Error('Sin PixiJS desde la CDN');
+}catch(err){console.warn('Pixi no disponible; fallback Canvas',err);if(app){try{app.destroy(true)}catch(_){}app=null}objects=null;screen.replaceChildren();canvas=document.createElement('canvas');screen.appendChild(canvas);ctx=canvas.getContext('2d');if(!ctx)throw err;engine='Canvas 2D · compatibilidad (sin filtro Pixi)';}
+$('engine').textContent=engine;setParticles(cfg.particles);syncControls();resize();resizeObs=new ResizeObserver(resize);resizeObs.observe(screen);raf=requestAnimationFrame(heartbeat)}
+window.__OPTICA__={getState:()=>({engine,cfg:structuredClone(cfg),selected,t,steps,paused,particles:particles.length}),select:n=>{selected=Math.max(0,Math.min(2,n));syncControls()},pause:()=>{$('pause').click()},step:()=>{$('step').click()}};
+start().catch(fail);
+})();
+</script></body></html>
