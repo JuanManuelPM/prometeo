@@ -63,3 +63,18 @@ jobs:
           python3 -m py_compile phone-bridge/v3/auth-kit-test/github-device.py
           python3 -m py_compile phone-bridge/v3/auth-kit-test/install.py
           python3 phone-bridge/v3/auth-kit-test/test_device_auth.py
+      - name: Offline installer: readable code, pinned kit and fail-closed negative test
+        run: |
+          python3 -m py_compile phone-bridge/v3/instalar_desde_acciones.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          b=Path('phone-bridge/v3/instalar_desde_acciones.py').read_bytes()
+          assert hashlib.sha256(b).hexdigest()=='b9a582fb273950d58c1c7da425bf689ad05eb03c7481b075d92170019b298df7'
+          PY
+          echo "tampered" > /tmp/prometeo-corrupt-github-kit.txt
+          if PROMETEO_AUTH_KIT_TEST_FIXTURE=/tmp/prometeo-corrupt-github-kit.txt python3 phone-bridge/v3/instalar_desde_acciones.py; then
+            echo "ERROR: accepted corrupted installer input" >&2
+            exit 1
+          fi
+          echo "Corrupt kit safely rejected"
