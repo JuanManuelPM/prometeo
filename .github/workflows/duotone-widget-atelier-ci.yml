@@ -1,0 +1,41 @@
+name: Widget atelier bicolor candidate checks
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - 'ui-workspace-v1/visual-system/duotone-atelier-v1/**'
+      - '.github/workflows/duotone-widget-atelier-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify two-pigment and source contracts
+        run: node ui-workspace-v1/visual-system/duotone-atelier-v1/tests/source-smoke.cjs
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve exact candidate checkout over HTTP
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory . > /tmp/atelier-http.log 2>&1 &
+          for i in $(seq 1 25); do curl --fail --silent http://127.0.0.1:8765/ui-workspace-v1/visual-system/duotone-atelier-v1/proof.html >/dev/null && exit 0; sleep 1; done
+          cat /tmp/atelier-http.log
+          exit 1
+      - name: Chromium visual and navigation smoke
+        run: node ui-workspace-v1/visual-system/duotone-atelier-v1/tests/browser-smoke.cjs
+      - name: Upload screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: widget-atelier-bicolor-visual-evidence
+          path: artifacts/duotone-widget-atelier/
+          if-no-files-found: warn
+          retention-days: 14
