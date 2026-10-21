@@ -1,0 +1,44 @@
+name: Phone Bridge v3 · verified multipart candidate
+on:
+  pull_request:
+    paths:
+      - "phone-bridge/v3/**"
+      - ".github/workflows/phone-bridge-v3.yml"
+  push:
+    branches: ["feat/phone-bridge-v3-*"]
+    paths:
+      - "phone-bridge/v3/**"
+      - ".github/workflows/phone-bridge-v3.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verified-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify source and tests SHA-256; unpack to isolated directory
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,pathlib
+          root=pathlib.Path('phone-bridge/v3')
+          m=json.loads((root/'manifest.json').read_text())
+          assert m['status']=='candidate_only'
+          for name,digest in [('github-bridge.mjs',m['sha256_decompressed']['module']),('test_bridge.mjs',m['sha256_decompressed']['test'])]:
+              data=gzip.decompress(base64.b64decode((root/(name+'.gz.b64')).read_text().strip(),validate=True))
+              got=hashlib.sha256(data).hexdigest()
+              assert got==digest, f'Integrity mismatch {name}: {got}'
+              (root/name).write_bytes(data)
+              print('verified',name,len(data),got)
+          PY
+      - name: Syntax and behavior (mock GitHub; NO phone credentials)
+        run: |
+          node --check phone-bridge/v3/github-bridge.mjs
+          node --check phone-bridge/v3/test_bridge.mjs
+          node --test phone-bridge/v3/test_bridge.mjs
