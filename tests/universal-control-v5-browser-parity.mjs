@@ -6,6 +6,7 @@ const LEGACY = `${BASE}/shared/universal-shell/v5/candidate/baseline-source.html
 const CANDIDATE_PATH = process.env.V5_CANDIDATE_PATH || 'shared/universal-shell/v5/candidate/favorites-facade-source.html';
 const CANDIDATE = `${BASE}/${CANDIDATE_PATH.replace(/^\//,'')}`;
 const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source') || CANDIDATE_PATH.includes('single-host-source') || CANDIDATE_PATH.includes('change-loop-source');
+const HAS_CONTINUITY = CANDIDATE_PATH.includes('change-loop-source');
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
@@ -46,9 +47,24 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   const count = await page.locator('#labelCount').textContent();
   const stored = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const controls = await page.locator('.puck').count();
-  const result = { label, count, stored, controls, pageErrors };
+  const menuLabels=[];
+  for(let i=0;i<Number(count.split('/')[1]);i++){
+    menuLabels.push(await page.locator('#labelTextPath').textContent());
+    await page.keyboard.press('ArrowRight');
+  }
+  const result = { label, count, stored, controls, pageErrors,menuLabels };
   await context.close();
   return result;
+}
+
+function assertRootParity(candidate,legacy,message){
+  if(!HAS_CONTINUITY)return assert.deepEqual(candidate,legacy,message);
+  // The accepted Continue Chat action is the only permitted menu difference.
+  // All original labels/order, favorites, controls and errors remain exact.
+  assert.equal(legacy.menuLabels.filter(x=>x==='Notas').length,1);
+  const expected={...legacy,count:legacy.count.replace(/\/(\d+)$/,(_,n)=>'/'+(Number(n)+1)),
+    menuLabels:legacy.menuLabels.flatMap(x=>x==='Notas'?['Continuar chat',x]:[x])};
+  assert.deepEqual(candidate,expected,message);
 }
 
 async function firstCatalogPage(page) {
@@ -135,7 +151,7 @@ try {
     rootSnapshot(browser, LEGACY, '[]'),
     rootSnapshot(browser, CANDIDATE, '[]'),
   ]);
-  assert.deepEqual(candidateRoot, legacyRoot, 'candidate online root must match Golden Master');
+  assertRootParity(candidateRoot, legacyRoot, 'candidate online root must preserve Golden Master plus accepted continuity');
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
@@ -147,7 +163,7 @@ try {
     rootSnapshot(browser, LEGACY, offlineSeed, { blockExternal: true }),
     rootSnapshot(browser, CANDIDATE, offlineSeed, { blockExternal: true }),
   ]);
-  assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only boot must match Golden Master at the active authority boundary');
+  assertRootParity(candidateOffline, legacyOffline, 'candidate local-only boot must preserve Golden Master plus accepted continuity');
   if (!IS_DURABLE) assert.equal(candidateOffline.label, 'Favoritos · 2');
   assert.deepEqual(candidateOffline.pageErrors, []);
 
@@ -175,3 +191,4 @@ try {
 } finally {
   await browser.close();
 }
+

@@ -100,6 +100,20 @@ async function loadPageChangeLoop(){
 """
     text=one(text,marker,add,'change loop loader')
 
+    # Preserve the already accepted continuity action when regenerating the
+    # legacy candidate. This does not install a shell or change the root host.
+    continue_loader="""let continueChatPromise=null;
+async function loadContinueChat(){
+  if(continueChatPromise)return continueChatPromise;
+  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/continuity/v1/continue-chat.js?v=1':'/shared/continuity/v1/continue-chat.js?v=1';
+  continueChatPromise=import(url).catch(error=>{continueChatPromise=null;backendStatus.set('continue-chat','DEGRADED',String(error?.message||error));return null;});
+  return continueChatPromise;
+}
+"""
+    text=one(text,'let changeLoopPromise=null;',continue_loader+'\nlet changeLoopPromise=null;','continuity loader')
+    menu="    {id:'notes',label:'Notas',type:'action',action:'notes',icon:'notes'},"
+    text=one(text,menu,"    {id:'continue-chat',label:'Continuar chat',type:'action',action:'continue-chat',icon:'chat'},\n"+menu,'continuity menu')
+
     old_notes="""    if(it.action==='notes'){
       await refreshNotes();
       state.stack.push(buildNotesHome());
@@ -111,6 +125,17 @@ async function loadPageChangeLoop(){
       await refreshNotes();state.stack.push(buildNotesHome());state.index=0;state.armed=null;render();return;
     }"""
     text=one(text,old_notes,new_notes,'notes action')
+    continuity_action="""    if(it.action==='continue-chat'){
+      const api=await loadContinueChat();
+      if(!api){showToast('No pude cargar continuidad');return}
+      try{
+        const p=currentPage||window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.()||{id:'prometeo',title:'Prometeo',href:location.href};
+        await api.copyAndOpen({page:p,openChat:true});showToast('Prompt de continuidad copiado');
+      }catch(error){showToast(error?.message||'No pude copiar continuidad');}
+      return;
+    }
+"""
+    text=one(text,"    if(it.action==='notes'){",continuity_action+"    if(it.action==='notes'){",'continuity action')
 
     old_record="""    if(it.action==='record'){
       if(voice.state().active){
@@ -159,3 +184,4 @@ if(requestedPageId){
     print('built',OUT.relative_to(ROOT),outsha)
 
 if __name__=='__main__':main()
+
