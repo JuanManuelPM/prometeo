@@ -1,0 +1,81 @@
+name: PROMETEO · Native APK (no widgets)
+on:
+  push:
+    branches: ['feat/phone-native-app-*']
+    paths:
+      - 'phone-bridge/native/**'
+      - '.github/workflows/prometeo-native-apk.yml'
+  pull_request:
+    paths:
+      - 'phone-bridge/native/**'
+      - '.github/workflows/prometeo-native-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify SHA-256 and unpack exact-reviewed sources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,io,pathlib,tarfile
+          b=pathlib.Path('phone-bridge/native/source.tar.gz.b64').read_text().strip()
+          gz=base64.b64decode(b,validate=True)
+          assert hashlib.sha256(gz).hexdigest()=='db76d13bdc3b3498e5e08527320928d66e19d972508dc95729fa7e86812e92b9'
+          raw=gzip.decompress(gz)
+          assert hashlib.sha256(raw).hexdigest()=='52983012f3b1435e02fc917e2819dbb5ae43ff635d635d0b6929e5fa4105030c'
+          dest=pathlib.Path('phone-bridge/native/source')
+          dest.mkdir(parents=True,exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
+              for m in tar.getmembers():
+                  p=pathlib.PurePosixPath(m.name)
+                  assert m.isfile() and not p.is_absolute() and '..' not in p.parts
+                  assert p.parts[0] in ('app','README.md','gradle.properties','settings.gradle','build.gradle')
+                  target=dest.joinpath(*p.parts)
+                  target.parent.mkdir(parents=True,exist_ok=True)
+                  target.write_bytes(tar.extractfile(m).read())
+          print('VERIFIED native source files:',len(list(dest.rglob('*'))))
+          PY
+      - name: Assert privilege and endpoint boundaries
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('phone-bridge/native/source/app/src/main')
+          bridge=(root/'java/org/prometeo/launcher/TermuxBridge.java').read_text()
+          manifest=(root/'AndroidManifest.xml').read_text()
+          assert 'com.termux.permission.RUN_COMMAND' in manifest
+          assert 'android.permission.INTERNET' in manifest
+          for p in ('QUERY_ALL_PACKAGES','BIND_ACCESSIBILITY_SERVICE','READ_SMS','READ_CONTACTS','RECORD_AUDIO','SYSTEM_ALERT_WINDOW'):
+              assert p not in manifest
+          assert '127.0.0.1:19471' in bridge
+          assert 'RUN_COMMAND_BACKGROUND' in bridge
+          assert '"iniciar"' in bridge
+          assert 'terminal.run' not in bridge
+          print('PASS: no remote command interface or requested sensitive data access')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile Android app
+        working-directory: phone-bridge/native/source
+        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: SHA-256 and artifact size
+        run: |
+          sha256sum phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          stat -c '%s bytes' phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-native-android-apk
+          path: phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
