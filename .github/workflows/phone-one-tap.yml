@@ -1,0 +1,29 @@
+name: Prometeo one-tap Android launcher
+on:
+  push:
+    branches: ["feat/phone-one-tap-launcher-*"]
+    paths: ["phone-bridge/v4/widget/**", ".github/workflows/phone-one-tap.yml"]
+  pull_request:
+    paths: ["phone-bridge/v4/widget/**", ".github/workflows/phone-one-tap.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  one-tap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Check source, tests, and pinned hash
+        run: |
+          python -m py_compile phone-bridge/v4/widget/installer.py phone-bridge/v4/widget/test_installer.py
+          sha256sum phone-bridge/v4/widget/installer.py
+          python -m unittest discover -s phone-bridge/v4/widget -p 'test_*.py' -v
+      - name: No automatic installation, no remote shell
+        run: |
+          ! grep -En 'shell=True|\bos\.system|rm -rf|\brequests\.|urllib|GH_TOKEN|0\.0\.0\.0' phone-bridge/v4/widget/installer.py
