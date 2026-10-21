@@ -34,3 +34,12 @@ Reutiliza, no reemplaza, el Riel Dispatch de `app/server/dispatch/{core,server}.
 4. Mostrar trabajos y resultados en la UI de Acciones sin JSON por defecto.
 
 La arquitectura de un solo dueño del control plane se conserva. Si falta el EPOCH servido, el cambio no se promoverá fuera de la rama candidata.
+
+
+## Adaptador para el Dispatch original, sin pedir otro token
+- El archivo legible `dispatch-gh-adapter.mjs` invoca `gh api` con `spawn`, nunca abre un shell ni imprime credenciales. Antes de publicar exige consentimiento local y comprueba con la API que el repositorio sea **privado** y que la cuenta tenga permisos de escritura.
+- Es un **adaptador opcional** del Dispatch existente (que esperaba `RIEL_GITHUB_TOKEN`), no un nuevo coordinador. Falta conectar este módulo con el owner concreto de `dispatch/server.mjs`, conservando rutas, recibos y consentimiento ya existente.
+- `test_adapter_smoke.mjs` aporta rechazo de repositorio inválido y publicación sin aprobación en CI. En entorno local se probaron tres casos adicionales contra una CLI GitHub simulada, incluso rechazo de repositorios públicos/sólo lectura. No equivale a conexión real del nuevo adaptador en el teléfono.
+
+## PWA real ya incluida
+El archivo original `app/server/main.mjs` ya expone `/manifest.webmanifest`, `/icon.svg` y `/sw.js` y registra el manifiesto en `/`. Verificación aislada en Node: las cuatro rutas devolvieron HTTP 200, el manifiesto declara `display: standalone`. No hace falta duplicar una PWA; resta verificar el icono instalado y el arranque físico en Android.
