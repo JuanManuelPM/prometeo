@@ -1,7 +1,14 @@
 name: ChatGPT Capability Readiness (non-destructive)
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "feat/chatgpt-readiness-*"
+    paths:
+      - 'tooling/chatgpt-readiness/**'
+      - '.agents/skills/prometeo-chatgpt-tool-readiness/**'
+      - '.github/workflows/chatgpt-capability-readiness.yml'
+  pull_request:
     paths:
       - 'tooling/chatgpt-readiness/**'
       - '.agents/skills/prometeo-chatgpt-tool-readiness/**'
@@ -13,38 +20,53 @@ concurrency:
   group: prometeo-chatgpt-readiness-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  validate-skill-catalog:
+  verify-skill-routing:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate Node script
-        run: node --check tooling/chatgpt-readiness/readiness.cjs
-      - name: Validate 30 unique capabilities and safe gates
-        run: node tooling/chatgpt-readiness/readiness.cjs --self-test
-      - name: Verify ready-only selection and full plan in dry run
+      - name: Static syntax checks
         run: |
-          node tooling/chatgpt-readiness/readiness.cjs --all --json > readiness-all.json
-          node tooling/chatgpt-readiness/readiness.cjs --zero-friction --json > readiness-zero.json
+          node --check tooling/chatgpt-readiness/readiness.cjs
+          node --check tooling/chatgpt-readiness/readiness.test.cjs
+          node -e "JSON.parse(require('fs').readFileSync('tooling/chatgpt-readiness/intents.json','utf8'))"
+      - name: Eleven behavioral and negative regressions
+        run: node --test tooling/chatgpt-readiness/readiness.test.cjs
+      - name: Revalidate full catalog, consent boundaries and no live claims
+        run: node tooling/chatgpt-readiness/readiness.cjs --self-test
+      - name: Exercise practical task routes without network or credentials
+        run: |
+          mkdir -p staging-reports
+          node tooling/chatgpt-readiness/readiness.cjs --all --json > staging-reports/all-30.json
+          node tooling/chatgpt-readiness/readiness.cjs --zero-friction --json > staging-reports/zero-friction.json
+          node tooling/chatgpt-readiness/readiness.cjs --goal "corregir errores de Prometeo en una interfaz HTML" --json > staging-reports/frontend-repair.json
+          node tooling/chatgpt-readiness/readiness.cjs --goal "conectar WhatsApp a calendario" --json > staging-reports/integrations.json
+          node tooling/chatgpt-readiness/readiness.cjs --goal "organizar agentes y colas" --json > staging-reports/agent-swarm.json
           node - <<'NODE'
-          const fs=require('node:fs');
-          const all=JSON.parse(fs.readFileSync('readiness-all.json'));
-          const ready=JSON.parse(fs.readFileSync('readiness-zero.json'));
-          if(!all.dry_run || !all.no_side_effects || all.actions.length !== 30) throw Error('Invalid 30-skill plan');
-          if(!ready.actions.length) throw Error('No existing-capability candidates');
-          if(ready.actions.some(x=>!x.execute_now || x.human_actions_min !== 0)) throw Error('Unsafe ready-only selection');
-          if(!all.actions.find(x=>x.id==='context7' && x.readiness==='awaiting_oauth')) throw Error('OAuth must remain unconfirmed');
-          if(!all.actions.find(x=>x.id==='superpowers' && x.readiness==='connected_unverified')) throw Error('Plugin operation must remain unverified');
-          console.log('PASS: 30 staged, '+ready.actions.length+' zero-friction candidates, no authorization or installs');
+          const fs = require('node:fs');
+          const read = file=>JSON.parse(fs.readFileSync('staging-reports/'+file,'utf8'));
+          const all = read('all-30.json');
+          const zero = read('zero-friction.json');
+          const ui = read('frontend-repair.json');
+          const api = read('integrations.json');
+          const sw = read('agent-swarm.json');
+          if(all.selected!==30 || !all.actions.every(x=>x.callable_now==='NOT_ATTESTED_BY_OFFLINE_PLANNER')) throw Error('Offline tool overclaim');
+          if(zero.actions.some(x=>['CONSENT_REQUIRED','LOCAL_ACTIVATION_REQUIRED','BUILD_ISOLATED_ADAPTER_THEN_TEST'].includes(x.next))) throw Error('False zero-friction claim');
+          if(!ui.actions.some(x=>x.id==='playwright')) throw Error('UI tests missing');
+          if(!api.actions.some(x=>x.id==='mcp-builder')) throw Error('Integration adapter missing');
+          if(!sw.actions.some(x=>x.id==='supabase')) throw Error('Multiagent backend missing');
+          if(all.live_permissions_checked || all.tools_installed || all.oauth_grants || all.code_deployed) throw Error('Hidden side effect claim');
+          console.log('PASS: 30 available for dry-run selection, every actual tool call requires fresh evidence');
           NODE
-      - name: Upload tested activation manifest
+      - name: Save QA evidence for future chats
         uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-readiness-dryrun
-          path: |
-            readiness-all.json
-            readiness-zero.json
+          name: prometeo-chatgpt-readiness-verified
+          path: staging-reports/
+          if-no-files-found: error
           retention-days: 30
