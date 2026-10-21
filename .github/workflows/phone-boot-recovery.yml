@@ -1,0 +1,33 @@
+name: Phone recovery · safe Android boot candidate
+on:
+  push:
+    branches: ["feat/phone-boot-recovery-*"]
+    paths:
+      - "phone-bridge/v4/**"
+      - ".github/workflows/phone-boot-recovery.yml"
+  pull_request:
+    paths:
+      - "phone-bridge/v4/**"
+      - ".github/workflows/phone-boot-recovery.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-boot-hook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Python syntax and offline integration tests
+        run: |
+          python -m py_compile phone-bridge/v4/boot-recovery.py phone-bridge/v4/test_boot_recovery.py
+          python -m unittest discover -s phone-bridge/v4 -p 'test_*.py' -v
+      - name: No remote execution, secrets or unexpected workspace edits
+        run: |
+          ! grep -En 'git(hub)? auth token|RIEL_GITHUB_TOKEN|rm -rf|curl.*\|.*bash|wget.*\|.*sh|kill -9|0\.0\.0\.0' phone-bridge/v4/boot-recovery.py
+          git diff --exit-code
