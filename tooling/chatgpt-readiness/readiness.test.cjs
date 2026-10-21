@@ -104,3 +104,27 @@ test("self-test proves offline integrity only",()=>{
   assert.equal(j.no_live_claim,true);
   assert.equal(j.capabilities,30);
 });
+
+test("fresh-worker entry discovers canonical in-repo skill without user copy-paste",()=>{
+  const repoRoot=path.resolve(root,"../..");
+  const agents=fs.readFileSync(path.join(repoRoot,"AGENTS.md"),"utf8");
+  const linked=".agents/skills/prometeo-chatgpt-tool-readiness/SKILL.md";
+  assert(agents.includes(linked));
+  assert(agents.includes("coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json"));
+  assert(agents.includes("coordination/GLOBAL_AGENT_CONSTITUTION_V1.md") ||
+    agents.includes("GLOBAL_AGENT_CONSTITUTION_V1.md"));
+  const skill=fs.readFileSync(path.join(repoRoot,linked),"utf8");
+  assert(skill.includes("capabilities.json"));
+  assert(skill.includes("intents.json"));
+  assert(skill.includes("NOT_ATTESTED_BY_OFFLINE_PLANNER"));
+});
+test("handoff targets and offline CLI are actually present in repository",()=>{
+  const repoRoot=path.resolve(root,"../..");
+  for (const relative of [
+    "tooling/chatgpt-readiness/capabilities.json",
+    "tooling/chatgpt-readiness/intents.json",
+    "tooling/chatgpt-readiness/readiness.cjs",
+    "tooling/chatgpt-readiness/README.md",
+    ".agents/skills/prometeo-chatgpt-tool-readiness/SKILL.md"
+  ]) assert(fs.statSync(path.join(repoRoot,relative)).isFile(),relative);
+});
