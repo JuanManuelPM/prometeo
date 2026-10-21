@@ -90,8 +90,12 @@ function classify(item) {
 }
 function matchedRoutes(goal) {
   const words=new Set(normalized(goal).split(/\s+/).filter(Boolean));
+  // A concrete fix/bug request must put code ownership and safe edits before
+  // cosmetic design advice, even when many UI-related terms are present.
+  const isRepair=["corregir","arreglar","bug","bugs","errores","error","implementar"].some(w=>words.has(w));
   const scored=routes.routes.map(route => ({
-    route, score:route.words.filter(word => words.has(word)).length
+    route, score:route.words.filter(word => words.has(word)).length +
+      (isRepair && route.id==="programming" ? 2 : 0)
   })).filter(x=>x.score>0).sort((a,b)=> b.score-a.score);
   return scored.slice(0,2).map(x=>x.route);
 }
