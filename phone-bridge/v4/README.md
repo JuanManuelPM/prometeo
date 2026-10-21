@@ -31,3 +31,11 @@ La app instalada en la pantalla principal con Chrome puede abrir `127.0.0.1:1947
 ## Firma compatible de complementos Android
 
 La documentación oficial de Termux:Boot exige que el complemento esté **firmado con la misma clave** que Termux principal. No instalar una APK cualquiera ni mezclar distribuciones F-Droid y GitHub sin comprobar el origen. Fuente: https://github.com/termux/termux-boot/blob/master/README.md. Abrir Termux:Boot una vez luego de instalarlo para activar el receptor de arranque. La política de batería y las restricciones Android siguen siendo un límite físico.
+
+## Instalación reproducible desde Acciones (no ejecutada en Tank)
+
+El código de `boot-recovery.py` en el commit `de3ed40136527bbbf89b3fa0069fc8d3f2c3b8fc` tiene SHA-256 `f7fafdf0ea49c290f41b041f116262b6eb93d5bad6eb7314e950112529610045`. El paquete debe descargarse desde esa revisión inmutable por HTTPS, validarse antes de ejecutarse y llamarse explícitamente mediante `terminal.run` de Prometeo con aprobación local.
+
+**La instalación del hook no implica que Termux:Boot esté instalado ni activado.** Para revertir posteriormente: `python ~/.local/share/prometeo/updates/android-boot-recovery.py --undo`. La reversión se niega a borrar bytes que no reconozca.
+
+La única excepción de firma es el complemento Android, que debe provenir de una fuente compatible con el Termux existente. No se instala ni se habilita por inferencia.
