@@ -1,22 +1,44 @@
 ---
 name: prometeo-chatgpt-tool-readiness
-description: "Map available ChatGPT connected tools to Prometeo requests, use existing GitHub/Supabase/Vercel before new installs, enforce permission and verification boundaries."
+description: "Invoke for any Prometeo request involving coding, QA, integrations, UI, documents, agents, local bridges or deciding which ChatGPT-connected tools/skills to use. Reuse existing connected tools with live verification; avoid redundant installs, unauthorized OAuth and false completion claims."
 ---
 
-# ChatGPT tool readiness (opt-in recipe)
+# Prometeo · ChatGPT tool router v2
 
-**This is a repo-side skill, not an automatically installed ChatGPT plugin or account permission.**
+**Trigger:** a fresh authorized Prometeo worker needs to execute real user work using any of 30 documented capabilities. No need to ask the human to paste another prompt, repo link, command or token.
 
-1. Before product changes, obey repository `AGENTS.md`, the Global Constitution and relevant owner/work packet. This skill **does not** supersede those.
-2. Read `tooling/chatgpt-readiness/capabilities.json`, which ranks 30 opportunities and states the precise blockers. Treat `state` values as observations from 2026-10-20, not live access claims.
-3. For a user request, identify the smallest set of capabilities required. Prefer live ChatGPT tools for GitHub, Supabase, Vercel, native document processing and verification; never create duplicate connectors merely because an external repo was recommended.
-4. If needed, run `node tooling/chatgpt-readiness/readiness.cjs --id <comma-delimited-ids> --json` to produce a **dry-run activation plan**. Do not treat its output as installed software.
-5. For runnable changes, act only in authorized scope. Prepare all safe code, CI checks, candidate previews and tests, but do **not** silently install plugins, grant OAuth, use private credentials, run scripts on the user's local computer or expose private data.
-6. Superpowers plugin was connected by the user, but individual callable tools were not yet available at capture time. Apply its method where appropriate; discover real callable actions before claiming plugin-native execution.
-7. Context7 OAuth was shown in a screenshot, not confirmed connected. Avoid storing the screenshot's email or copying identity/authorization data to public GitHub.
-8. For a new local bridge or external account, generate a least-privilege, reversible package first, then request only the unavoidable human consent/activation.
-9. Return truth-separated states: **prepared**, **tested in CI**, **connected**, **local active**, **human accepted**, **served**. A successful `readiness.cjs --self-test` proves catalog integrity only.
-10. Prefer one-turn software execution: do not ask human to transport prompts/paths when ChatGPT and existing connectors can act.
+**Important:** this file lives in the repo. It is **not** automatically installed as a ChatGPT account skill. It becomes available to a new worker only when that worker reads the existing Prometeo entry / `AGENTS.md`, or deliberately opens this file through its connected tools.
 
-Primary catalog: `tooling/chatgpt-readiness/capabilities.json`.
-Method and commands: `tooling/chatgpt-readiness/README.md`.
+## Minimal one-turn algorithm
+
+1. **AUTHORITY**. Before any material product write, load `AGENTS.md`, the Global Constitution, the current EPOCH and the exact active work packet/owner. Preserve Current/Catalog/Lineage/Human Accepted/Served. Do not create a new parallel coordinator.
+2. **ROUTE**. Read `tooling/chatgpt-readiness/intents.json` + `capabilities.json`. Select by task using the first matching intent and only the needed skills. If a Node runtime is available, call:
+   `node tooling/chatgpt-readiness/readiness.cjs --goal "<the user's existing request>" --json`.
+   Never make the human run this command merely to save agent work.
+3. **RE-CHECK CONNECTORS**. Catalog status is an old snapshot. Inspect the live available tools and permissions in *this* ChatGPT conversation before claiming execution. Prefer GitHub, Supabase, Vercel and available native skills already connected. Separate:
+   - Methodology we can **apply** (Spec Kit, Superpowers practices, design skill guidance).
+   - Tool/plugin whose actual API was **called and returned successfully**.
+   - External runtime/CLI only **prepared**, not installed or linked.
+   - OAuth/Meta/Ubuntu/local browser access **blocked pending explicit human consent**.
+4. **IMPLEMENT**. Prepare and perform every authorized software-solvable step. Make narrow, reversible edits on the exact current owner, ideally a separate branch/PR for risky changes. Read source before applying changes; do not rewrite accepted interfaces.
+5. **VERIFY**. Tests must demonstrate user-visible behavior, not simply JSON/schema validity. Use existing browser CI where applicable; verify browser/API/data boundaries, negative tests and preserved functions. A successful dry-run router test is never proof that a third-party capability is live. Save direct evidence.
+6. **RETURN**. Report precise diffs, tested vs untested functions, actual tool calls, unresolved limitations and correct links. When the authorized Page Change/RETURN pathway works, persist through its existing owners. If it does not, report the real persistence boundary without inventing a receipt.
+
+## Route priorities
+
+- **Bug/code/UI fix:** GitHub exact owner → specification/preservation → test first → code fix → browser test → visual polish.
+- **App integrations:** use existing connector → check provider scope → build missing bridge only → test real event; do not presume WhatsApp personal-account access.
+- **Visual changes:** preserve accepted visual DNA → choose skills → generate candidate → test mobile, keyboard and screenshot → do not promote without actual approval when required.
+- **Study/document ingestion:** authorized retrieval → source extraction → canonical markdown/structured document → reader and TTS tests; never hardcode content.
+- **Agents/worker swarms:** reuse existing Work Graph and worker bus → measure results → avoid adding competing schedulers → publish truthful receipts.
+- **Ubuntu/Android/Kindle:** prepare everything remotely before any human gesture; remote ChatGPT container is NOT the user's local machine.
+- **Security:** only authorized targets and staging, no secrets in logs or public repositories.
+
+## Explicit truth boundary
+
+The planner output has `mode: DRY_RUN_ONLY`; every `callable_now` is `NOT_ATTESTED_BY_OFFLINE_PLANNER`. A real worker must verify current tool availability independently. `awaiting_oauth` can only become connected after explicit user consent and a successful runtime call. Nothing about this skill changes account settings automatically.
+
+Source docs: `tooling/chatgpt-readiness/README.md`.
+Catalog: `tooling/chatgpt-readiness/capabilities.json`.
+Task patterns: `tooling/chatgpt-readiness/intents.json`.
+Unit/negative test: `tooling/chatgpt-readiness/readiness.test.cjs`.

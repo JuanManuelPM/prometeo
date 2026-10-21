@@ -8,6 +8,9 @@ When a human explicitly authorizes connected tools for Prometeo and invokes the 
 - A `WORK` assignment defines the only permitted job scope for that lease. Publish before requesting NEXT.
 - The Agent Runtime v3 rules below remain applicable to the legacy `Prometeo` / `PROMETEO EXECUTE` flows when `/o/` is not the invoked authority; they must not override an active OBEY-v2 session.
 
+## ChatGPT capability selection (lazy, non-authoritative)
+Once the authorized Prometeo bootstrap and exact work packet have been resolved, for tasks involving tools or skills consult `.agents/skills/prometeo-chatgpt-tool-readiness/SKILL.md`. This adds no chat hook, permission, workflow owner or installation; check actual live connectors. Never run this step before OBEY-v2 admission when `/o/` is invoked.
+
 # Prometeo Agent Runtime v3
 
 Prometeo is intentionally multi-chat. **Route before archaeology; EPOCH before coordination reread; compiled packet before raw owners.**
@@ -137,3 +140,9 @@ Agent Runtime / Network coordinate work only. Current / Catalog / Lineage / Rein
 
 ## Prioridad 2026-10-08: ONE TURN
 Usuario quiere una sola entrada por chat, estado durable en la página, y skills para futuras modificaciones. Nuevas referencias: `coordination/one-turn/v1/ONE_TURN_CONTRACT_V1.json`, `coordination/one-turn/v1/EXECUTION_SPEC_V1.md`, `.agents/skills/prometeo-one-turn/SKILL.md`. **Fuente documentada, integración del runtime pendiente**. Reutilizar P4 Capture, Page Change, Context Foundry, Work Graph y Current. No copiar contenido privado a GitHub.
+
+## ChatGPT tool/skill reuse · 2026-10-20 (non-authoritative)
+
+For an authorized Prometeo task involving coding, QA, integrations, interfaces, documents, agents or local bridges, **lazily read** `.agents/skills/prometeo-chatgpt-tool-readiness/SKILL.md` and use `tooling/chatgpt-readiness/intents.json` + `capabilities.json` to select the minimum useful capabilities without asking the human to copy instructions or repeat past context.
+
+This is a **tool-choice recipe only**. It never overrides OBEY-v2, current Work Packets, Constitution, ONE TURN, Current/Catalog/Lineage, ownership or permission gates. A repo skill does not automatically become an account plugin; a snapshot of a connected app is not proof it is callable now. Check the actual ChatGPT tool session before use, run real tests and never claim local Ubuntu, WhatsApp or OAuth access without direct evidence. Never auto-install all thirty packages.
