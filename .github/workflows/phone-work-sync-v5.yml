@@ -1,0 +1,44 @@
+name: Phone private Work handoff and snapshot v5
+on:
+  pull_request:
+    paths:
+      - 'phone-bridge/v5/**'
+      - '.github/workflows/phone-work-sync-v5.yml'
+  push:
+    branches: ['feat/phone-work-sync-contract-v5-*']
+    paths:
+      - 'phone-bridge/v5/**'
+      - '.github/workflows/phone-work-sync-v5.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify pinned source and unpack
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),z=require('node:zlib'),crypto=require('node:crypto');
+          const p='phone-bridge/v5/';
+          const packed=fs.readFileSync(p+'contract.mjs.gz.b64','utf8').trim();
+          const code=z.gunzipSync(Buffer.from(packed,'base64'));
+          const sha=crypto.createHash('sha256').update(code).digest('hex');
+          if(sha!=='a3aa11ceb854cf588b27b6bbfa177f596127cdea2fda7e3f58e6b5d665fcb77e')throw Error('SHA-256 mismatch');
+          fs.writeFileSync(p+'contract.mjs',code);
+          console.log('SOURCE PINNED:',sha,'SIZE:',code.length);
+          JS
+      - name: Syntax and safe offline tests
+        run: |
+          node --check phone-bridge/v5/contract.mjs
+          node --check phone-bridge/v5/test_contract.mjs
+          node --check phone-bridge/v5/dispatch-gh-adapter.mjs
+          node --check phone-bridge/v5/test_adapter_smoke.mjs
+          node --test phone-bridge/v5/test_contract.mjs phone-bridge/v5/test_adapter_smoke.mjs
