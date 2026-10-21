@@ -49,7 +49,7 @@ node --test tooling/chatgpt-readiness/readiness.test.cjs
 
 ## Guaranteed by the isolated tests
 
-The GitHub workflow `.github/workflows/chatgpt-capability-readiness.yml` runs Node syntax checks, 11 programmatic assertions (including negative auth, invalid flags, language routing) and five user-story dry runs. It saves its JSON outputs as a build artifact for 30 days.
+The GitHub workflow `.github/workflows/chatgpt-capability-readiness.yml` runs Node syntax checks, 13 programmatic assertions (including negative auth, invalid flags, language routing) and five user-story dry runs. It saves its JSON outputs as a build artifact for 30 days.
 
 A green build proves ONLY: catalog consistency, deterministic routing, fail-closed permission claims and reproducibility of the planner. It does **not** prove all 30 external tools work, that Prometeo is deployed, that a fresh chat autoloaded this skill, or that the user's Ubuntu/mobile is connected.
 
