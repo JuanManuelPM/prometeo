@@ -19,6 +19,7 @@ La recuperación automática tras reiniciar Android se comprobará **en el Tank 
 - segunda instalación sin duplicaciones;
 - ejecución de launcher con `iniciar`, sin lanzar navegador;
 - rechazo de ruta ocupada, enlaces simbólicos, launcher ausente, entorno que no sea Termux;
+- reversión mediante `python boot-recovery.py --undo`: sólo borra el archivo propio si sus bytes coinciden; no elimina scripts de usuario;
 - recibo honesto: sin intervención en proyectos ni prueba de reinicio de Android.
 
 ## Estado de autoridad
@@ -26,3 +27,7 @@ La recuperación automática tras reiniciar Android se comprobará **en el Tank 
 
 ## Alternativa complementaria
 La app instalada en la pantalla principal con Chrome puede abrir `127.0.0.1:19471` cuando el servicio corre. Para reanimar el servidor **después de un cierre forzado de Android**, puede requerirse abrir Termux o usar un atajo de Termux:Widget, pero ninguna página web pública puede saltarse los permisos Android por sí sola.
+
+## Firma compatible de complementos Android
+
+La documentación oficial de Termux:Boot exige que el complemento esté **firmado con la misma clave** que Termux principal. No instalar una APK cualquiera ni mezclar distribuciones F-Droid y GitHub sin comprobar el origen. Fuente: https://github.com/termux/termux-boot/blob/master/README.md. Abrir Termux:Boot una vez luego de instalarlo para activar el receptor de arranque. La política de batería y las restricciones Android siguen siendo un límite físico.
