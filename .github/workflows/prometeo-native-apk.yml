@@ -77,6 +77,17 @@ jobs:
       - name: Compile Android app
         working-directory: phone-bridge/native/source
         run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Verify APK signatures, ZIP alignment and manifest targeting Android 13
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | tee /tmp/native-apk-badging.txt
+          grep -q "package: name='org.prometeo.launcher'" /tmp/native-apk-badging.txt
+          grep -q "sdkVersion:'26'" /tmp/native-apk-badging.txt
+          grep -q "targetSdkVersion:'33'" /tmp/native-apk-badging.txt
       - name: SHA-256 and artifact size
         run: |
           sha256sum phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
@@ -86,3 +97,34 @@ jobs:
           name: prometeo-native-android-apk
           path: phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+
+  install-on-android-13:
+    needs: build-native
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: prometeo-native-android-apk
+          path: phone-apk
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install signed APK on clean Android 13 and open activity
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          emulator-boot-timeout: 420
+          script: |
+            set -eu
+            adb install -r phone-apk/app-debug.apk
+            adb shell pm path org.prometeo.launcher | tee /tmp/present.txt
+            grep -q 'package:' /tmp/present.txt
+            adb shell am start -n org.prometeo.launcher/.MainActivity
+            sleep 3
+            adb shell pidof org.prometeo.launcher
+            echo "PASS: APK installation and activity startup on Android 13 emulator"
