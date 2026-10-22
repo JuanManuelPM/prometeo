@@ -1,0 +1,182 @@
+name: PROMETEO · Native APK (no widgets)
+on:
+  push:
+    branches: ['feat/phone-native-app-*']
+    paths:
+      - 'phone-bridge/native/**'
+      - '.github/workflows/prometeo-native-apk.yml'
+  pull_request:
+    paths:
+      - 'phone-bridge/native/**'
+      - '.github/workflows/prometeo-native-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify SHA-256 and unpack exact-reviewed sources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,io,pathlib,tarfile
+          b=pathlib.Path('phone-bridge/native/source.tar.gz.b64').read_text().strip()
+          gz=base64.b64decode(b,validate=True)
+          assert hashlib.sha256(gz).hexdigest()=='db76d13bdc3b3498e5e08527320928d66e19d972508dc95729fa7e86812e92b9'
+          raw=gzip.decompress(gz)
+          assert hashlib.sha256(raw).hexdigest()=='52983012f3b1435e02fc917e2819dbb5ae43ff635d635d0b6929e5fa4105030c'
+          dest=pathlib.Path('phone-bridge/native/source')
+          dest.mkdir(parents=True,exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
+              for m in tar.getmembers():
+                  p=pathlib.PurePosixPath(m.name)
+                  assert m.isfile() and not p.is_absolute() and '..' not in p.parts
+                  assert p.parts[0] in ('app','README.md','gradle.properties','settings.gradle','build.gradle')
+                  target=dest.joinpath(*p.parts)
+                  target.parent.mkdir(parents=True,exist_ok=True)
+                  target.write_bytes(tar.extractfile(m).read())
+          print('VERIFIED native source files:',len(list(dest.rglob('*'))))
+          PY
+      - name: Prepare vendor-compatible v1 + v2 + v3 APK signatures
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('phone-bridge/native/source/app/build.gradle')
+          data=p.read_text()
+          needle='    compileOptions {'
+          assert data.count(needle)==1
+          replacement='''    signingConfigs {
+              debug {
+                  v1SigningEnabled true
+                  v2SigningEnabled true
+                  enableV3Signing = true
+              }
+          }
+              compileOptions {'''
+          p.write_text(data.replace(needle,replacement))
+          print('Explicit signing enabled for legacy OEM installer compatibility')
+          PY
+      - name: Assert privilege and endpoint boundaries
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('phone-bridge/native/source/app/src/main')
+          bridge=(root/'java/org/prometeo/launcher/TermuxBridge.java').read_text()
+          manifest=(root/'AndroidManifest.xml').read_text()
+          assert 'com.termux.permission.RUN_COMMAND' in manifest
+          assert 'android.permission.INTERNET' in manifest
+          for p in ('QUERY_ALL_PACKAGES','BIND_ACCESSIBILITY_SERVICE','READ_SMS','READ_CONTACTS','RECORD_AUDIO','SYSTEM_ALERT_WINDOW'):
+              assert p not in manifest
+          assert '127.0.0.1:19471' in bridge
+          assert 'RUN_COMMAND_BACKGROUND' in bridge
+          assert '"iniciar"' in bridge
+          assert 'terminal.run' not in bridge
+          print('PASS: no remote command interface or requested sensitive data access')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android platform from SDK already on runner
+        shell: bash
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          command -v sdkmanager
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile Android app
+        working-directory: phone-bridge/native/source
+        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Apply Android APK v1 v2 v3 signatures explicitly (compatibility candidate only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          key="$HOME/.config/.android/debug.keystore"
+          test -f "$key"
+          mv "$apk" "${apk%.apk}-gradle.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$key" --ks-key-alias AndroidDebugKey \
+            --ks-pass pass:android --key-pass pass:android \
+            --min-sdk-version 23 --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --out "$apk" "${apk%.apk}-gradle.apk"
+      - name: Verify APK signatures, ZIP alignment and manifest targeting Android 13
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 23 "$apk" | tee /tmp/signature.txt
+          unzip -Z -1 "$apk" | grep -F '.SF'
+          grep -q 'Verified using v1 scheme (JAR signing): true' /tmp/signature.txt
+          grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/signature.txt
+          grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' /tmp/signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | tee /tmp/native-apk-badging.txt
+          grep -q "package: name='org.prometeo.launcher'" /tmp/native-apk-badging.txt
+          grep -q "sdkVersion:'26'" /tmp/native-apk-badging.txt
+          grep -q "targetSdkVersion:'33'" /tmp/native-apk-badging.txt
+      - name: SHA-256 and artifact size
+        run: |
+          sha256sum phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          stat -c '%s bytes' phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-native-android-apk
+          path: phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  install-on-android-13:
+    needs: build-native
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: prometeo-native-android-apk
+          path: phone-apk
+      - name: Retrieve the EXACT original APK the user received
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 39680422791 -n prometeo-native-android-apk -D original-apk --repo JuanManuelPM/prometeo
+          echo "0048d45d3c5933be78e1726caa87965873a65f525bd2f73bb9b43a84370afc67  original-apk/app-debug.apk" | sha256sum --check
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install signed APK on clean Android 13 and open activity
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          emulator-boot-timeout: 420
+          script: |
+            set -eu
+            echo "ORIGINAL BINARY FROM USER DOWNLOAD:"
+            adb install -r original-apk/app-debug.apk
+            adb shell pm path org.prometeo.launcher | grep 'package:'
+            adb shell am start -n org.prometeo.launcher/.MainActivity
+            sleep 2
+            adb shell pidof org.prometeo.launcher
+            adb uninstall org.prometeo.launcher
+            echo "CURRENT REBUILT BINARY:"
+            adb install -r phone-apk/app-debug.apk
+            adb shell pm path org.prometeo.launcher | tee /tmp/present.txt
+            grep -q 'package:' /tmp/present.txt
+            adb shell am start -n org.prometeo.launcher/.MainActivity
+            sleep 3
+            adb shell pidof org.prometeo.launcher
+            echo "PASS: APK installation and activity startup on Android 13 emulator"
