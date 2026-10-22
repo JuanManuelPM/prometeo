@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   build-native:
     runs-on: ubuntu-latest
@@ -107,6 +108,12 @@ jobs:
         with:
           name: prometeo-native-android-apk
           path: phone-apk
+      - name: Retrieve the EXACT original APK the user received
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 39680422791 -n prometeo-native-android-apk -D original-apk --repo JuanManuelPM/prometeo
+          echo "0048d45d3c5933be78e1726caa87965873a65f525bd2f73bb9b43a84370afc67  original-apk/app-debug.apk" | sha256sum --check
       - name: Enable KVM for Android emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -121,6 +128,14 @@ jobs:
           emulator-boot-timeout: 420
           script: |
             set -eu
+            echo "ORIGINAL BINARY FROM USER DOWNLOAD:"
+            adb install -r original-apk/app-debug.apk
+            adb shell pm path org.prometeo.launcher | grep 'package:'
+            adb shell am start -n org.prometeo.launcher/.MainActivity
+            sleep 2
+            adb shell pidof org.prometeo.launcher
+            adb uninstall org.prometeo.launcher
+            echo "CURRENT REBUILT BINARY:"
             adb install -r phone-apk/app-debug.apk
             adb shell pm path org.prometeo.launcher | tee /tmp/present.txt
             grep -q 'package:' /tmp/present.txt
