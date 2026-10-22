@@ -43,6 +43,18 @@ jobs:
                   target.write_bytes(tar.extractfile(m).read())
           print('VERIFIED native source files:',len(list(dest.rglob('*'))))
           PY
+      - name: Isolate candidate Android application ID from all earlier builds
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('phone-bridge/native/source/app/build.gradle')
+          data=p.read_text()
+          old="applicationId 'org.prometeo.launcher'"
+          assert data.count(old)==1
+          p.write_text(data.replace(old,"applicationId 'org.prometeo.tankcandidate'"))
+          print('Candidate app ID: org.prometeo.tankcandidate; earlier app is untouched')
+          PY
       - name: Prepare vendor-compatible v1 + v2 + v3 APK signatures
         shell: bash
         run: |
@@ -123,7 +135,7 @@ jobs:
           grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' /tmp/signature.txt
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | tee /tmp/native-apk-badging.txt
-          grep -q "package: name='org.prometeo.launcher'" /tmp/native-apk-badging.txt
+          grep -q "package: name='org.prometeo.tankcandidate'" /tmp/native-apk-badging.txt
           grep -q "sdkVersion:'26'" /tmp/native-apk-badging.txt
           grep -q "targetSdkVersion:'33'" /tmp/native-apk-badging.txt
       - name: SHA-256 and artifact size
@@ -171,12 +183,12 @@ jobs:
             adb shell am start -n org.prometeo.launcher/.MainActivity
             sleep 2
             adb shell pidof org.prometeo.launcher
-            adb uninstall org.prometeo.launcher
-            echo "CURRENT REBUILT BINARY:"
-            adb install -r phone-apk/app-debug.apk
-            adb shell pm path org.prometeo.launcher | tee /tmp/present.txt
+            echo "ISOLATED NEW APK SHOULD COEXIST WITH OLD APP:"
+            adb install phone-apk/app-debug.apk
+            adb shell pm path org.prometeo.tankcandidate | tee /tmp/present.txt
             grep -q 'package:' /tmp/present.txt
-            adb shell am start -n org.prometeo.launcher/.MainActivity
+            adb shell pm path org.prometeo.launcher | grep -q 'package:'
+            adb shell am start -n org.prometeo.tankcandidate/org.prometeo.launcher.MainActivity
             sleep 3
-            adb shell pidof org.prometeo.launcher
-            echo "PASS: APK installation and activity startup on Android 13 emulator"
+            adb shell pidof org.prometeo.tankcandidate
+            echo "PASS: both original and isolated new app installed, candidate activity launched"
