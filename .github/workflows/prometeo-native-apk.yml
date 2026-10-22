@@ -98,6 +98,19 @@ jobs:
       - name: Compile Android app
         working-directory: phone-bridge/native/source
         run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Apply Android APK v1 v2 v3 signatures explicitly (compatibility candidate only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=phone-bridge/native/source/app/build/outputs/apk/debug/app-debug.apk
+          key="$HOME/.config/.android/debug.keystore"
+          test -f "$key"
+          mv "$apk" "${apk%.apk}-gradle.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$key" --ks-key-alias AndroidDebugKey \
+            --ks-pass pass:android --key-pass pass:android \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --out "$apk" "${apk%.apk}-gradle.apk"
       - name: Verify APK signatures, ZIP alignment and manifest targeting Android 13
         shell: bash
         run: |
