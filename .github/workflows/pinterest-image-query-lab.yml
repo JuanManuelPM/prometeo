@@ -149,6 +149,11 @@ jobs:
           URL='https://api.github.com/repos/JuanManuelPM/prometeo/contents/demos/pinterest-image-query-lab-v1/visual-discovery/data/seed-50.json?ref=gh-pages'
           CODE="$(curl -sS -o /tmp/seed-check.json -w '%{http_code}' -H "Authorization: Bearer $GITHUB_TOKEN" "$URL")"
           if [ "$CODE" = 200 ]; then echo 'exists=true' >> "$GITHUB_OUTPUT"; else echo 'exists=false' >> "$GITHUB_OUTPUT"; fi
+      - name: Checkout exact triggering revision
+        if: steps.old.outputs.exists == 'false'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Collect actual Pins and publish dataset
         if: steps.old.outputs.exists == 'false'
         env:
@@ -156,12 +161,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/demos/pinterest-image-query-lab-v1/visual-discovery/'
-          curl -fsSL --max-time 30 "$BASE""engine.js" -o /tmp/visual-engine.js
-          curl -fsSL --max-time 30 "$BASE""collect.mjs" -o /tmp/visual-collect.mjs
-          curl -fsSL --max-time 30 "$BASE""publish.mjs" -o /tmp/visual-publish.mjs
-          node /tmp/visual-collect.mjs /tmp/visual-engine.js
-          node /tmp/visual-publish.mjs
+          DIR='demos/pinterest-image-query-lab-v1/visual-discovery'
+          node "$DIR/collect.mjs" "$DIR/engine.js"
+          node "$DIR/publish.mjs"
       - name: Preserve the independent dataset artifact
         if: always() && steps.old.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
