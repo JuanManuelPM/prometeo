@@ -143,7 +143,7 @@ function heuristics(title,query){
 }
 function normalize(item,q,ref){
  const img=String(item.image||"");const pin=String(item.source_url||"");
- if(!/^https:\/\/i\.pinimg\.com\/[^ ]+\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(img)||!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//i.test(pin))return null;
+ if(!/^https:\/\/i\.pinimg\.com\/[^ ]+\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(img)||!/^https:\/\/www\.pinterest\.com\/pin\/[A-Za-z0-9_-]+\//i.test(pin))return null;
  const imageKey=img.replace(/\/(originals|\d+x|\d+x\d+)\//,"/").split("?")[0].toLowerCase();
  return {id:String(item.id||imageKey),imageKey,img,source:pin,title:String(item.title||"").slice(0,230),query:q,ref,score:heuristics(item.title,q),pixel:null,at:new Date().toISOString()};
 }
