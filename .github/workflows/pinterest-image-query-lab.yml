@@ -134,6 +134,31 @@ jobs:
           console.log('LIVE PINS',x.results.length);
           NODE
 
+
+      - name: Verify public persisted corpus has 50 real query records
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-image-query-lab-v1/visual-discovery/data/seed-50.json'
+          for n in 1 2 3 4 5 6; do
+            if curl -fsSL --max-time 35 "$URL" -o /tmp/seed-50-public.json; then break; fi
+            if [ "$n" = 6 ]; then echo 'public corpus unavailable' >&2; exit 1; fi
+            sleep 8
+          done
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const d=JSON.parse(fs.readFileSync('/tmp/seed-50-public.json','utf8'));
+          assert.equal(d.schema,'prometeo.visual-discovery-seed/v1');
+          assert.equal(d.runs.length,50);
+          assert.equal(d.summary.attempted,50);
+          assert.equal(d.items.length,d.summary.unique);
+          assert(d.summary.raw>=d.summary.unique);
+          assert(d.summary.unique>100);
+          assert(d.runs.every(r=>typeof r.query==='string' && typeof r.ok==='boolean'));
+          assert(d.items.every(i=>/^https:\/\/i\.pinimg\.com\//.test(i.img)&&/^https:\/\/www\.pinterest\.com\/pin\/[A-Za-z0-9_-]+\//.test(i.source)));
+          console.log('PUBLIC CORPUS PASS',JSON.stringify(d.summary));
+          NODE
+
   corpus:
     name: Collect and publish 50 real papercraft searches
     runs-on: ubuntu-latest
