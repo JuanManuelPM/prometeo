@@ -9,8 +9,12 @@ const start=source.indexOf("const REF=");
 const end=source.indexOf("const $=id=>");
 if(start<0||end<start)throw Error("Cannot locate source query catalog");
 const ctx={};
-vm.runInNewContext(source.slice(start,end)+";globalThis.catalog={base,REF};",ctx);
-const tasks=ctx.catalog.base.slice(0,50);
+vm.runInNewContext(source.slice(start,end)+";globalThis.catalog={GROUPS,REF};",ctx);
+const tasks=[];
+for(let i=0;i<20;i++)for(const ref of ctx.catalog.REF){
+ tasks.push({id:ref.id+"-"+i,ref:ref.id,kind:"base",query:ctx.catalog.GROUPS[ref.id][i]});
+}
+tasks.splice(50);
 if(tasks.length!==50||new Set(tasks.map(t=>t.query)).size!==50)throw Error("50 diverse source queries required");
 const api="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1";
 const report={schema:"prometeo.visual-discovery-seed/v1",created_at:new Date().toISOString(),
