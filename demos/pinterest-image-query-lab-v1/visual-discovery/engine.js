@@ -104,7 +104,7 @@ const $=id=>document.getElementById(id);
 const base=[];
 for(let i=0;i<20;i++)for(const ref of REF)base.push({id:ref.id+"-"+i,ref:ref.id,kind:"base",query:GROUPS[ref.id][i]});
 const state={items:[],runs:[],decisions:{},goal:50,cursor:0,mode:"idle",countReceived:0,failures:0,startAt:0};
-let itemMap=new Map(),visible="all",showN=240,abortController=null,runToken=0,autoTimer=0;
+let itemMap=new Map(),visible="all",showN=240,abortController=null,runToken=0,autoTimer=0,manualQueue=[];
 try{
  const saved=JSON.parse(localStorage.getItem(STORE)||"null");
  if(saved&&Array.isArray(saved.items)&&Array.isArray(saved.runs)){
@@ -272,14 +272,15 @@ async function fetchOne(task){
 async function begin(goal){
  state.goal=Math.max(1,Math.min(120,goal));
  if(state.mode==="running")return;
- if(state.cursor>=state.goal){state.mode="done";metrics();return}
+ if(state.cursor>=state.goal&&!manualQueue.length){state.mode="done";metrics();return}
  state.mode="running";abortController=new AbortController();const token=++runToken;metrics();
  let consecutive=0;
- while(state.cursor<state.goal&&state.mode==="running"&&token===runToken){
-  const task=queueAt(state.cursor),ok=await fetchOne(task);
+ while((state.cursor<state.goal||manualQueue.length)&&state.mode==="running"&&token===runToken){
+  const manual=manualQueue.length>0;
+  const task=manual?manualQueue.shift():queueAt(state.cursor),ok=await fetchOne(task);
   if(token!==runToken)break;
   if(!ok&&abortController.signal.aborted)break;
-  state.cursor++;consecutive=ok?0:consecutive+1;
+  if(!manual)state.cursor++;consecutive=ok?0:consecutive+1;
   $("status").textContent=(ok?"Recibidos resultados: ":"Falló la consulta: ")+task.query+" · "+state.cursor+"/"+state.goal;
   if(state.cursor%2===0||!ok)repaint();else{metrics();save()}
   if(consecutive>=4){state.mode="paused";$("status").textContent="Se pausó tras cuatro fallos seguidos. No se simulan resultados. Revisá backend y reanudá.";break}
@@ -297,7 +298,7 @@ function clear(){
  if(!confirm("¿Reiniciar esta investigación? Podés exportar un JSON antes para conservarla."))return;
  runToken++;if(abortController)abortController.abort();
  state.items=[];state.runs=[];state.decisions={};state.cursor=0;state.countReceived=0;state.failures=0;state.goal=50;state.mode="idle";
- itemMap.clear();showN=240;repaint();$("status").textContent="Reiniciado. Podés iniciar 50 o 120 consultas.";
+ itemMap.clear();manualQueue=[];showN=240;repaint();$("status").textContent="Reiniciado. Podés iniciar 50 o 120 consultas.";
 }
 function exp(){
  const out={schema:"prometeo.visual-discovery-exp/v1",exported:new Date().toISOString(),seed_refs:REF.map(r=>({id:r.id,source:r.source,terms:r.terms})),runs:state.runs,items:state.items,decisions:state.decisions,limits:{classification:"lexical and limited pixel heuristics, no neural vision model",printability:"not physically verified",source:"Pinterest original links",maxQueries:120}};
@@ -315,11 +316,10 @@ $("gallery").addEventListener("click",e=>{
  const b=e.target.closest("[data-action]");if(!b)return;
  const id=b.dataset.id,act=b.dataset.action,entry=itemMap.get(id);if(!entry)return;
  if(act==="similar"){
-  const better=entry.query+" printable cut fold glue tabs";
-  if(state.mode==="running")pause();
-  state.runs.push({query:better,ref:entry.ref,kind:"human-refinement",ok:false,count:0,error:"pendiente: consulta manual todavía no ejecutada",at:new Date().toISOString()});
-  const idx=base.findIndex(x=>x.query===entry.query);
-  $("status").textContent="Sugerencia guardada: "+better+". Exportala como hipótesis; no se cuenta como búsqueda exitosa.";
+  const better=(entry.title.length>8?entry.title:entry.query).slice(0,75)+" printable papercraft template cut fold";
+  manualQueue.push({query:better,ref:entry.ref,kind:"human-refinement"});
+  $("status").textContent="Consulta similar encolada: "+better;
+  if(state.mode!=="running")begin(state.goal);
  }else{
   state.decisions[id]=state.decisions[id]===act?null:act;
   if(!state.decisions[id])delete state.decisions[id];
