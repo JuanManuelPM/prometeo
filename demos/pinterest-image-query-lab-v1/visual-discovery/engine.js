@@ -160,7 +160,8 @@ function queryValue(run){
  const items=state.items.filter(i=>i.query===run.query);
  const votes=items.reduce((n,i)=>n+(state.decisions[i.id]==="keep"?80:state.decisions[i.id]==="reject"?-80:0),0);
  const avg=items.length?items.reduce((n,i)=>n+i.score,0)/items.length:0;
- return avg+votes/Math.max(1,items.length);
+ const novelty=run.count>0?Math.max(0,Math.min(1,(run.added||0)/run.count)):0;
+ return avg+votes/Math.max(1,items.length)+Math.round(25*novelty);
 }
 function queryStats(){
  return state.runs.filter(r=>r.ok&&r.count>0).map(r=>({...r,value:queryValue(r)})).sort((a,b)=>b.value-a.value);
