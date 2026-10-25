@@ -80,3 +80,56 @@ jobs:
           grep -q 'pins:\["263671753178772450"' /tmp/page.html
           ! grep -q '<iframe' /tmp/page.html
           echo 'served UI PASS'
+
+      - name: Check Visual Discovery engine syntax and experiment invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/demos/pinterest-image-query-lab-v1/visual-discovery/engine.js' -o /tmp/visual-engine.js
+          node --check /tmp/visual-engine.js
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const src=fs.readFileSync('/tmp/visual-engine.js','utf8');
+          for(const s of ['Munchkin Kitty','Adventure Time','クラフトザラシ','banana cat','function normalize','function queueAt','function heuristics','function probePixels','function exp','manualQueue','fetchOne(task)']) {
+            assert(src.includes(s), 'missing experimental invariant: '+s);
+          }
+          assert(!src.includes('Math.random()'), 'experiment must not simulate random pins');
+          console.log('Visual Discovery source syntax + contract PASS');
+          NODE
+
+      - name: Verify published Visual Discovery page and exact production script
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-image-query-lab-v1/visual-discovery/'
+          for n in 1 2 3 4 5 6; do
+            if curl -fsSL --max-time 30 "$URL" -o /tmp/visual-page.html &&
+               curl -fsSL --max-time 30 "$URL""engine.js" -o /tmp/visual-live-engine.js &&
+               grep -q 'id="references"' /tmp/visual-page.html &&
+               grep -q 'Pinterest' /tmp/visual-live-engine.js; then
+              break
+            fi
+            if [ "$n" = 6 ]; then echo "Visual Discovery served FAIL" >&2; exit 1; fi
+            sleep 8
+          done
+          node --check /tmp/visual-live-engine.js
+          grep -q 'id="gallery"' /tmp/visual-page.html
+          grep -q 'function fetchOne' /tmp/visual-live-engine.js
+          ! grep -q '<iframe' /tmp/visual-page.html
+          echo 'Visual Discovery served HTML + JS PASS'
+
+      - name: Probe live papercraft native Pinterest results
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=banana%20cat%20papercraft%20template&limit=5&k=pql-v1-7f2b9e31'
+          curl -fsSL --retry 2 --retry-delay 3 --max-time 45 "$URL" > /tmp/papercraft-live.json
+          node - <<'NODE'
+          const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/papercraft-live.json','utf8'));
+          if(!x.ok||!Array.isArray(x.results)||x.results.length<1)throw new Error(JSON.stringify(x));
+          for(const pin of x.results){
+            if(!/^https:\/\/i\.pinimg\.com\//.test(pin.image))throw new Error('not direct Pin image');
+            if(!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//.test(pin.source_url))throw new Error('not real source Pin');
+          }
+          console.log('LIVE PINS',x.results.length);
+          NODE
