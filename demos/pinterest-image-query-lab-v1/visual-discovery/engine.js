@@ -326,7 +326,25 @@ $("gallery").addEventListener("click",e=>{
  }
  repaint();
 });
+async function restoreRealCorpus(){
+ if(state.cursor||state.items.length)return false;
+ try{
+  const r=await fetch("data/seed-50.json",{cache:"no-store"});
+  if(!r.ok)return false;
+  const d=await r.json();
+  if(d.schema!=="prometeo.visual-discovery-seed/v1"||!Array.isArray(d.items)||!Array.isArray(d.runs)||d.runs.length!==50)return false;
+  for(const raw of d.items){
+   const item=normalize({image:raw.img,source_url:raw.source,id:raw.id,title:raw.title},raw.query,raw.ref);
+   if(!item||itemMap.has(item.id))continue;
+   item.score=raw.score||item.score;itemMap.set(item.id,item);state.items.push(item);
+  }
+  state.runs=d.runs;state.countReceived=Number(d.summary?.raw)||0;state.failures=Number(d.summary?.failures)||0;
+  state.cursor=50;state.goal=50;state.mode="done";
+  $("status").textContent="50 búsquedas reales recuperadas del corpus publicado. Éxitos: "+d.summary.successes+" · fallos: "+d.summary.failures+". Extendé a 120 o buscá similares.";
+  repaint();return true;
+ }catch(e){console.warn("Corpus no disponible, buscando en vivo",e);return false}
+}
 if(state.cursor<50){
- $("status").textContent="Iniciando la exploración: hasta 50 consultas reales, 20 resultados por consulta.";
- autoTimer=setTimeout(()=>begin(50),900);
+ $("status").textContent="Recuperando el corpus real; si todavía no fue publicado, buscaré directamente.";
+ restoreRealCorpus().then(ok=>{if(!ok&&!state.cursor)autoTimer=setTimeout(()=>begin(50),900)});
 }else{$("status").textContent="Sesión restaurada: "+state.cursor+" consultas realizadas. Podés continuar hasta 120."}
