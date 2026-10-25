@@ -133,3 +133,39 @@ jobs:
           }
           console.log('LIVE PINS',x.results.length);
           NODE
+
+  corpus:
+    name: Collect and publish 50 real papercraft searches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check existing gh-pages corpus
+        id: old
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          URL='https://api.github.com/repos/JuanManuelPM/prometeo/contents/demos/pinterest-image-query-lab-v1/visual-discovery/data/seed-50.json?ref=gh-pages'
+          CODE="$(curl -sS -o /tmp/seed-check.json -w '%{http_code}' -H "Authorization: Bearer $GITHUB_TOKEN" "$URL")"
+          if [ "$CODE" = 200 ]; then echo 'exists=true' >> "$GITHUB_OUTPUT"; else echo 'exists=false' >> "$GITHUB_OUTPUT"; fi
+      - name: Collect actual Pins and publish dataset
+        if: steps.old.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/demos/pinterest-image-query-lab-v1/visual-discovery/'
+          curl -fsSL --max-time 30 "$BASE""engine.js" -o /tmp/visual-engine.js
+          curl -fsSL --max-time 30 "$BASE""collect.mjs" -o /tmp/visual-collect.mjs
+          curl -fsSL --max-time 30 "$BASE""publish.mjs" -o /tmp/visual-publish.mjs
+          node /tmp/visual-collect.mjs /tmp/visual-engine.js
+          node /tmp/visual-publish.mjs
+      - name: Preserve the independent dataset artifact
+        if: always() && steps.old.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: papercraft-real-pinterest-50
+          path: seed-50.json
+          if-no-files-found: warn
