@@ -1,0 +1,6 @@
+# Prueba de contexto vacío · contrato y evidencia por completar
+1. Sin usar historia/memoria de ChatGPT, leer `ENTRY_V1.md`, `ROUTES_V1.json` y `PENDING_INDEX_V1.json` desde GitHub en una sesión nueva/conector. Verificar schema, branch, sha y 45 IDs EVO.
+2. Solicitud de prueba: `🔥prometeo estudiá Piaget`; seleccionar `prometeo-one-turn`, `prometeo-verify-release`, `prometeo-fire`, `prometeo-knowledge`; **leer íntegramente** sus cuatro `SKILL.md` desde sus `ref` distintos. Ningún chat previo leído o fingido.
+3. Sin permiso para tocar materiales académicos privados, responder con owner y límite, **no** inventar syllabus/guardar notas. Para tarea pública autorizada, read-after-write en rama propia.
+4. Ejecutar `node --test coordination/chat-bootstrap/v1/select-and-load.test.mjs` y `node coordination/chat-bootstrap/v1/select-and-load.mjs "🔥prometeo estudiá Piaget"` en un checkout con red. Si no se puede ejecutar, marcar `NOT_RUN`, no PASS.
+5. Criterios: skill full-text efectivamente recuperada; ningún archivo externo a rama alterado; 45 EVO enumerados; Project instructions configuradas sólo cuando acción explícita verificada. **Prueba entre dos chats reales PENDIENTE**; leer GitHub desde una llamada fría en este turno no equivale a crear otro chat.
