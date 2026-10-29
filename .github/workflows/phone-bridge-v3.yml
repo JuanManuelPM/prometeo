@@ -1,0 +1,80 @@
+name: Phone Bridge v3 · verified multipart candidate
+on:
+  pull_request:
+    paths:
+      - "phone-bridge/v3/**"
+      - ".github/workflows/phone-bridge-v3.yml"
+  push:
+    branches: ["feat/phone-bridge-v3-*"]
+    paths:
+      - "phone-bridge/v3/**"
+      - ".github/workflows/phone-bridge-v3.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verified-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify source and tests SHA-256; unpack to isolated directory
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,pathlib
+          root=pathlib.Path('phone-bridge/v3')
+          m=json.loads((root/'manifest.json').read_text())
+          assert m['status']=='candidate_only'
+          for name,digest in [('github-bridge.mjs',m['sha256_decompressed']['module']),('test_bridge.mjs',m['sha256_decompressed']['test'])]:
+              data=gzip.decompress(base64.b64decode((root/(name+'.gz.b64')).read_text().strip(),validate=True))
+              got=hashlib.sha256(data).hexdigest()
+              assert got==digest, f'Integrity mismatch {name}: {got}'
+              (root/name).write_bytes(data)
+              print('verified',name,len(data),got)
+          PY
+      - name: Syntax and behavior (mock GitHub; NO phone credentials)
+        run: |
+          node --check phone-bridge/v3/github-bridge.mjs
+          node --check phone-bridge/v3/test_bridge.mjs
+          node --test phone-bridge/v3/test_bridge.mjs
+      - name: Verify browser-free GitHub auth kit SHA-256 and unpack
+        run: |
+          node <<'JS'
+          const fs=require('fs'),crypto=require('crypto'),z=require('zlib');
+          const m=require('./phone-bridge/v3/manifest.json').device_auth;
+          const b=Buffer.from(fs.readFileSync(m.archive,'utf8').trim(),'base64');
+          const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
+          if(hash(b)!==m.archive_sha256)throw Error('Auth-kit archive integrity failure');
+          const raw=z.brotliDecompressSync(b);
+          if(hash(raw)!==m.tar_sha256)throw Error('Auth-kit tar integrity failure');
+          fs.mkdirSync('phone-bridge/v3/auth-kit-test',{recursive:true});
+          fs.writeFileSync('phone-bridge/v3/auth-kit-test/kit.tar',raw);
+          console.log('Verified auth kit',b.length,raw.length);
+          JS
+          tar -xf phone-bridge/v3/auth-kit-test/kit.tar -C phone-bridge/v3/auth-kit-test
+      - name: GitHub device code, anti-CSRF, no-token tests (mock; no real OAuth)
+        run: |
+          node --check phone-bridge/v3/auth-kit-test/github-auth.mjs
+          python3 -m py_compile phone-bridge/v3/auth-kit-test/github-device.py
+          python3 -m py_compile phone-bridge/v3/auth-kit-test/install.py
+          python3 phone-bridge/v3/auth-kit-test/test_device_auth.py
+      - name: Offline installer: readable code, pinned kit and fail-closed negative test
+        run: |
+          python3 -m py_compile phone-bridge/v3/instalar_desde_acciones.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          b=Path('phone-bridge/v3/instalar_desde_acciones.py').read_bytes()
+          assert hashlib.sha256(b).hexdigest()=='b9a582fb273950d58c1c7da425bf689ad05eb03c7481b075d92170019b298df7'
+          PY
+          echo "tampered" > /tmp/prometeo-corrupt-github-kit.txt
+          if PROMETEO_AUTH_KIT_TEST_FIXTURE=/tmp/prometeo-corrupt-github-kit.txt python3 phone-bridge/v3/instalar_desde_acciones.py; then
+            echo "ERROR: accepted corrupted installer input" >&2
+            exit 1
+          fi
+          echo "Corrupt kit safely rejected"
