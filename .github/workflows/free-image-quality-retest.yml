@@ -1,0 +1,77 @@
+name: Free AI Horde quality retest
+on:
+  push:
+    branches: [candidate/free-image-horde-proof-20261116]
+    paths: [.github/workflows/free-image-quality-retest.yml]
+permissions:
+  contents: write
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate SDXL reference and img2img followup
+        run: |
+          pip -q install requests pillow
+          python - <<'PY'
+          import io,json,time,base64,requests
+          from pathlib import Path
+          from PIL import Image
+          root=Path('experiments/free-image-horde-20261116');root.mkdir(parents=True,exist_ok=True)
+          api='https://aihorde.net/api/v2'
+          headers={'apikey':'0000000000','Client-Agent':'PrometeoQualityRetest:1.0:https://github.com/JuanManuelPM/prometeo'}
+          shared='A genuine 1998 Playstation 1 videogame cutscene screenshot. Deliberately low polygon count, pixelated handpainted texture maps and dithering, PS1 affine texture artifacts, dramatic art-directed composition, expressive readable geometry, lived-in cramped Buenos Aires living room. OLIVE GREEN sofa against the back wall, single amber floor lamp LEFT, small wooden CRT television RIGHT, peeling wallpaper, indigo night through window, earthy limited palette, atmospheric fog, narrative environmental details, stylized not photorealistic. Avoid flat untextured geometry.'
+          prompts=[
+           'Wide 3/4 camera angle showing the ENTIRE architectural interior, no people, olive green sofa, CRT TV clearly visible on right, warm lamp left. '+shared,
+           'Same exact room. Two stylized low polygon adult characters argue: sitting character in burgundy jacket pointing sharply to one friend standing in cream sweater. FULL bodies visible, distinctive expressive gestures, wide shot maintaining room furniture and layout. '+shared]
+          report={'version':2,'engine':'AI Horde anonymous','model_requested':'AlbedoBase XL 3.1','scenes':[],'started_utc':time.time()}
+          def save(): (root/'quality_retest_status.json').write_text(json.dumps(report,indent=2,ensure_ascii=False),encoding='utf-8')
+          save()
+          first=None
+          for i,prompt in enumerate(prompts,1):
+           entry={'scene':i,'prompt':prompt,'state':'submitting'}
+           report['scenes'].append(entry);save()
+           try:
+            req={'prompt':prompt+'###photorealistic, photography, modern luxury interior, smooth shading, minimalism, one single portrait subject, artifacts, white text, watermark, primitive collage, low effort','params':{'width':768,'height':768,'steps':24,'n':1,'cfg_scale':7,'sampler_name':'k_euler_a'},'models':['AlbedoBase XL 3.1'],'nsfw':False,'censor_nsfw':True,'r2':True,'shared':True}
+            if i==2 and first is not None:
+             req['source_image']=base64.b64encode(first).decode('ascii')
+             req['source_processing']='img2img'
+             req['params']['denoising_strength']=0.69
+             entry['uses_reference_from_scene_1']=True
+            else: entry['uses_reference_from_scene_1']=False
+            rs=requests.post(api+'/generate/async',headers=headers,json=req,timeout=35);rs.raise_for_status()
+            data=rs.json();entry['request_id']=data['id'];entry['state']='queued';save()
+            for _ in range(65):
+             time.sleep(6)
+             status=requests.get(api+'/generate/check/'+data['id'],timeout=25).json()
+             entry.update(state='waiting',queue_position=status.get('queue_position'),wait_time=status.get('wait_time'));save()
+             if status.get('faulted'): raise RuntimeError('worker faulted')
+             if status.get('done'):
+              done=requests.get(api+'/generate/status/'+data['id'],timeout=35).json()
+              gen=(done.get('generations') or [])[0]
+              source=gen['img']
+              if source.startswith('http'):
+               imres=requests.get(source,timeout=45);imres.raise_for_status();raw=imres.content
+              else: raw=base64.b64decode(source.split(',')[-1])
+              picture=Image.open(io.BytesIO(raw)).convert('RGB')
+              dest=root/f'scene_{i:02}_v2.webp';picture.save(dest,'WEBP',quality=90)
+              if i==1:
+               temp=io.BytesIO();picture.save(temp,'PNG');first=temp.getvalue()
+              entry.update(state='completed',image_file=str(dest),model=gen.get('model'),seed=gen.get('seed'),width=picture.width,height=picture.height);save()
+              print('COMPLETED',i,entry.get('model'),flush=True)
+              break
+            else: entry.update(state='timeout',error='No response within 390 seconds');save()
+           except Exception as exc:
+            entry.update(state='failed',error=repr(exc));save();print('FAILED',i,repr(exc),flush=True)
+          report['finished_utc']=time.time();save()
+          print('SUMMARY',[(s['scene'],s['state']) for s in report['scenes']],flush=True)
+          PY
+      - name: Commit visual evidence
+        if: always()
+        run: |
+          git config user.name "prometeo-proof-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add experiments/free-image-horde-20261116
+          git diff --cached --quiet || git commit -m "Add free AI Horde SDXL visual retest"
+          git push origin HEAD:candidate/free-image-horde-proof-20261116
