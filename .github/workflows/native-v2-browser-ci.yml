@@ -1,0 +1,35 @@
+name: PROMETEO Native V2 Live Browser QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'presentacion/tests/native-v2-browser-ci.mjs'
+      - '.github/workflows/native-v2-browser-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: prometeo-native-v2-browser-qa
+  cancel-in-progress: false
+jobs:
+  live-real-mp4-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test harness
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run actual public video and navigation QA
+        run: node presentacion/tests/native-v2-browser-ci.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-presentation-v2-browser-evidence
+          path: artifacts/presentacion-v2/
+          if-no-files-found: warn
+          retention-days: 14
