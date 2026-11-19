@@ -48,7 +48,7 @@ export function selectHighlights(raw,topic="",opts={}){
       const matched=terms.filter(w=>words.some(x=>x===w||x.startsWith(w)||w.startsWith(x))).length;
       const density=matched/Math.max(1,terms.length);
       const score=(terms.length?density*20:3)+Math.min(content.length/90,4)+(j-i>2?1.5:0)-Math.abs((end-start)-19)*.06;
-      candidates.push({start:Math.round(start*10)/10,end:Math.round(end*10)/10,score:Math.round(score*100)/100,evidence:content.slice(0,420),cueCount:j-i});
+      candidates.push({start:Math.round(start*10)/10,end:Math.round(end*10)/10,score:Math.round(score*100)/100,evidence:content.split(/\s+/).slice(0,6).join(' '),cueCount:j-i});
     }
   }
   if(!candidates.length)throw Error("NO_USABLE_TIMED_EXCERPTS");

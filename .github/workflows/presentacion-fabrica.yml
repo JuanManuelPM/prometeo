@@ -1,0 +1,109 @@
+name: SECUENCIA · Transcript to deck
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Exact YouTube URL or video title"
+        required: true
+        type: string
+      topic:
+        description: "Editorial theme"
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "presentacion/fabrica/requests/**"
+      - ".github/workflows/presentacion-fabrica.yml"
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-av-transcript-factory
+  cancel-in-progress: false
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run deterministic tests before any network research
+        run: |
+          node --test presentacion/fabrica/tests/*.test.mjs
+          python -m py_compile presentacion/fabrica/ingest.py
+      - name: Resolve user request without manual transcription
+        id: request
+        env:
+          MANUAL_SOURCE: ${{ inputs.source }}
+          MANUAL_TOPIC: ${{ inputs.topic }}
+        run: |
+          python - <<'PY'
+          import os,json,pathlib
+          if os.environ.get("MANUAL_SOURCE"):
+            q={"source":os.environ["MANUAL_SOURCE"],"topic":os.environ.get("MANUAL_TOPIC","")}
+          else:
+            files=sorted(pathlib.Path("presentacion/fabrica/requests").glob("*.json"))
+            if not files:raise SystemExit("NO_REQUEST")
+            q=json.loads(files[-1].read_text())
+          if not q.get("source"):raise SystemExit("SOURCE_MISSING")
+          pathlib.Path("av-request.json").write_text(json.dumps(q))
+          slug=''.join(c if c.isalnum() or c=='-' else '-' for c in str(q.get('slug','secuencia-generada')))[:48]
+          with open(os.environ["GITHUB_OUTPUT"],"a") as f:
+            f.write("slug="+slug+"\n")
+          PY
+      - name: Install caption extraction adapters
+        run: pip install --disable-pip-version-check 'yt-dlp>=2025.1' 'youtube-transcript-api>=1.0,<2'
+      - name: Obtain genuine timestamped captions or fail honestly
+        run: |
+          python - <<'PY'
+          import json,subprocess,sys
+          q=json.load(open("av-request.json"))
+          subprocess.run([sys.executable,"presentacion/fabrica/ingest.py","--source",q["source"],"--topic",q.get("topic",""),"--out","av-transcript.json"],check=True)
+          PY
+      - name: Curate clips and build full-page presentation
+        run: |
+          node presentacion/fabrica/compile.mjs --transcript av-transcript.json --out av-recipe.json
+          node presentacion/fabrica/render.mjs --recipe av-recipe.json --out av-output/index.html
+          cp av-recipe.json av-output/recipe.json
+      - name: Verify generated output
+        run: |
+          test -s av-output/index.html
+          grep -q 'id="next"' av-output/index.html
+          grep -q 'youtube.com/iframe_api' av-output/index.html
+      - name: Publish isolated result, never replace accepted presentation
+        env:
+          SLUG: ${{ steps.request.outputs.slug }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add /tmp/av-pages origin/gh-pages
+          mkdir -p "/tmp/av-pages/presentacion/fabrica/salidas/$SLUG"
+          cp av-output/* "/tmp/av-pages/presentacion/fabrica/salidas/$SLUG/"
+          cd /tmp/av-pages
+          git add "presentacion/fabrica/salidas/$SLUG"
+          git commit -m "AV: generated video sequence $SLUG" || exit 0
+          for n in 1 2 3 4; do
+            if git push origin HEAD:gh-pages; then exit 0; fi
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+          done
+          exit 1
+      - name: Preserve sanitized production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-av-recipe-evidence
+          path: |
+            av-request.json
+            av-recipe.json
+            av-output/index.html
+          if-no-files-found: warn
