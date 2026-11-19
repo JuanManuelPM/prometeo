@@ -1,0 +1,91 @@
+name: PROMETEO Native Video Presentation V2
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'presentacion/v2/**'
+      - '.github/workflows/presentation-native-media-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-native-presentation-v2
+  cancel-in-progress: false
+jobs:
+  build-license-verify-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Obtain licensed source movie (NOT YouTube) and build three local clips
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p presentacion/v2/media
+          SOURCE_URL=https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4.zip
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 30 --max-time 900 "$SOURCE_URL" -o /tmp/bbb.zip
+          python3 - <<'PY'
+          import zipfile
+          z=zipfile.ZipFile('/tmp/bbb.zip')
+          files=[s for s in z.infolist() if s.filename.lower().endswith('.mp4')]
+          assert len(files)==1,[(x.filename,x.file_size) for x in files]
+          assert 50_000_000 < files[0].file_size < 1_000_000_000
+          with z.open(files[0]) as f,open('/tmp/source.mp4','wb') as out:
+            while True:
+              part=f.read(1024*1024)
+              if not part:break
+              out.write(part)
+          PY
+          for SPEC in '01:65:12' '02:142:11' '03:220:10'; do
+            IFS=: read -r N START LENGTH <<< "$SPEC"
+            ffmpeg -nostdin -hide_banner -loglevel error -y -ss "$START" -i /tmp/source.mp4 -t "$LENGTH" -map 0:v:0 -map 0:a:0 -vf 'scale=1920:1080:flags=lanczos,fps=30' -c:v libx264 -preset fast -crf 21 -pix_fmt yuv420p -c:a aac -b:a 160k -ac 2 -ar 48000 -movflags +faststart "presentacion/v2/media/clip-$N.mp4"
+          done
+          python3 - <<'PY'
+          import json,hashlib,pathlib,subprocess
+          root=pathlib.Path('presentacion/v2/media')
+          source=pathlib.Path('/tmp/bbb.zip')
+          original='/tmp/source.mp4'
+          def probe(p):
+            return json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-show_format','-of','json',str(p)]))
+          srcprobe=probe(original)
+          assert float(srcprobe['format']['duration'])>=235
+          files=[]
+          for n,start,length in [('01',65,12),('02',142,11),('03',220,10)]:
+            f=root/('clip-'+n+'.mp4')
+            p=probe(f);dur=float(p['format']['duration']);size=f.stat().st_size
+            video=next(s for s in p['streams'] if s['codec_type']=='video')
+            audio=next(s for s in p['streams'] if s['codec_type']=='audio')
+            assert abs(dur-length)<.25, (n,dur,length)
+            assert video['codec_name']=='h264' and int(video['width'])==1920 and int(video['height'])==1080
+            assert audio['codec_name']=='aac' and size<45_000_000
+            files.append(dict(file=f.name,sourceStart=start,sourceEnd=start+length,durationSeconds=dur,bytes=size,sha256=hashlib.sha256(f.read_bytes()).hexdigest()))
+            print('PASS',f,dur,'H264/AAC',size)
+          manifest=dict(schema='prometeo.presentacion.local-media/v1',source='https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4.zip',sourceSha256=hashlib.sha256(source.read_bytes()).hexdigest(),copyright='(c) copyright 2008, Blender Foundation / www.bigbuckbunny.org',license='CC-BY-3.0',modifications='Three clips, trimmed and re-encoded to 1920x1080 H264/AAC',clips=files)
+          (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          PY
+          test "$(grep -c 'class="arrow' presentacion/v2/index.html)" = 2
+          ! grep -Eiq 'youtube.com|youtube-nocookie.com|iframe_api|<iframe' presentacion/v2/index.html
+      - name: Publish only isolated V2 to gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/pages-prometeo origin/gh-pages
+          mkdir -p /tmp/pages-prometeo/presentacion/v2/media
+          cp presentacion/v2/index.html presentacion/v2/ATTRIBUTION.md /tmp/pages-prometeo/presentacion/v2/
+          cp presentacion/v2/media/clip-*.mp4 presentacion/v2/media/manifest.json /tmp/pages-prometeo/presentacion/v2/media/
+          cd /tmp/pages-prometeo
+          git add presentacion/v2
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'pages: native self-hosted presentation video clips'
+          for n in 1 2 3 4 5; do
+            if git push origin HEAD:gh-pages; then exit 0; fi
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+          done
+          exit 1
