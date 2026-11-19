@@ -11,6 +11,11 @@ const external = [];
 const errors = [];
 page.on('request', request => {if(/youtube\.com|youtu\.be|googlevideo\.com|googleapis\.com/.test(request.url()))external.push(request.url());});
 page.on('pageerror', error => errors.push(error.message));
+const observations = [];
+page.on('console',m=>{if(m.type()==='error')observations.push('console:'+m.text().slice(0,300))});
+page.on('requestfailed', req=>observations.push('failed-request:'+req.url()+':'+req.failure()?.errorText));
+page.on('response',resp=>{if(resp.url().includes('/media/clip-'))observations.push('media-response:'+resp.status()+':'+resp.url())});
+
 try {
   const response = await page.goto(ROOT, {waitUntil:'domcontentloaded',timeout:45000});
   assert.equal(response.status(),200);
@@ -24,6 +29,13 @@ try {
   report.passed.push('SELF_HOSTED_MP4_HTTP_200');
 
   await page.locator('#next').click();
+  await page.evaluate(() => {
+    const v=document.getElementById('native-player');
+    window.__mediaDebug=[];
+    for(const ev of ['loadstart','loadedmetadata','canplay','playing','pause','waiting','error','emptied','abort','stalled']){
+      v.addEventListener(ev,()=>window.__mediaDebug.push({event:ev,src:v.currentSrc,state:v.readyState,network:v.networkState,error:v.error?.code,index:window.__presentationQA.getIndex()}));
+    }
+  });
   await page.waitForFunction(()=>window.__presentationQA.getState()==='playing',null,{timeout:25000});
   const v1 = await page.locator('#native-player').evaluate(v=>({
     paused:v.paused,muted:v.muted,width:v.videoWidth,height:v.videoHeight,
@@ -63,6 +75,17 @@ try {
   console.log('BROWSER_QA_PASS',JSON.stringify(report));
 } catch(error) {
   report.error=String(error);
+  report.observed.events=observations;
+  report.observed.debug=await page.evaluate(()=>({
+    index:window.__presentationQA?.getIndex(),
+    state:window.__presentationQA?.getState(),
+    mp4Support:document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'),
+    video:(()=>{const v=document.getElementById('native-player');return {
+      paused:v.paused,muted:v.muted,src:v.currentSrc,readyState:v.readyState,networkState:v.networkState,
+      errorCode:v.error?.code,errorMessage:v.error?.message,videoWidth:v.videoWidth,videoHeight:v.videoHeight
+    }})(),mediaEvents:window.__mediaDebug||[]
+  })).catch(e=>({evaluation:String(e)}));
+
   await page.screenshot({path:'artifacts/presentacion-v2/error.png'}).catch(()=>{});
   console.error('BROWSER_QA_FAIL',JSON.stringify(report));
   process.exitCode=1;
