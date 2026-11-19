@@ -49,9 +49,33 @@ def captions(id):
     if len(a)>4:return a,"yt-dlp-vtt"
   except Exception as e:problems.append(str(e)[:110])
  raise RuntimeError("NO_TIMED_TRANSCRIPT: "+" | ".join(problems))
+def oembed(id):
+ """Public YouTube metadata, not a video download; absence is nonfatal."""
+ try:
+  import urllib.request,urllib.parse
+  u="https://www.youtube.com/oembed?url="+urllib.parse.quote("https://www.youtube.com/watch?v="+id,safe="")+"&format=json"
+  req=urllib.request.Request(u,headers={"User-Agent":"Mozilla/5.0"})
+  with urllib.request.urlopen(req,timeout=12) as response:
+   body=json.load(response)
+  return {"title":body.get("title"),"uploader":body.get("author_name")}
+ except Exception:
+  return {}
 def main():
  p=argparse.ArgumentParser();p.add_argument("--source",required=True);p.add_argument("--out",required=True);p.add_argument("--topic",default="");a=p.parse_args()
- meta=get_meta(a.source);cues,provider=captions(meta["id"])
+ source_id=video_id(a.source)
+ if source_id:
+  # Captions are essential; metadata is not. GitHub runners may be denied by
+  # yt-dlp metadata even when public timed caption adapters are accessible.
+  cues,provider=captions(source_id)
+  try:
+   meta=get_meta(a.source)
+  except Exception as err:
+   print("METADATA_OPTIONAL_FAIL "+str(err)[:145],file=sys.stderr)
+   light=oembed(source_id)
+   meta={"id":source_id,"title":light.get("title") or ("Video "+source_id),"uploader":light.get("uploader") or "","duration":cues[-1]["end"]}
+ else:
+  meta=get_meta(a.source)
+  cues,provider=captions(meta["id"])
  out={"schema":"prometeo.av.timed-transcript/v1","videoId":meta["id"],"title":meta.get("title"),"channel":meta.get("uploader"),"duration":meta.get("duration"),"topic":a.topic,"provider":provider,"rights":"embed","cues":cues}
  dest=pathlib.Path(a.out);dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(json.dumps(out,ensure_ascii=False),encoding="utf8")
  print(json.dumps({"status":"TIMED_TRANSCRIPT_VERIFIED","videoId":meta["id"],"cueCount":len(cues),"provider":provider},ensure_ascii=False))
