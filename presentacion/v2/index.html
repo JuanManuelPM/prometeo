@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0c0b">
+  <meta name="color-scheme" content="dark">
+  <title>SECUENCIA · PROMETEO</title>
+  <style>
+:root { color-scheme: dark; --paper:#f0ebde; --ink:#0b0c0b; --accent:#cae2a2; --edge:clamp(26px,5.2vw,100px); }
+* { box-sizing:border-box; }
+html,body { margin:0; width:100%; height:100%; overflow:hidden; overscroll-behavior:none; background:var(--ink); }
+body { font-family:Arial,Helvetica,sans-serif; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+#stage { position:fixed; inset:0; background:var(--ink); overflow:hidden; isolation:isolate; }
+#slides, .slide, #film { position:absolute; inset:0; }
+.slide { opacity:0; visibility:hidden; pointer-events:none; transform:scale(1.017); transition:opacity .46s ease, transform .65s cubic-bezier(.2,.7,.2,1),visibility 0s linear .46s; color:var(--paper); }
+.slide.is-current { opacity:1; visibility:visible; transform:scale(1); transition:opacity .46s ease, transform .65s cubic-bezier(.2,.7,.2,1),visibility 0s; }
+.stage-inner { height:100%; width:100%; padding:clamp(26px,6vh,84px) calc(var(--edge) + clamp(16px,3vw,52px)); display:flex; flex-direction:column; position:relative; }
+.cover { background:var(--paper); color:var(--ink); }
+.opening { justify-content:space-between; }
+.editorial-rule { height:2px; background:currentColor; width:100%; opacity:.78; }
+.cover h1 { font-size:clamp(46px,9.1vw,170px); line-height:.97; letter-spacing:-.09em; font-weight:800; margin:0; }
+.cover h1 em { color:#718256; font-family:Georgia,'Times New Roman',serif; font-weight:400; letter-spacing:-.075em; }
+.opening-bottom { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; font:600 clamp(10px,1vw,17px)/1.3 Arial,sans-serif; letter-spacing:.14em; }
+.concept { background:#121512; }
+.diagram-layout { display:grid; grid-template-columns:1.05fr .95fr; grid-template-rows:auto 1fr; column-gap:4vw; align-items:center; }
+.small-kicker { font-size:clamp(11px,1vw,16px); line-height:1.5; letter-spacing:.23em; font-weight:700; }
+.diagram-layout .small-kicker { grid-column:1 / -1; align-self:start; }
+.concept h2, .statement h2 { margin:0; font-size:clamp(35px,6.1vw,112px); line-height:1.05; font-weight:800; letter-spacing:-.077em; }
+.concept h2 em,.statement h2 em { color:var(--accent); font:italic 400 1em/1.05 Georgia,'Times New Roman',serif; letter-spacing:-.08em; }
+.diagram { align-self:center; padding:2vw 0 1vw; width:100%; }
+.diagram-name { font-size:clamp(10px,1vw,16px); font-weight:700; letter-spacing:.22em; margin-bottom:clamp(12px,2.1vh,25px); }
+.diagram-name.second-name { margin-top:clamp(36px,8vh,85px); }
+.diagram-track { height:clamp(31px,6vh,60px); width:100%; display:flex; align-items:center; }
+.source-track { border-top:1px solid #7b8278; border-bottom:1px solid #7b8278; position:relative; background:repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),#383f37 calc(12.5% - 1px),#383f37 12.5%); }
+.source-track i { display:block; position:absolute; top:0; height:100%; background:#dbe8cc; }
+.source-track i:nth-child(1){left:10%;width:15%}.source-track i:nth-child(2){left:48%;width:15%}.source-track i:nth-child(3){left:82%;width:15%}
+.edited-track { gap:clamp(5px,.7vw,12px); }
+.edited-track span { height:100%; min-width:0; display:grid; place-items:center; font:700 clamp(9px,1vw,16px)/1 Arial,sans-serif; letter-spacing:.11em; color:var(--ink); background:#dbe8cc; flex:1; }
+.edited-track span:nth-child(2) { background:#8f9d79; }
+.statement { background:#d3dbbf; color:#121512; }
+.pause-layout { justify-content:space-between; }
+.statement h2 { font-size:clamp(50px,8.6vw,155px); }
+.statement h2 em { color:#62744e; }
+.pause-line { border-top:2px solid #121512; width:100%; }
+.ending { background:#0b0c0b; }
+.end-layout { justify-content:space-between; }
+.ending h2 { margin:0; font-size:clamp(110px,24vw,490px); font-weight:800; letter-spacing:-.11em; line-height:.8; }
+.ending h2 span { color:var(--accent); }
+#film { display:none; background:#000; z-index:3; overflow:hidden; }
+#film.is-on { display:block; }
+#native-player { width:100%; height:100%; display:block; border:0; object-fit:contain; background:#000; }
+.video-loading { position:absolute; width:20px; height:20px; border:2px solid rgba(255,255,255,.25); border-top-color:var(--paper); border-radius:50%; top:50%; left:50%; margin:-10px; animation:spin .9s linear infinite; pointer-events:none; opacity:0; transition:opacity .2s ease; }
+#film.waiting .video-loading { opacity:.8; }
+@keyframes spin { to {transform:rotate(360deg)} }
+.arrow { position:absolute; z-index:5; top:0; height:100%; width:clamp(52px,8vw,120px); padding:0; display:flex; align-items:center; justify-content:center; border:0; background:transparent; color:var(--paper); cursor:pointer; opacity:.82; touch-action:manipulation; transition:opacity .2s ease; }
+.arrow:hover,.arrow:focus-visible {opacity:1}.arrow:focus-visible { outline:2px solid currentColor; outline-offset:-10px; }
+.arrow svg { width:clamp(22px,2.4vw,42px); height:clamp(22px,2.4vw,42px); fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:square; stroke-linejoin:miter; filter:drop-shadow(0 1px 4px #0005); }
+.arrow.previous { left:0; background:linear-gradient(90deg,#0b0c0b16,transparent); }
+.arrow.next { right:0; background:linear-gradient(270deg,#0b0c0b16,transparent); }
+#stage:has(.cover.is-current) .arrow, #stage:has(.statement.is-current) .arrow { color:var(--ink); }
+.arrow:disabled { opacity:.22; cursor:default; }
+#stage:has(#film.is-on) .arrow { background:linear-gradient(90deg,#0007,transparent); }
+#stage:has(#film.is-on) .arrow.next { background:linear-gradient(270deg,#0007,transparent); }
+@media (max-height:460px) and (orientation:landscape) {
+  .stage-inner{padding-top:6vh;padding-bottom:6vh}
+  .cover h1{font-size:min(9.2vw,19vh)}
+  .concept h2{font-size:min(5.6vw,15vh)}
+  .statement h2{font-size:min(8vw,18vh)}
+  .ending h2{font-size:min(22vw,60vh)}
+  .diagram-name.second-name{margin-top:5vh}
+  .diagram-track{height:7vh}
+}
+/* Until the browser accepts a landscape orientation lock, draw the complete
+   landscape presentation rotated. This is not a substitute for rotating the phone. */
+@media (orientation:portrait) {
+  #stage { left:100dvw; top:0; width:100dvh; height:100dvw; right:auto; bottom:auto; transform-origin:top left; transform:rotate(90deg); }
+  .stage-inner { padding:5% calc(var(--edge) + 16px); }
+  .cover h1{font-size:9vw; font-size:9dvh}
+  .concept h2{font-size:6dvh}.statement h2{font-size:8.2dvh}
+  .ending h2{font-size:23dvh}
+  .diagram-track{height:5dvw}
+  .diagram-name.second-name{margin-top:4dvw}
+  .arrow{width:clamp(45px,7dvh,100px)}
+  .small-kicker,.diagram-name,.opening-bottom{font-size:1.1dvh}
+}
+@media (prefers-reduced-motion:reduce) { .slide,.arrow,.video-loading { transition:none; animation:none; } }
+
+</style>
+</head>
+<body>
+  <main id="stage" aria-label="Presentación audiovisual">
+    <div id="slides" aria-live="off">
+      <section class="slide cover is-current" data-kind="cover" aria-label="Apertura">
+        <div class="stage-inner opening">
+          <div class="editorial-rule"></div>
+          <h1>UNA HISTORIA.<br><em>OTRO RITMO.</em></h1>
+          <div class="opening-bottom"><span>LA IMAGEN ES SOLO EL PRINCIPIO</span><span>01 / SECUENCIA</span></div>
+        </div>
+      </section>
+      <section class="slide clip" data-kind="video" aria-label="Primer fragmento de película" aria-hidden="true"></section>
+      <section class="slide concept" data-kind="concept" aria-label="Diagrama de montaje" aria-hidden="true">
+        <div class="stage-inner diagram-layout">
+          <div class="small-kicker">EL MONTAJE</div>
+          <h2>NO TODO<br>TIENE QUE<br><em>IR SEGUIDO.</em></h2>
+          <div class="diagram" aria-label="Selección de dos momentos de un video y una pausa con presentación">
+            <div class="diagram-name">VIDEO ORIGINAL</div>
+            <div class="diagram-track source-track"><i></i><i></i><i></i></div>
+            <div class="diagram-name second-name">NUEVA SECUENCIA</div>
+            <div class="diagram-track edited-track"><span>ESCENA</span><span>IDEA</span><span>ESCENA</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="slide clip" data-kind="video" aria-label="Segundo fragmento de película" aria-hidden="true"></section>
+      <section class="slide statement" data-kind="statement" aria-label="Una pausa entre escenas" aria-hidden="true">
+        <div class="stage-inner pause-layout"><span class="small-kicker">ENTRE DOS MOMENTOS</span><h2>UNA PAUSA<br><em>CAMBIA</em><br>LA MIRADA.</h2><div class="pause-line"></div></div>
+      </section>
+      <section class="slide clip" data-kind="video" aria-label="Tercer fragmento de película" aria-hidden="true"></section>
+      <section class="slide ending" data-kind="ending" aria-label="Final" aria-hidden="true">
+        <div class="stage-inner end-layout"><span class="small-kicker">SECUENCIA / 01</span><h2>FIN<span>.</span></h2><div class="editorial-rule"></div></div>
+      </section>
+    </div>
+    <div id="film" aria-hidden="true"><video id="native-player" preload="metadata" playsinline webkit-playsinline disablepictureinpicture controlslist="nodownload noplaybackrate nofullscreen" aria-label="Fragmento de película"></video><div class="video-loading" aria-hidden="true"></div></div>
+    <button id="previous" class="arrow previous" type="button" aria-label="Diapositiva anterior">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 4-8 8 8 8"/></svg>
+    </button>
+    <button id="next" class="arrow next" type="button" aria-label="Diapositiva siguiente">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 4 8 8-8 8"/></svg>
+    </button>
+  </main>
+<script>
+(() => {
+  'use strict';
+  // All video media is produced from the Blender Foundation open-movie source
+  // by scripts/build-media.sh, served from our own GitHub Pages site.
+  const mediaBase = location.pathname.replace(/index\.html$/, '').endsWith('/v2/') ? './media/' : './v2/media/';
+  const recipe = Object.freeze([
+    {type:'cover'},
+    {type:'video',file:'clip-01.mp4',sourceStart:65,sourceEnd:77},
+    {type:'concept', durationMs:8500},
+    {type:'video',file:'clip-02.mp4',sourceStart:142,sourceEnd:153},
+    {type:'statement',durationMs:7000},
+    {type:'video',file:'clip-03.mp4',sourceStart:220,sourceEnd:230},
+    {type:'ending'}
+  ].map(s => Object.freeze(s)));
+  const slides=[...document.querySelectorAll('.slide')];
+  const film=document.getElementById('film');
+  const video=document.getElementById('native-player');
+  const previous=document.getElementById('previous');
+  const nextButton=document.getElementById('next');
+  let index=0, generation=0, slideTimer=null, startupTimer=null, stallTimer=null;
+  let started=false, mutedFallback=false, clipFinished=false, lastProgress=0, lastWall=0;
+  let pendingPlay=false, state='idle';
+  if (recipe.length !== slides.length || recipe.some((s,i)=>s.type!==slides[i].dataset.kind)) {
+    throw new Error('Slide markup and media recipe differ.');
+  }
+  for (const s of recipe) {
+    if (s.type==='video' && (!/^clip-0[1-9]\.mp4$/.test(s.file) || s.sourceStart<0 || s.sourceEnd<=s.sourceStart)) {
+      throw new Error('Invalid local video recipe.');
+    }
+  }
+  const isVideo=()=>recipe[index].type==='video';
+  const clearTiming=()=>{ for(const t of [slideTimer,startupTimer,stallTimer])if(t!==null)clearTimeout(t);slideTimer=startupTimer=stallTimer=null; };
+  function stopVideo(){
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    pendingPlay=false;
+  }
+  function finishClip(generationAtStart){
+    if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+    clipFinished=true;
+    navigate(1,false);
+  }
+  function failVideo(generationAtStart){
+    if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+    state='media-error';
+    film.classList.remove('waiting');
+    clearTimeout(startupTimer);
+    startupTimer=setTimeout(()=>finishClip(generationAtStart),1100);
+  }
+  function startStallWatch(generationAtStart){
+    clearTimeout(stallTimer);
+    if(generationAtStart!==generation || !isVideo())return;
+    stallTimer=setTimeout(()=>{
+      if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+      const now=performance.now();
+      if (!video.paused && video.currentTime > lastProgress+.025) {
+        lastProgress=video.currentTime; lastWall=now; startStallWatch(generationAtStart);
+      } else if (now-lastWall>18000)failVideo(generationAtStart);
+      else startStallWatch(generationAtStart);
+    }, 4000);
+  }
+  function askPlay(generationAtStart,allowMutedRetry=true){
+    if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+    const p=video.play();
+    if(p&&p.catch)p.catch(err=>{
+      if(generationAtStart!==generation || !isVideo())return;
+      if(allowMutedRetry && err?.name==='NotAllowedError' && !video.muted){
+        mutedFallback=true;
+        video.muted=true;
+        askPlay(generationAtStart,false);
+      }else failVideo(generationAtStart);
+    });
+  }
+  function showCurrent(){
+    generation++;
+    const g=generation;
+    clearTiming();
+    clipFinished=false;
+    state='idle';
+    stopVideo();
+    slides.forEach((el,i)=>{const active=i===index;el.classList.toggle('is-current',active);el.setAttribute('aria-hidden',String(!active));});
+    const step=recipe[index], activeVideo=step.type==='video';
+    film.classList.toggle('is-on',activeVideo);
+    film.classList.toggle('waiting',activeVideo);
+    film.setAttribute('aria-hidden',String(!activeVideo));
+    previous.disabled=index===0;nextButton.disabled=index===recipe.length-1;
+    if(activeVideo){
+      state='loading';
+      lastProgress=0;lastWall=performance.now();pendingPlay=true;
+      video.muted=mutedFallback;
+      // A URL on this site, never a YouTube iframe or remote CDN.
+      video.src=mediaBase+step.file;
+      video.load();
+      askPlay(g);
+      startupTimer=setTimeout(()=>{
+        if(g===generation && isVideo() && !clipFinished && video.paused)failVideo(g);
+      },18000);
+      startStallWatch(g);
+    }else if(started && step.durationMs){
+      slideTimer=setTimeout(()=>{if(g===generation)navigate(1,false)},step.durationMs);
+    }
+  }
+  function enterImmersive(){
+    try {
+      if(!document.fullscreenElement && document.documentElement.requestFullscreen){
+        const p=document.documentElement.requestFullscreen({navigationUI:'hide'});
+        p?.then?.(()=>{try{screen.orientation?.lock?.('landscape')?.catch?.(()=>{});}catch(_){}}).catch?.(()=>{});
+      }else{try{screen.orientation?.lock?.('landscape')?.catch?.(()=>{});}catch(_){}}
+    }catch(_){}
+  }
+  function navigate(delta,gesture){
+    if(gesture){
+      started=true;
+      mutedFallback=false;
+      video.muted=false;
+      enterImmersive();
+    }
+    const dest=Math.max(0,Math.min(recipe.length-1,index+delta));
+    if(dest!==index){index=dest;showCurrent();}
+    else if(isVideo()&&gesture)askPlay(generation);
+  }
+  previous.addEventListener('click',()=>navigate(-1,true));
+  nextButton.addEventListener('click',()=>navigate(1,true));
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();navigate(1,true)}
+    if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();navigate(-1,true)}
+  });
+  let touchStart=null;
+  document.addEventListener('touchstart',e=>{
+    if(e.touches.length===1)touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(!touchStart || !e.changedTouches.length)return;
+    const dx=e.changedTouches[0].clientX-touchStart.x;
+    const dy=e.changedTouches[0].clientY-touchStart.y;
+    touchStart=null;
+    if(Math.abs(dx)>85&&Math.abs(dx)>Math.abs(dy)*1.3)navigate(dx<0?1:-1,true);
+  },{passive:true});
+  video.addEventListener('playing',()=>{
+    if(!isVideo())return;
+    pendingPlay=false;state='playing';
+    film.classList.remove('waiting');
+    clearTimeout(startupTimer);startupTimer=null;
+    lastProgress=video.currentTime;lastWall=performance.now();
+  });
+  video.addEventListener('timeupdate',()=>{
+    if(!isVideo() || clipFinished)return;
+    // FFmpeg clips are pre-trimmed; EOF is the primary exact boundary.
+    const step=recipe[index], nominal=step.sourceEnd-step.sourceStart;
+    if(video.duration && video.currentTime>=Math.min(nominal,video.duration)-.08)finishClip(generation);
+  });
+  video.addEventListener('ended',()=>finishClip(generation));
+  video.addEventListener('error',()=>{if(isVideo() && video.src)failVideo(generation)});
+  video.addEventListener('waiting',()=>{if(isVideo())film.classList.add('waiting')});
+  video.addEventListener('stalled',()=>{if(isVideo())film.classList.add('waiting')});
+  // This interface is for test inspection only, never a visible editor/control.
+  Object.defineProperty(window,'__presentationQA',{value:Object.freeze({
+    getIndex:()=>index,getRecipe:()=>recipe.map(x=>({...x})),getState:()=>state,
+    isMutedFallback:()=>mutedFallback, getVideoTime:()=>video.currentTime,
+    usesExternalPlayer:()=>false, getMediaBase:()=>mediaBase
+  })});
+  showCurrent();
+})();
+</script>
+</body>
+</html>
