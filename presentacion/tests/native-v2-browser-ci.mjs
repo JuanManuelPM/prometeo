@@ -2,7 +2,8 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const ROOT = 'https://juanmanuelpm.github.io/prometeo/presentacion/v2/';
+const ROOT = 'https://juanmanuelpm.github.io/prometeo/presentacion/';
+const MEDIA_BASE = ROOT + 'v2/media/';
 const report = {schema:'prometeo.native-deck-browser-qa/v1',url:ROOT,passed:[],observed:{}};
 fs.mkdirSync('artifacts/presentacion-v2', {recursive:true});
 const browser = await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
@@ -24,7 +25,7 @@ try {
   assert.equal(await page.evaluate(()=>window.__presentationQA.usesExternalPlayer()),false);
   report.passed.push('HTTP_200','TWO_ARROWS','NO_IFRAME','LOCAL_PLAYER');
 
-  const first = await page.request.head(ROOT+'media/clip-01.mp4',{timeout:30000});
+  const first = await page.request.head(MEDIA_BASE+'clip-01.mp4',{timeout:30000});
   assert.equal(first.status(),200);
   report.passed.push('SELF_HOSTED_MP4_HTTP_200');
 
@@ -45,7 +46,7 @@ try {
   assert.equal(v1.width,1920);
   assert.equal(v1.height,1080);
   assert.ok(v1.readyState>=2);
-  assert.ok(v1.src.startsWith(ROOT+'media/clip-01.mp4'));
+  assert.ok(v1.src.startsWith(MEDIA_BASE+'clip-01.mp4'));
   await page.waitForTimeout(1300);
   const t2 = await page.locator('#native-player').evaluate(v=>v.currentTime);
   assert.ok(t2>v1.currentTime+.6,{before:v1.currentTime,after:t2});
