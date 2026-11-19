@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const ROOT = 'https://juanmanuelpm.github.io/prometeo/presentacion/v2/';
 const report = {schema:'prometeo.native-deck-browser-qa/v1',url:ROOT,passed:[],observed:{}};
 fs.mkdirSync('artifacts/presentacion-v2', {recursive:true});
-const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
+const browser = await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
 const page = await browser.newPage({viewport:{width:1280,height:720}});
 const external = [];
 const errors = [];
