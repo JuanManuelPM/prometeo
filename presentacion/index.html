@@ -49,7 +49,7 @@ body { font-family:Arial,Helvetica,sans-serif; -webkit-tap-highlight-color:trans
 .ending h2 span { color:var(--accent); }
 #film { display:none; background:#000; z-index:3; overflow:hidden; }
 #film.is-on { display:block; }
-#youtube-player, #youtube-player iframe { width:100%!important; height:100%!important; display:block; border:0; }
+#native-player { width:100%; height:100%; display:block; border:0; object-fit:contain; background:#000; }
 .video-loading { position:absolute; width:20px; height:20px; border:2px solid rgba(255,255,255,.25); border-top-color:var(--paper); border-radius:50%; top:50%; left:50%; margin:-10px; animation:spin .9s linear infinite; pointer-events:none; opacity:0; transition:opacity .2s ease; }
 #film.waiting .video-loading { opacity:.8; }
 @keyframes spin { to {transform:rotate(360deg)} }
@@ -98,7 +98,7 @@ body { font-family:Arial,Helvetica,sans-serif; -webkit-tap-highlight-color:trans
           <div class="opening-bottom"><span>LA IMAGEN ES SOLO EL PRINCIPIO</span><span>01 / SECUENCIA</span></div>
         </div>
       </section>
-      <section class="slide clip" data-kind="youtube" aria-label="Primer fragmento de película" aria-hidden="true"></section>
+      <section class="slide clip" data-kind="video" aria-label="Primer fragmento de película" aria-hidden="true"></section>
       <section class="slide concept" data-kind="concept" aria-label="Diagrama de montaje" aria-hidden="true">
         <div class="stage-inner diagram-layout">
           <div class="small-kicker">EL MONTAJE</div>
@@ -111,16 +111,16 @@ body { font-family:Arial,Helvetica,sans-serif; -webkit-tap-highlight-color:trans
           </div>
         </div>
       </section>
-      <section class="slide clip" data-kind="youtube" aria-label="Segundo fragmento de película" aria-hidden="true"></section>
+      <section class="slide clip" data-kind="video" aria-label="Segundo fragmento de película" aria-hidden="true"></section>
       <section class="slide statement" data-kind="statement" aria-label="Una pausa entre escenas" aria-hidden="true">
         <div class="stage-inner pause-layout"><span class="small-kicker">ENTRE DOS MOMENTOS</span><h2>UNA PAUSA<br><em>CAMBIA</em><br>LA MIRADA.</h2><div class="pause-line"></div></div>
       </section>
-      <section class="slide clip" data-kind="youtube" aria-label="Tercer fragmento de película" aria-hidden="true"></section>
+      <section class="slide clip" data-kind="video" aria-label="Tercer fragmento de película" aria-hidden="true"></section>
       <section class="slide ending" data-kind="ending" aria-label="Final" aria-hidden="true">
         <div class="stage-inner end-layout"><span class="small-kicker">SECUENCIA / 01</span><h2>FIN<span>.</span></h2><div class="editorial-rule"></div></div>
       </section>
     </div>
-    <div id="film" aria-hidden="true"><div id="youtube-player"></div><div class="video-loading" aria-hidden="true"></div></div>
+    <div id="film" aria-hidden="true"><video id="native-player" preload="metadata" playsinline webkit-playsinline disablepictureinpicture controlslist="nodownload noplaybackrate nofullscreen" aria-label="Fragmento de película"></video><div class="video-loading" aria-hidden="true"></div></div>
     <button id="previous" class="arrow previous" type="button" aria-label="Diapositiva anterior">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 4-8 8 8 8"/></svg>
     </button>
@@ -131,203 +131,168 @@ body { font-family:Arial,Helvetica,sans-serif; -webkit-tap-highlight-color:trans
 <script>
 (() => {
   'use strict';
-
-  // Edit only this recipe to produce another presentation. All seconds are
-  // measured from the beginning of the original YouTube video.
+  // All video media is produced from the Blender Foundation open-movie source
+  // by scripts/build-media.sh, served from our own GitHub Pages site.
+  const mediaBase = location.pathname.replace(/index\.html$/, '').endsWith('/v2/') ? './media/' : './v2/media/';
   const recipe = Object.freeze([
-    { type: 'cover' },
-    { type: 'youtube', videoId: 'aqz-KE-bpKQ', start: 65, end: 77 },
-    { type: 'concept', durationMs: 8500 },
-    { type: 'youtube', videoId: 'aqz-KE-bpKQ', start: 142, end: 153 },
-    { type: 'statement', durationMs: 7000 },
-    { type: 'youtube', videoId: 'aqz-KE-bpKQ', start: 220, end: 230 },
-    { type: 'ending' }
-  ]);
-
-  const slides = [...document.querySelectorAll('.slide')];
-  const film = document.getElementById('film');
-  const previous = document.getElementById('previous');
-  const nextButton = document.getElementById('next');
-  let index = 0;
-  let player = null;
-  let playerReady = false;
-  let wanted = null;
-  let slideTimer = null;
-  let sampleTimer = null;
-  let watchdogTimer = null;
-  let nonce = 0;
-  let started = false;
-  let mutedFallback = false;
-  let gestureCount = 0;
-  const ytState = { ended: 0, playing: 1, paused: 2 };
-
-  if (recipe.length !== slides.length || recipe.some((step,i) => step.type !== slides[i].dataset.kind)) {
-    throw new Error('The presentation recipe and slide markup must match.');
+    {type:'cover'},
+    {type:'video',file:'clip-01.mp4',sourceStart:65,sourceEnd:77},
+    {type:'concept', durationMs:8500},
+    {type:'video',file:'clip-02.mp4',sourceStart:142,sourceEnd:153},
+    {type:'statement',durationMs:7000},
+    {type:'video',file:'clip-03.mp4',sourceStart:220,sourceEnd:230},
+    {type:'ending'}
+  ].map(s => Object.freeze(s)));
+  const slides=[...document.querySelectorAll('.slide')];
+  const film=document.getElementById('film');
+  const video=document.getElementById('native-player');
+  const previous=document.getElementById('previous');
+  const nextButton=document.getElementById('next');
+  let index=0, generation=0, slideTimer=null, startupTimer=null, stallTimer=null;
+  let started=false, mutedFallback=false, clipFinished=false, lastProgress=0, lastWall=0;
+  let pendingPlay=false, state='idle';
+  if (recipe.length !== slides.length || recipe.some((s,i)=>s.type!==slides[i].dataset.kind)) {
+    throw new Error('Slide markup and media recipe differ.');
   }
-  for (const step of recipe) {
-    if (step.type === 'youtube' && (!/^[A-Za-z0-9_-]{11}$/.test(step.videoId) || step.start < 0 || step.end <= step.start)) {
-      throw new Error('Invalid YouTube segment.');
+  for (const s of recipe) {
+    if (s.type==='video' && (!/^clip-0[1-9]\.mp4$/.test(s.file) || s.sourceStart<0 || s.sourceEnd<=s.sourceStart)) {
+      throw new Error('Invalid local video recipe.');
     }
   }
-
-  const clearTiming = () => {
-    for (const handle of [slideTimer, sampleTimer, watchdogTimer]) if (handle !== null) clearTimeout(handle);
-    if (sampleTimer !== null) clearInterval(sampleTimer);
-    slideTimer = sampleTimer = watchdogTimer = null;
-  };
-  const isVideo = () => recipe[index].type === 'youtube';
-
-  function stopVideo() {
-    if (!playerReady || !player) return;
-    try { player.pauseVideo(); } catch (_) {}
+  const isVideo=()=>recipe[index].type==='video';
+  const clearTiming=()=>{ for(const t of [slideTimer,startupTimer,stallTimer])if(t!==null)clearTimeout(t);slideTimer=startupTimer=stallTimer=null; };
+  function stopVideo(){
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    pendingPlay=false;
   }
-  function failVideo(token) {
-    if (nonce !== token || !isVideo()) return;
+  function finishClip(generationAtStart){
+    if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+    clipFinished=true;
+    navigate(1,false);
+  }
+  function failVideo(generationAtStart){
+    if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+    state='media-error';
     film.classList.remove('waiting');
-    // No extra visible controls: transition to the next content on media error.
-    watchdogTimer = setTimeout(() => { if (nonce === token) navigate(1, false); }, 1100);
+    clearTimeout(startupTimer);
+    startupTimer=setTimeout(()=>finishClip(generationAtStart),1100);
   }
-  function finishClip(token) {
-    if (nonce !== token || !isVideo()) return;
-    stopVideo();
-    navigate(1, false);
+  function startStallWatch(generationAtStart){
+    clearTimeout(stallTimer);
+    if(generationAtStart!==generation || !isVideo())return;
+    stallTimer=setTimeout(()=>{
+      if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+      const now=performance.now();
+      if (!video.paused && video.currentTime > lastProgress+.025) {
+        lastProgress=video.currentTime; lastWall=now; startStallWatch(generationAtStart);
+      } else if (now-lastWall>18000)failVideo(generationAtStart);
+      else startStallWatch(generationAtStart);
+    }, 4000);
   }
-  function checkVideoBoundary(token) {
-    if (nonce !== token || !playerReady || !isVideo()) return;
-    try {
-      const now = player.getCurrentTime();
-      const segment = recipe[index];
-      if (Number.isFinite(now) && now >= segment.end - 0.12) finishClip(token);
-    } catch (_) {}
-  }
-  function tryVideo(token) {
-    if (!playerReady || nonce !== token || !isVideo()) return;
-    const segment = recipe[index];
-    film.classList.add('waiting');
-    try {
-      // loadVideoById object syntax supports true clipping endSeconds.
-      player.loadVideoById({videoId:segment.videoId, startSeconds:segment.start, endSeconds:segment.end});
-      if (gestureCount > 0) { player.unMute(); mutedFallback = false; }
-      player.playVideo();
-      sampleTimer = setInterval(() => checkVideoBoundary(token), 90);
-      // Network/player failure must not leave the presentation stuck forever.
-      watchdogTimer = setTimeout(() => failVideo(token), 15000);
-    } catch (_) { failVideo(token); }
-  }
-  function showCurrent() {
-    const token = ++nonce;
-    clearTiming();
-    wanted = null;
-    stopVideo();
-    slides.forEach((slide,i) => {
-      const current = i === index;
-      slide.classList.toggle('is-current', current);
-      slide.setAttribute('aria-hidden', String(!current));
+  function askPlay(generationAtStart,allowMutedRetry=true){
+    if(generationAtStart!==generation || !isVideo() || clipFinished)return;
+    const p=video.play();
+    if(p&&p.catch)p.catch(err=>{
+      if(generationAtStart!==generation || !isVideo())return;
+      if(allowMutedRetry && err?.name==='NotAllowedError' && !video.muted){
+        mutedFallback=true;
+        video.muted=true;
+        askPlay(generationAtStart,false);
+      }else failVideo(generationAtStart);
     });
-    const step = recipe[index];
-    film.classList.toggle('is-on', step.type === 'youtube');
-    film.classList.remove('waiting');
-    film.setAttribute('aria-hidden', String(step.type !== 'youtube'));
-    previous.disabled = index === 0;
-    nextButton.disabled = index === recipe.length - 1;
-    if (step.type === 'youtube') {
-      wanted = token;
-      if (playerReady) tryVideo(token);
-      else {
-        film.classList.add('waiting');
-        watchdogTimer = setTimeout(() => failVideo(token), 15000);
-      }
-    } else if (started && step.durationMs) {
-      slideTimer = setTimeout(() => { if (nonce === token) navigate(1, false); }, step.durationMs);
+  }
+  function showCurrent(){
+    generation++;
+    const g=generation;
+    clearTiming();
+    clipFinished=false;
+    state='idle';
+    stopVideo();
+    slides.forEach((el,i)=>{const active=i===index;el.classList.toggle('is-current',active);el.setAttribute('aria-hidden',String(!active));});
+    const step=recipe[index], activeVideo=step.type==='video';
+    film.classList.toggle('is-on',activeVideo);
+    film.classList.toggle('waiting',activeVideo);
+    film.setAttribute('aria-hidden',String(!activeVideo));
+    previous.disabled=index===0;nextButton.disabled=index===recipe.length-1;
+    if(activeVideo){
+      state='loading';
+      lastProgress=0;lastWall=performance.now();pendingPlay=true;
+      video.muted=mutedFallback;
+      // A URL on this site, never a YouTube iframe or remote CDN.
+      video.src=mediaBase+step.file;
+      video.load();
+      askPlay(g);
+      startupTimer=setTimeout(()=>{
+        if(g===generation && isVideo() && !clipFinished && video.paused)failVideo(g);
+      },18000);
+      startStallWatch(g);
+    }else if(started && step.durationMs){
+      slideTimer=setTimeout(()=>{if(g===generation)navigate(1,false)},step.durationMs);
     }
   }
-  function navigate(delta, fromGesture) {
-    if (fromGesture) {
-      started = true;
-      gestureCount++;
+  function enterImmersive(){
+    try {
+      if(!document.fullscreenElement && document.documentElement.requestFullscreen){
+        const p=document.documentElement.requestFullscreen({navigationUI:'hide'});
+        p?.then?.(()=>{try{screen.orientation?.lock?.('landscape')?.catch?.(()=>{});}catch(_){}}).catch?.(()=>{});
+      }else{try{screen.orientation?.lock?.('landscape')?.catch?.(()=>{});}catch(_){}}
+    }catch(_){}
+  }
+  function navigate(delta,gesture){
+    if(gesture){
+      started=true;
+      mutedFallback=false;
+      video.muted=false;
       enterImmersive();
     }
-    const destination = Math.max(0, Math.min(recipe.length-1, index+delta));
-    if (destination !== index) { index = destination; showCurrent(); }
-    else if (isVideo() && playerReady && fromGesture) tryVideo(nonce);
+    const dest=Math.max(0,Math.min(recipe.length-1,index+delta));
+    if(dest!==index){index=dest;showCurrent();}
+    else if(isVideo()&&gesture)askPlay(generation);
   }
-  function enterImmersive() {
-    // Fullscreen and orientation lock can only be attempted on user gestures.
-    try {
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        const p = document.documentElement.requestFullscreen({navigationUI:'hide'});
-        if (p && p.then) p.then(() => {
-          try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch (_) {}
-        }).catch(() => {});
-      } else {
-        try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch (_) {}
-      }
-    } catch (_) {}
-  }
-  previous.addEventListener('click', () => navigate(-1,true));
-  nextButton.addEventListener('click', () => navigate(1,true));
-  document.addEventListener('keydown', event => {
-    if (['ArrowRight','PageDown',' '].includes(event.key)) { event.preventDefault(); navigate(1,true); }
-    if (['ArrowLeft','PageUp'].includes(event.key)) { event.preventDefault(); navigate(-1,true); }
+  previous.addEventListener('click',()=>navigate(-1,true));
+  nextButton.addEventListener('click',()=>navigate(1,true));
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();navigate(1,true)}
+    if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();navigate(-1,true)}
   });
-  let touchStart = null;
-  document.addEventListener('touchstart', event => {
-    if (event.touches.length===1) touchStart={x:event.touches[0].clientX,y:event.touches[0].clientY};
+  let touchStart=null;
+  document.addEventListener('touchstart',e=>{
+    if(e.touches.length===1)touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
   },{passive:true});
-  document.addEventListener('touchend', event => {
-    if (!touchStart || !event.changedTouches.length) return;
-    const dx=event.changedTouches[0].clientX-touchStart.x;
-    const dy=event.changedTouches[0].clientY-touchStart.y;
+  document.addEventListener('touchend',e=>{
+    if(!touchStart || !e.changedTouches.length)return;
+    const dx=e.changedTouches[0].clientX-touchStart.x;
+    const dy=e.changedTouches[0].clientY-touchStart.y;
     touchStart=null;
-    if (Math.abs(dx)>85 && Math.abs(dx)>Math.abs(dy)*1.3) navigate(dx<0?1:-1,true);
+    if(Math.abs(dx)>85&&Math.abs(dx)>Math.abs(dy)*1.3)navigate(dx<0?1:-1,true);
   },{passive:true});
-
-  window.onYouTubeIframeAPIReady = () => {
-    try {
-      player = new YT.Player('youtube-player', {
-        width:'100%',height:'100%', videoId:recipe.find(s=>s.type==='youtube').videoId,
-        playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3,enablejsapi:1},
-        events: {
-          onReady:() => {
-            playerReady = true;
-            if (wanted!==null) tryVideo(wanted);
-          },
-          onStateChange:event => {
-            if (!isVideo()) return;
-            if (event.data === ytState.playing) {
-              film.classList.remove('waiting');
-              if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer=null; }
-            }
-            if (event.data === ytState.ended) finishClip(nonce);
-          },
-          onError:() => failVideo(nonce),
-          onAutoplayBlocked:() => {
-            if (!isVideo() || mutedFallback) return;
-            // Browsers can reject audible autoplay after asynchronous navigation.
-            // Retry muted so the story keeps moving. A later arrow gesture can
-            // restore audio; never claim that sound is guaranteed on mobile.
-            mutedFallback = true;
-            try { player.mute(); player.playVideo(); } catch (_) { failVideo(nonce); }
-          }
-        }
-      });
-    } catch (_) { if (wanted!==null) failVideo(wanted); }
-  };
-  const api = document.createElement('script');
-  api.src='https://www.youtube.com/iframe_api';
-  api.async=true;
-  document.head.appendChild(api);
-  showCurrent();
-
-  // Introspection for local automated QA, not a visible control or editor.
+  video.addEventListener('playing',()=>{
+    if(!isVideo())return;
+    pendingPlay=false;state='playing';
+    film.classList.remove('waiting');
+    clearTimeout(startupTimer);startupTimer=null;
+    lastProgress=video.currentTime;lastWall=performance.now();
+  });
+  video.addEventListener('timeupdate',()=>{
+    if(!isVideo() || clipFinished)return;
+    // FFmpeg clips are pre-trimmed; EOF is the primary exact boundary.
+    const step=recipe[index], nominal=step.sourceEnd-step.sourceStart;
+    if(video.duration && video.currentTime>=Math.min(nominal,video.duration)-.08)finishClip(generation);
+  });
+  video.addEventListener('ended',()=>finishClip(generation));
+  video.addEventListener('error',()=>{if(isVideo() && video.src)failVideo(generation)});
+  video.addEventListener('waiting',()=>{if(isVideo())film.classList.add('waiting')});
+  video.addEventListener('stalled',()=>{if(isVideo())film.classList.add('waiting')});
+  // This interface is for test inspection only, never a visible editor/control.
   Object.defineProperty(window,'__presentationQA',{value:Object.freeze({
-    getIndex:()=>index,
-    getRecipe:()=>recipe.map(x=>({...x})),
-    isPlayerReady:()=>playerReady,
-    isMutedFallback:()=>mutedFallback
+    getIndex:()=>index,getRecipe:()=>recipe.map(x=>({...x})),getState:()=>state,
+    isMutedFallback:()=>mutedFallback, getVideoTime:()=>video.currentTime,
+    usesExternalPlayer:()=>false, getMediaBase:()=>mediaBase
   })});
+  showCurrent();
 })();
-
 </script>
 </body>
 </html>

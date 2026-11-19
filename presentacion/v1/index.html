@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0c0b">
+  <meta name="color-scheme" content="dark">
+  <title>SECUENCIA · PROMETEO</title>
+  <style>
+:root { color-scheme: dark; --paper:#f0ebde; --ink:#0b0c0b; --accent:#cae2a2; --edge:clamp(26px,5.2vw,100px); }
+* { box-sizing:border-box; }
+html,body { margin:0; width:100%; height:100%; overflow:hidden; overscroll-behavior:none; background:var(--ink); }
+body { font-family:Arial,Helvetica,sans-serif; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+#stage { position:fixed; inset:0; background:var(--ink); overflow:hidden; isolation:isolate; }
+#slides, .slide, #film { position:absolute; inset:0; }
+.slide { opacity:0; visibility:hidden; pointer-events:none; transform:scale(1.017); transition:opacity .46s ease, transform .65s cubic-bezier(.2,.7,.2,1),visibility 0s linear .46s; color:var(--paper); }
+.slide.is-current { opacity:1; visibility:visible; transform:scale(1); transition:opacity .46s ease, transform .65s cubic-bezier(.2,.7,.2,1),visibility 0s; }
+.stage-inner { height:100%; width:100%; padding:clamp(26px,6vh,84px) calc(var(--edge) + clamp(16px,3vw,52px)); display:flex; flex-direction:column; position:relative; }
+.cover { background:var(--paper); color:var(--ink); }
+.opening { justify-content:space-between; }
+.editorial-rule { height:2px; background:currentColor; width:100%; opacity:.78; }
+.cover h1 { font-size:clamp(46px,9.1vw,170px); line-height:.97; letter-spacing:-.09em; font-weight:800; margin:0; }
+.cover h1 em { color:#718256; font-family:Georgia,'Times New Roman',serif; font-weight:400; letter-spacing:-.075em; }
+.opening-bottom { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; font:600 clamp(10px,1vw,17px)/1.3 Arial,sans-serif; letter-spacing:.14em; }
+.concept { background:#121512; }
+.diagram-layout { display:grid; grid-template-columns:1.05fr .95fr; grid-template-rows:auto 1fr; column-gap:4vw; align-items:center; }
+.small-kicker { font-size:clamp(11px,1vw,16px); line-height:1.5; letter-spacing:.23em; font-weight:700; }
+.diagram-layout .small-kicker { grid-column:1 / -1; align-self:start; }
+.concept h2, .statement h2 { margin:0; font-size:clamp(35px,6.1vw,112px); line-height:1.05; font-weight:800; letter-spacing:-.077em; }
+.concept h2 em,.statement h2 em { color:var(--accent); font:italic 400 1em/1.05 Georgia,'Times New Roman',serif; letter-spacing:-.08em; }
+.diagram { align-self:center; padding:2vw 0 1vw; width:100%; }
+.diagram-name { font-size:clamp(10px,1vw,16px); font-weight:700; letter-spacing:.22em; margin-bottom:clamp(12px,2.1vh,25px); }
+.diagram-name.second-name { margin-top:clamp(36px,8vh,85px); }
+.diagram-track { height:clamp(31px,6vh,60px); width:100%; display:flex; align-items:center; }
+.source-track { border-top:1px solid #7b8278; border-bottom:1px solid #7b8278; position:relative; background:repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),#383f37 calc(12.5% - 1px),#383f37 12.5%); }
+.source-track i { display:block; position:absolute; top:0; height:100%; background:#dbe8cc; }
+.source-track i:nth-child(1){left:10%;width:15%}.source-track i:nth-child(2){left:48%;width:15%}.source-track i:nth-child(3){left:82%;width:15%}
+.edited-track { gap:clamp(5px,.7vw,12px); }
+.edited-track span { height:100%; min-width:0; display:grid; place-items:center; font:700 clamp(9px,1vw,16px)/1 Arial,sans-serif; letter-spacing:.11em; color:var(--ink); background:#dbe8cc; flex:1; }
+.edited-track span:nth-child(2) { background:#8f9d79; }
+.statement { background:#d3dbbf; color:#121512; }
+.pause-layout { justify-content:space-between; }
+.statement h2 { font-size:clamp(50px,8.6vw,155px); }
+.statement h2 em { color:#62744e; }
+.pause-line { border-top:2px solid #121512; width:100%; }
+.ending { background:#0b0c0b; }
+.end-layout { justify-content:space-between; }
+.ending h2 { margin:0; font-size:clamp(110px,24vw,490px); font-weight:800; letter-spacing:-.11em; line-height:.8; }
+.ending h2 span { color:var(--accent); }
+#film { display:none; background:#000; z-index:3; overflow:hidden; }
+#film.is-on { display:block; }
+#youtube-player, #youtube-player iframe { width:100%!important; height:100%!important; display:block; border:0; }
+.video-loading { position:absolute; width:20px; height:20px; border:2px solid rgba(255,255,255,.25); border-top-color:var(--paper); border-radius:50%; top:50%; left:50%; margin:-10px; animation:spin .9s linear infinite; pointer-events:none; opacity:0; transition:opacity .2s ease; }
+#film.waiting .video-loading { opacity:.8; }
+@keyframes spin { to {transform:rotate(360deg)} }
+.arrow { position:absolute; z-index:5; top:0; height:100%; width:clamp(52px,8vw,120px); padding:0; display:flex; align-items:center; justify-content:center; border:0; background:transparent; color:var(--paper); cursor:pointer; opacity:.82; touch-action:manipulation; transition:opacity .2s ease; }
+.arrow:hover,.arrow:focus-visible {opacity:1}.arrow:focus-visible { outline:2px solid currentColor; outline-offset:-10px; }
+.arrow svg { width:clamp(22px,2.4vw,42px); height:clamp(22px,2.4vw,42px); fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:square; stroke-linejoin:miter; filter:drop-shadow(0 1px 4px #0005); }
+.arrow.previous { left:0; background:linear-gradient(90deg,#0b0c0b16,transparent); }
+.arrow.next { right:0; background:linear-gradient(270deg,#0b0c0b16,transparent); }
+#stage:has(.cover.is-current) .arrow, #stage:has(.statement.is-current) .arrow { color:var(--ink); }
+.arrow:disabled { opacity:.22; cursor:default; }
+#stage:has(#film.is-on) .arrow { background:linear-gradient(90deg,#0007,transparent); }
+#stage:has(#film.is-on) .arrow.next { background:linear-gradient(270deg,#0007,transparent); }
+@media (max-height:460px) and (orientation:landscape) {
+  .stage-inner{padding-top:6vh;padding-bottom:6vh}
+  .cover h1{font-size:min(9.2vw,19vh)}
+  .concept h2{font-size:min(5.6vw,15vh)}
+  .statement h2{font-size:min(8vw,18vh)}
+  .ending h2{font-size:min(22vw,60vh)}
+  .diagram-name.second-name{margin-top:5vh}
+  .diagram-track{height:7vh}
+}
+/* Until the browser accepts a landscape orientation lock, draw the complete
+   landscape presentation rotated. This is not a substitute for rotating the phone. */
+@media (orientation:portrait) {
+  #stage { left:100dvw; top:0; width:100dvh; height:100dvw; right:auto; bottom:auto; transform-origin:top left; transform:rotate(90deg); }
+  .stage-inner { padding:5% calc(var(--edge) + 16px); }
+  .cover h1{font-size:9vw; font-size:9dvh}
+  .concept h2{font-size:6dvh}.statement h2{font-size:8.2dvh}
+  .ending h2{font-size:23dvh}
+  .diagram-track{height:5dvw}
+  .diagram-name.second-name{margin-top:4dvw}
+  .arrow{width:clamp(45px,7dvh,100px)}
+  .small-kicker,.diagram-name,.opening-bottom{font-size:1.1dvh}
+}
+@media (prefers-reduced-motion:reduce) { .slide,.arrow,.video-loading { transition:none; animation:none; } }
+
+</style>
+</head>
+<body>
+  <main id="stage" aria-label="Presentación audiovisual">
+    <div id="slides" aria-live="off">
+      <section class="slide cover is-current" data-kind="cover" aria-label="Apertura">
+        <div class="stage-inner opening">
+          <div class="editorial-rule"></div>
+          <h1>UNA HISTORIA.<br><em>OTRO RITMO.</em></h1>
+          <div class="opening-bottom"><span>LA IMAGEN ES SOLO EL PRINCIPIO</span><span>01 / SECUENCIA</span></div>
+        </div>
+      </section>
+      <section class="slide clip" data-kind="youtube" aria-label="Primer fragmento de película" aria-hidden="true"></section>
+      <section class="slide concept" data-kind="concept" aria-label="Diagrama de montaje" aria-hidden="true">
+        <div class="stage-inner diagram-layout">
+          <div class="small-kicker">EL MONTAJE</div>
+          <h2>NO TODO<br>TIENE QUE<br><em>IR SEGUIDO.</em></h2>
+          <div class="diagram" aria-label="Selección de dos momentos de un video y una pausa con presentación">
+            <div class="diagram-name">VIDEO ORIGINAL</div>
+            <div class="diagram-track source-track"><i></i><i></i><i></i></div>
+            <div class="diagram-name second-name">NUEVA SECUENCIA</div>
+            <div class="diagram-track edited-track"><span>ESCENA</span><span>IDEA</span><span>ESCENA</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="slide clip" data-kind="youtube" aria-label="Segundo fragmento de película" aria-hidden="true"></section>
+      <section class="slide statement" data-kind="statement" aria-label="Una pausa entre escenas" aria-hidden="true">
+        <div class="stage-inner pause-layout"><span class="small-kicker">ENTRE DOS MOMENTOS</span><h2>UNA PAUSA<br><em>CAMBIA</em><br>LA MIRADA.</h2><div class="pause-line"></div></div>
+      </section>
+      <section class="slide clip" data-kind="youtube" aria-label="Tercer fragmento de película" aria-hidden="true"></section>
+      <section class="slide ending" data-kind="ending" aria-label="Final" aria-hidden="true">
+        <div class="stage-inner end-layout"><span class="small-kicker">SECUENCIA / 01</span><h2>FIN<span>.</span></h2><div class="editorial-rule"></div></div>
+      </section>
+    </div>
+    <div id="film" aria-hidden="true"><div id="youtube-player"></div><div class="video-loading" aria-hidden="true"></div></div>
+    <button id="previous" class="arrow previous" type="button" aria-label="Diapositiva anterior">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 4-8 8 8 8"/></svg>
+    </button>
+    <button id="next" class="arrow next" type="button" aria-label="Diapositiva siguiente">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 4 8 8-8 8"/></svg>
+    </button>
+  </main>
+<script>
+(() => {
+  'use strict';
+
+  // Edit only this recipe to produce another presentation. All seconds are
+  // measured from the beginning of the original YouTube video.
+  const recipe = Object.freeze([
+    { type: 'cover' },
+    { type: 'youtube', videoId: 'aqz-KE-bpKQ', start: 65, end: 77 },
+    { type: 'concept', durationMs: 8500 },
+    { type: 'youtube', videoId: 'aqz-KE-bpKQ', start: 142, end: 153 },
+    { type: 'statement', durationMs: 7000 },
+    { type: 'youtube', videoId: 'aqz-KE-bpKQ', start: 220, end: 230 },
+    { type: 'ending' }
+  ]);
+
+  const slides = [...document.querySelectorAll('.slide')];
+  const film = document.getElementById('film');
+  const previous = document.getElementById('previous');
+  const nextButton = document.getElementById('next');
+  let index = 0;
+  let player = null;
+  let playerReady = false;
+  let wanted = null;
+  let slideTimer = null;
+  let sampleTimer = null;
+  let watchdogTimer = null;
+  let nonce = 0;
+  let started = false;
+  let mutedFallback = false;
+  let gestureCount = 0;
+  const ytState = { ended: 0, playing: 1, paused: 2 };
+
+  if (recipe.length !== slides.length || recipe.some((step,i) => step.type !== slides[i].dataset.kind)) {
+    throw new Error('The presentation recipe and slide markup must match.');
+  }
+  for (const step of recipe) {
+    if (step.type === 'youtube' && (!/^[A-Za-z0-9_-]{11}$/.test(step.videoId) || step.start < 0 || step.end <= step.start)) {
+      throw new Error('Invalid YouTube segment.');
+    }
+  }
+
+  const clearTiming = () => {
+    for (const handle of [slideTimer, sampleTimer, watchdogTimer]) if (handle !== null) clearTimeout(handle);
+    if (sampleTimer !== null) clearInterval(sampleTimer);
+    slideTimer = sampleTimer = watchdogTimer = null;
+  };
+  const isVideo = () => recipe[index].type === 'youtube';
+
+  function stopVideo() {
+    if (!playerReady || !player) return;
+    try { player.pauseVideo(); } catch (_) {}
+  }
+  function failVideo(token) {
+    if (nonce !== token || !isVideo()) return;
+    film.classList.remove('waiting');
+    // No extra visible controls: transition to the next content on media error.
+    watchdogTimer = setTimeout(() => { if (nonce === token) navigate(1, false); }, 1100);
+  }
+  function finishClip(token) {
+    if (nonce !== token || !isVideo()) return;
+    stopVideo();
+    navigate(1, false);
+  }
+  function checkVideoBoundary(token) {
+    if (nonce !== token || !playerReady || !isVideo()) return;
+    try {
+      const now = player.getCurrentTime();
+      const segment = recipe[index];
+      if (Number.isFinite(now) && now >= segment.end - 0.12) finishClip(token);
+    } catch (_) {}
+  }
+  function tryVideo(token) {
+    if (!playerReady || nonce !== token || !isVideo()) return;
+    const segment = recipe[index];
+    film.classList.add('waiting');
+    try {
+      // loadVideoById object syntax supports true clipping endSeconds.
+      player.loadVideoById({videoId:segment.videoId, startSeconds:segment.start, endSeconds:segment.end});
+      if (gestureCount > 0) { player.unMute(); mutedFallback = false; }
+      player.playVideo();
+      sampleTimer = setInterval(() => checkVideoBoundary(token), 90);
+      // Network/player failure must not leave the presentation stuck forever.
+      watchdogTimer = setTimeout(() => failVideo(token), 15000);
+    } catch (_) { failVideo(token); }
+  }
+  function showCurrent() {
+    const token = ++nonce;
+    clearTiming();
+    wanted = null;
+    stopVideo();
+    slides.forEach((slide,i) => {
+      const current = i === index;
+      slide.classList.toggle('is-current', current);
+      slide.setAttribute('aria-hidden', String(!current));
+    });
+    const step = recipe[index];
+    film.classList.toggle('is-on', step.type === 'youtube');
+    film.classList.remove('waiting');
+    film.setAttribute('aria-hidden', String(step.type !== 'youtube'));
+    previous.disabled = index === 0;
+    nextButton.disabled = index === recipe.length - 1;
+    if (step.type === 'youtube') {
+      wanted = token;
+      if (playerReady) tryVideo(token);
+      else {
+        film.classList.add('waiting');
+        watchdogTimer = setTimeout(() => failVideo(token), 15000);
+      }
+    } else if (started && step.durationMs) {
+      slideTimer = setTimeout(() => { if (nonce === token) navigate(1, false); }, step.durationMs);
+    }
+  }
+  function navigate(delta, fromGesture) {
+    if (fromGesture) {
+      started = true;
+      gestureCount++;
+      enterImmersive();
+    }
+    const destination = Math.max(0, Math.min(recipe.length-1, index+delta));
+    if (destination !== index) { index = destination; showCurrent(); }
+    else if (isVideo() && playerReady && fromGesture) tryVideo(nonce);
+  }
+  function enterImmersive() {
+    // Fullscreen and orientation lock can only be attempted on user gestures.
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        const p = document.documentElement.requestFullscreen({navigationUI:'hide'});
+        if (p && p.then) p.then(() => {
+          try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch (_) {}
+        }).catch(() => {});
+      } else {
+        try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+  previous.addEventListener('click', () => navigate(-1,true));
+  nextButton.addEventListener('click', () => navigate(1,true));
+  document.addEventListener('keydown', event => {
+    if (['ArrowRight','PageDown',' '].includes(event.key)) { event.preventDefault(); navigate(1,true); }
+    if (['ArrowLeft','PageUp'].includes(event.key)) { event.preventDefault(); navigate(-1,true); }
+  });
+  let touchStart = null;
+  document.addEventListener('touchstart', event => {
+    if (event.touches.length===1) touchStart={x:event.touches[0].clientX,y:event.touches[0].clientY};
+  },{passive:true});
+  document.addEventListener('touchend', event => {
+    if (!touchStart || !event.changedTouches.length) return;
+    const dx=event.changedTouches[0].clientX-touchStart.x;
+    const dy=event.changedTouches[0].clientY-touchStart.y;
+    touchStart=null;
+    if (Math.abs(dx)>85 && Math.abs(dx)>Math.abs(dy)*1.3) navigate(dx<0?1:-1,true);
+  },{passive:true});
+
+  window.onYouTubeIframeAPIReady = () => {
+    try {
+      player = new YT.Player('youtube-player', {
+        width:'100%',height:'100%', videoId:recipe.find(s=>s.type==='youtube').videoId,
+        playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3,enablejsapi:1},
+        events: {
+          onReady:() => {
+            playerReady = true;
+            if (wanted!==null) tryVideo(wanted);
+          },
+          onStateChange:event => {
+            if (!isVideo()) return;
+            if (event.data === ytState.playing) {
+              film.classList.remove('waiting');
+              if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer=null; }
+            }
+            if (event.data === ytState.ended) finishClip(nonce);
+          },
+          onError:() => failVideo(nonce),
+          onAutoplayBlocked:() => {
+            if (!isVideo() || mutedFallback) return;
+            // Browsers can reject audible autoplay after asynchronous navigation.
+            // Retry muted so the story keeps moving. A later arrow gesture can
+            // restore audio; never claim that sound is guaranteed on mobile.
+            mutedFallback = true;
+            try { player.mute(); player.playVideo(); } catch (_) { failVideo(nonce); }
+          }
+        }
+      });
+    } catch (_) { if (wanted!==null) failVideo(wanted); }
+  };
+  const api = document.createElement('script');
+  api.src='https://www.youtube.com/iframe_api';
+  api.async=true;
+  document.head.appendChild(api);
+  showCurrent();
+
+  // Introspection for local automated QA, not a visible control or editor.
+  Object.defineProperty(window,'__presentationQA',{value:Object.freeze({
+    getIndex:()=>index,
+    getRecipe:()=>recipe.map(x=>({...x})),
+    isPlayerReady:()=>playerReady,
+    isMutedFallback:()=>mutedFallback
+  })});
+})();
+
+</script>
+</body>
+</html>
