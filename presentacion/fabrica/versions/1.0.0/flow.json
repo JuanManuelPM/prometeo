@@ -1,0 +1,303 @@
+{
+  "schema": "prometeo.av.studio.transcript-to-deck-flow/v1",
+  "id": "prometeo-av-source-to-sequence",
+  "version": "1.0.0",
+  "published": "2026-11-19",
+  "source3d": "PROMETEO/spaces/studio-3d/production-flow/v1 (patrón: índice + mapa visual + JSON con IDs + ficha por nodo + receipts)",
+  "owner": "PROMETEO · Estudio Audiovisual",
+  "stages": [
+    {
+      "id": "A",
+      "title": "FUENTE",
+      "subtitle": "Enlace, título o canal",
+      "color": "#dceacb"
+    },
+    {
+      "id": "B",
+      "title": "DERECHOS",
+      "subtitle": "Propio, autorizado o embed",
+      "color": "#d4c4aa"
+    },
+    {
+      "id": "C",
+      "title": "TRANSCRIPCIÓN",
+      "subtitle": "Tiempo comprobable",
+      "color": "#b0d9d7"
+    },
+    {
+      "id": "D",
+      "title": "CURADURÍA",
+      "subtitle": "Ideas y cortes relevantes",
+      "color": "#dceacb"
+    },
+    {
+      "id": "E",
+      "title": "ESCENAS",
+      "subtitle": "Presentación + reproductor",
+      "color": "#d4c4aa"
+    },
+    {
+      "id": "F",
+      "title": "VERIFICACIÓN",
+      "subtitle": "Pruebas, publicación, recibo",
+      "color": "#b0d9d7"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A01",
+      "stage": "A",
+      "title": "Entrada",
+      "type": "input",
+      "contract": "Recibir URL, título o canal",
+      "yes": "Normalizar entrada; URL canónica o consulta, sin inventar video",
+      "no": "A02"
+    },
+    {
+      "id": "A02",
+      "stage": "A",
+      "title": "Encontrar video",
+      "type": "process",
+      "contract": "URL: ID directo. Título/canal: búsqueda con yt-dlp; conservar candidatos y fuente",
+      "yes": "A03",
+      "no": "A04"
+    },
+    {
+      "id": "A03",
+      "stage": "A",
+      "title": "Fuente inequívoca",
+      "type": "decision",
+      "contract": "Coincidencia de título, canal e ID; nunca elegir homónimos arbitrariamente",
+      "yes": "B01",
+      "no": "A04"
+    },
+    {
+      "id": "A04",
+      "stage": "A",
+      "title": "Ambigüedad",
+      "type": "gate",
+      "contract": "Conservar opciones verificables y marcar NEED_SOURCE, sin fabricar transcripción",
+      "yes": null,
+      "no": null
+    },
+    {
+      "id": "B01",
+      "stage": "B",
+      "title": "Permiso de copiado",
+      "type": "decision",
+      "contract": "Solo material propio, CC validado o autorización documentada permite alojar MP4",
+      "yes": "B02",
+      "no": "B03"
+    },
+    {
+      "id": "B02",
+      "stage": "B",
+      "title": "Video alojado",
+      "type": "process",
+      "contract": "Usar MP4/WebM propios, ffprobe, hash y licencia",
+      "yes": "C01",
+      "no": null
+    },
+    {
+      "id": "B03",
+      "stage": "B",
+      "title": "Reproductor autorizado",
+      "type": "process",
+      "contract": "Video ajeno: reproductor oficial de YouTube, sin descargar ni redistribuir",
+      "yes": "C01",
+      "no": null
+    },
+    {
+      "id": "C01",
+      "stage": "C",
+      "title": "Pistas temporizadas",
+      "type": "decision",
+      "contract": "Probar subtítulos propios, manuales y automáticos de YouTube/yt-dlp",
+      "yes": "C04",
+      "no": "C02"
+    },
+    {
+      "id": "C02",
+      "stage": "C",
+      "title": "Transcripción navegador",
+      "type": "process",
+      "contract": "Una IA puede abrir Mostrar transcripción en YouTube y recuperar tiempos visibles",
+      "yes": "C03",
+      "no": "C05"
+    },
+    {
+      "id": "C03",
+      "stage": "C",
+      "title": "Timestamps presentes",
+      "type": "decision",
+      "contract": "Comprobar inicio, fin, coherencia y origen de cada frase",
+      "yes": "C04",
+      "no": "C05"
+    },
+    {
+      "id": "C04",
+      "stage": "C",
+      "title": "Normalizar y validar",
+      "type": "process",
+      "contract": "VTT/JSON: offsets numéricos, sin solapamientos anómalos, orden creciente",
+      "yes": "D01",
+      "no": "C05"
+    },
+    {
+      "id": "C05",
+      "stage": "C",
+      "title": "Sin tiempos confiables",
+      "type": "gate",
+      "contract": "Bloquear recortes automáticos; ASR solo si existe media lícitamente accesible",
+      "yes": "C06",
+      "no": null
+    },
+    {
+      "id": "C06",
+      "stage": "C",
+      "title": "ASR permitido",
+      "type": "decision",
+      "contract": "¿Existe un archivo local legal y tiempo de cómputo?",
+      "yes": "C04",
+      "no": "C07"
+    },
+    {
+      "id": "C07",
+      "stage": "C",
+      "title": "Estado incompleto",
+      "type": "gate",
+      "contract": "Publicar receipt NOT_RUN y explicar bloqueo, no timestamps estimados",
+      "yes": null,
+      "no": null
+    },
+    {
+      "id": "D01",
+      "stage": "D",
+      "title": "Ideas del discurso",
+      "type": "process",
+      "contract": "Puntuar segmentos por términos, contraste, evidencia y contexto previo/posterior",
+      "yes": "D02",
+      "no": null
+    },
+    {
+      "id": "D02",
+      "stage": "D",
+      "title": "Selección diversa",
+      "type": "process",
+      "contract": "2–3 intervalos sin solapamiento, 8–30s, separados y con segundos reales",
+      "yes": "D03",
+      "no": "D01"
+    },
+    {
+      "id": "D03",
+      "stage": "D",
+      "title": "Concordancia semántica",
+      "type": "decision",
+      "contract": "La slide promete precisamente lo que se dice en el tramo",
+      "yes": "D04",
+      "no": "D01"
+    },
+    {
+      "id": "D04",
+      "stage": "D",
+      "title": "Receta editorial",
+      "type": "process",
+      "contract": "VideoRecipe versionada con ID fuente, start/end, motivo, evidencia y modo de media",
+      "yes": "E01",
+      "no": null
+    },
+    {
+      "id": "E01",
+      "stage": "E",
+      "title": "Diseño preservado",
+      "type": "process",
+      "contract": "Reutilizar tokens visuales exactos de SECUENCIA V2; solo dos flechas",
+      "yes": "E02",
+      "no": null
+    },
+    {
+      "id": "E02",
+      "stage": "E",
+      "title": "Motor de clips",
+      "type": "process",
+      "contract": "Entrada al clip reinicia startSeconds; fin avanza; salida detiene; sin gesto dentro del video",
+      "yes": "E03",
+      "no": null
+    },
+    {
+      "id": "E03",
+      "stage": "E",
+      "title": "Autoplay restringido",
+      "type": "decision",
+      "contract": "¿Se inicia con sonido tras tocar la flecha?",
+      "yes": "F01",
+      "no": "E04"
+    },
+    {
+      "id": "E04",
+      "stage": "E",
+      "title": "Fallback honesto",
+      "type": "process",
+      "contract": "Si el navegador bloquea sonido, intentar mute y registrar; nunca simular reproducción",
+      "yes": "F01",
+      "no": null
+    },
+    {
+      "id": "F01",
+      "stage": "F",
+      "title": "Pruebas automáticas",
+      "type": "process",
+      "contract": "Fuente, tiempos, no solapamiento, navegación, reentrada, iframe/MP4 y accesibilidad",
+      "yes": "F02",
+      "no": null
+    },
+    {
+      "id": "F02",
+      "stage": "F",
+      "title": "QA visual y real",
+      "type": "decision",
+      "contract": "Comparación con diseño aceptado y playback verificado de la fuente real",
+      "yes": "F03",
+      "no": "F04"
+    },
+    {
+      "id": "F03",
+      "stage": "F",
+      "title": "Publicación aislada",
+      "type": "process",
+      "contract": "GitHub branch + gh-pages, sin sobrescribir presentación aceptada",
+      "yes": "F05",
+      "no": null
+    },
+    {
+      "id": "F04",
+      "stage": "F",
+      "title": "Corrección",
+      "type": "process",
+      "contract": "Conservar bug/repro/causa; corregir antes de promover, no declarar PASS",
+      "yes": "F01",
+      "no": null
+    },
+    {
+      "id": "F05",
+      "stage": "F",
+      "title": "Readback + recibo",
+      "type": "process",
+      "contract": "HTTP 200, SHA leído, fuente atribuida, PASS/FAIL/NOT_RUN y link",
+      "yes": null,
+      "no": null
+    }
+  ],
+  "truthLevels": [
+    "SOURCE_FOUND",
+    "TIMED_TRANSCRIPT_VERIFIED",
+    "RECIPE_BUILT",
+    "HTML_LOCAL_TESTED",
+    "PLAYER_LIVE_TESTED",
+    "SERVED"
+  ],
+  "legalPolicy": {
+    "thirdParty": "YouTube official embed, do not rehost without rights",
+    "ownOrLicensed": "native video with hashes, licence and ffprobe"
+  }
+}
