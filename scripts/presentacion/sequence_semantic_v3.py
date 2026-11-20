@@ -11,18 +11,18 @@ SOURCE_URL="https://www.youtube.com/watch?v="+VIDEO_ID
 MOMENTS=[
   {"id":"terapia","idea":"¿PARA QUIÉN ESTÁ PENSADA LA TERAPIA?",
    "label":"01 / UNA PREGUNTA INCÓMODA",
-   "start_anchor":"Then beta bias is the opposite",
-   "end_anchor":"whether it might not work for men",
+   "start_anchor":"then beta bias is",
+   "end_anchor":"might not work for men",
    "why":"Explica cómo asumir que un tratamiento sirve igual para todas las personas puede impedir comprobar su eficacia."},
   {"id":"valores","idea":"¿QUÉ VALORAN REALMENTE LOS HOMBRES?",
    "label":"02 / CUANDO HABLAN LOS DATOS",
-   "start_anchor":"another thing we did in that survey was ask men",
-   "end_anchor":"being honest reliable dependable",
+   "start_anchor":"another thing we did in that survey",
+   "end_anchor":"honest reliable dependable",
    "why":"Cambia los estereotipos por los valores que los participantes dijeron considerar más importantes."},
   {"id":"generalizacion","idea":"¿Y SI GENERALIZAMOS DESDE LOS PEORES CASOS?",
    "label":"03 / EL ERROR DE LA GENERALIZACIÓN",
    "start_anchor":"we take the examples of the worst possible men",
-   "end_anchor":"these sorts of campaigns are very easily backfired",
+   "end_anchor":"we generalize it to all men",
    "why":"Describe el salto desde casos extremos hacia una valoración de todos los hombres."}
 ]
 def tokens(s):
@@ -60,27 +60,57 @@ def from_ytdlp(video_id):
         return clean(rows),"yt-dlp-json3"
 
 def parse_vtt(raw):
+    """Use the inline word timestamps from YouTube WebVTT rather than rolling captions.
+    Rolling subtitle lines overlap in text; concatenating them corrupts all phrase matches.
+    """
     import html as htmlmod
-    out=[]
-    parts=re.split(r"\r?\n\r?\n",raw.replace("\ufeff",""))
-    timecode=re.compile(r"(?:(\d+):)?(\d+):(\d+)\.(\d{3})")
-    def sec(s):
-        m=timecode.search(s)
+    out=[];word_rows=[]
+    blocks=re.split(r"\r?\n\r?\n",raw.replace("\ufeff",""))
+    tc=re.compile(r"(?:(\d+):)?(\d+):(\d+)\.(\d{3})")
+    def seconds(s):
+        m=tc.search(s)
         if not m:raise ValueError("bad timestamp")
         return int(m[1] or 0)*3600+int(m[2])*60+int(m[3])+int(m[4])/1000
-    for block in parts:
+    for block in blocks:
         lines=block.strip().splitlines()
-        tt=next((i for i,x in enumerate(lines) if "-->" in x),None)
-        if tt is None:continue
-        left,right=lines[tt].split("-->",1)
-        try:a=sec(left);b=sec(right)
+        idx=next((i for i,x in enumerate(lines) if "-->" in x),None)
+        if idx is None:continue
+        left,right=lines[idx].split("-->",1)
+        try:a=seconds(left);b=seconds(right)
         except ValueError:continue
-        body=" ".join(lines[tt+1:])
-        body=re.sub(r"<\d\d:\d\d:\d\d\.\d{3}>"," ",body)
-        body=re.sub(r"<[^>]+>"," ",body)
-        body=htmlmod.unescape(re.sub(r"\s+"," ",body)).strip()
-        if body and b>a:out.append({"start":a,"duration":b-a,"text":body})
-    return clean(out)
+        body=" ".join(lines[idx+1:])
+        pattern=r"<((?:\d\d:)?\d\d:\d\d\.\d{3})><c(?:\.[^>]*)?>(.*?)</c>"
+        matched=re.findall(pattern,body,flags=re.I)
+        if matched:
+            for k,(stamp,word) in enumerate(matched):
+                t=seconds(stamp)
+                finish=seconds(matched[k+1][0]) if k+1<len(matched) else b
+                w=htmlmod.unescape(re.sub(r"<[^>]+>","",word)).strip()
+                if w and finish>t:word_rows.append({"start":t,"duration":finish-t,"text":w})
+        elif b-a>.05:
+            body=re.sub(r"<\d\d:\d\d:\d\d\.\d{3}>"," ",body)
+            body=htmlmod.unescape(re.sub(r"<[^>]+>"," ",body)).strip()
+            if body:out.append({"start":a,"duration":b-a,"text":body})
+    if len(word_rows)>150:
+        # A word can be repeated by a subtitle rolling-window boundary; dedupe by (time, token).
+        uniq={}
+        for w in word_rows:
+            k=(round(w["start"],3),w["text"].lower())
+            uniq[k]=w
+        return clean(list(uniq.values()))
+    # Conservative fallback: de-overlap rolling subtitle snapshots.
+    dedup=[];last=[]
+    for cue in out:
+        current=tokens(cue["text"])
+        if not current:continue
+        overlap=0
+        for k in range(min(len(last),len(current)),0,-1):
+            if last[-k:]==current[:k]:overlap=k;break
+        kept=current[overlap:]
+        if kept:dedup.append({"start":cue["start"],"duration":cue["duration"],
+                               "text":" ".join(kept)})
+        last=current
+    return clean(dedup)
 def from_mirrors(video_id):
     """Only public read-only subtitle endpoints; no YouTube downloading."""
     import concurrent.futures,requests
