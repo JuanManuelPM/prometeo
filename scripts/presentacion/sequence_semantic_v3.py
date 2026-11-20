@@ -17,7 +17,7 @@ MOMENTS=[
   {"id":"valores","idea":"¿QUÉ PASA CUANDO LA MASCULINIDAD SE VIVE COMO ALGO NEGATIVO?",
    "label":"02 / LO QUE ENCONTRÓ UNA INVESTIGACIÓN",
    "start_anchor":"men who think that masculinity",
-   "end_anchor":"in a nutshell",
+   "end_anchor":"nutshell",
    "why":"Barry resume una asociación observada en su investigación entre percepciones negativas sobre masculinidad y bienestar psicológico; no establece causalidad."},
   {"id":"generalizacion","idea":"¿Y SI LA CAMPAÑA CONSIGUE LO CONTRARIO?",
    "label":"03 / LAS CONSECUENCIAS NO INTENCIONADAS",
