@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101310">
+<title>SECUENCIA · PSICOLOGÍA / PROMETEO</title>
+<style>
+:root{--paper:#f0ebde;--ink:#101310;--accent:#cae2a2}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--ink);font-family:Arial,Helvetica,sans-serif;overscroll-behavior:none}
+button{font:inherit}#stage{position:fixed;inset:0;overflow:hidden;background:var(--ink);touch-action:pan-y}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(24px,6vh,80px) clamp(64px,9vw,150px);background:var(--ink);color:var(--paper);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s}
+.slide.current{opacity:1;visibility:visible;transition:opacity .18s ease;pointer-events:auto}
+.slide.paper{background:var(--paper);color:var(--ink)}.eyebrow{font-size:clamp(9px,1vw,15px);letter-spacing:.20em;font-weight:700;text-transform:uppercase}
+.rule{height:2px;background:currentColor;opacity:.6}.headline{font-size:clamp(37px,7.6vw,130px);font-weight:800;line-height:.98;letter-spacing:-.082em;margin:0}
+.headline em{font:italic 400 1em Georgia,serif;color:#7b9163}.slide:not(.paper) .headline em{color:var(--accent)}
+.small{font-size:clamp(11px,1.2vw,17px);font-weight:600;letter-spacing:.07em;max-width:62ch;line-height:1.35}
+#films,.frame{position:absolute;inset:0}.frame{background:#000;display:none;pointer-events:none}.frame.active{display:block}
+.frame iframe{position:absolute;inset:0;width:100%;height:100%;border:none;pointer-events:none}
+.arrow{position:fixed;z-index:12;top:50%;transform:translateY(-50%);width:clamp(44px,6vw,72px);height:clamp(64px,12vh,115px);border:0;background:transparent;color:#d4e1c7;font-size:clamp(36px,4vw,64px);cursor:pointer;text-shadow:0 2px 8px #0008}
+.arrow.prev{left:0}.arrow.next{right:0}.arrow:disabled{opacity:.18}.arrow:focus-visible{outline:2px solid var(--accent)}
+#library{position:fixed;inset:0;z-index:30;background:var(--ink);color:var(--paper);overflow-y:auto;padding:clamp(25px,6vw,80px);display:flex;flex-direction:column;justify-content:space-between;gap:25px}
+#library h1{font-size:clamp(65px,12vw,180px);line-height:.84;letter-spacing:-.09em;margin:20px 0 35px}
+#library h1 em{font:italic 400 1em Georgia,serif;color:var(--accent)}
+#library p{max-width:550px;color:#b4c3b2;line-height:1.5}
+#cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:14px}
+.episode{background:#1d251f;color:var(--paper);text-align:left;border:1px solid #5b6a5b;padding:26px;cursor:pointer;min-height:180px;display:flex;flex-direction:column;justify-content:space-between;gap:20px}
+.episode:hover,.episode:focus-visible{border-color:var(--accent)}.episode strong{font-size:clamp(21px,3vw,36px);line-height:1.02;letter-spacing:-.04em}.episode span{font-size:12px;color:var(--accent);letter-spacing:.13em}
+#hint{position:fixed;z-index:20;left:50%;bottom:4vh;transform:translateX(-50%);color:var(--accent);font-size:11px;letter-spacing:.08em;text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
+#hint.visible{opacity:1}
+@media(max-width:650px){.slide{padding:11vh 62px}.headline{font-size:clamp(34px,9vw,70px)}.arrow{width:45px}#library{padding:25px}}
+@media(prefers-reduced-motion:reduce){.slide{transition:none}}
+</style></head>
+<body><main id="stage" aria-label="SECUENCIA audiovisual"><div id="slides"></div>
+<div id="films"><div id="frame-a" class="frame"><div id="yt-a"></div></div><div id="frame-b" class="frame"><div id="yt-b"></div></div></div>
+<button id="prev" class="arrow prev" aria-label="Anterior">‹</button><button id="next" class="arrow next" aria-label="Siguiente">›</button></main>
+<div id="hint" aria-live="polite"></div>
+<section id="library"><div><div class="eyebrow" style="color:var(--accent)">PROMETEO / ESTUDIO AUDIOVISUAL</div><h1>UNA IDEA<br>CAMBIA <em>todo.</em></h1><p>Fragmentos seleccionados a partir de las palabras reales del video, sin cortar las ideas por bloques arbitrarios.</p></div><div id="cards"></div><div class="eyebrow">SECUENCIA / PRESENTACIÓN PERSONAL</div></section>
+<script>
+const SPEC=__INJECT_RECIPE__;
+const entries=SPEC.library;
+const els={slides:document.getElementById('slides'),library:document.getElementById('library'),cards:document.getElementById('cards'),hint:document.getElementById('hint'),prev:document.getElementById('prev'),next:document.getElementById('next')};
+let story=[],episode=null,index=0,generation=0,textTimer=null,pollTimer=null,loadTimer=null,noticeTimer=null;
+let players=[null,null],ready=[false,false],cued=[null,null],active=-1,launched=false;
+const isVideo=()=>story[index]?.kind==='video';
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function makeStory(e){
+ const out=[{kind:'text',paper:true,label:'PROMETEO / PSICOLOGÍA',title:'UN VIDEO.<br>TRES <em>ideas.</em>',ms:1000}];
+ e.clips.forEach((c,i)=>{
+   out.push({kind:'text',paper:i%2===0,label:c.label,title:escapeHTML(c.title),ms:1000});
+   out.push({kind:'video',clip:c});
+ });
+ out.push({kind:'text',paper:true,label:'PROMETEO / FIN',title:'PENSAR MEJOR<br>ES <em>escuchar.</em>',ms:1000});
+ return out;
+}
+function render(){
+ els.slides.replaceChildren();
+ for(const s of story){
+  const sec=document.createElement('section');sec.className='slide'+(s.paper?' paper':'');
+  if(s.kind==='text')sec.innerHTML='<div class="eyebrow">'+s.label+'</div><h2 class="headline">'+s.title+'</h2><div class="rule"></div>';
+  sec.setAttribute('aria-hidden','true');els.slides.appendChild(sec)
+ }
+ els.prev.disabled=true;els.next.disabled=false;
+}
+function toast(msg,delay=2500){
+ clearTimeout(noticeTimer);els.hint.textContent=msg;els.hint.classList.add('visible');
+ noticeTimer=setTimeout(()=>els.hint.classList.remove('visible'),delay);
+}
+function stopTimers(){clearTimeout(textTimer);clearTimeout(loadTimer);clearInterval(pollTimer);textTimer=loadTimer=pollTimer=null;}
+function stopPlayers(except=-1){
+ for(let i=0;i<players.length;i++)if(i!==except&&players[i]&&ready[i]){try{players[i].pauseVideo()}catch(_){}}
+}
+function key(c){return c.videoId+':'+c.start.toFixed(3)+':'+c.end.toFixed(3)}
+function upcoming(from){
+ for(let k=from+1;k<story.length;k++)if(story[k].kind==='video')return story[k].clip;
+ return null;
+}
+function prime(clip,slot){
+ if(!clip||!ready[slot]||!players[slot])return;
+ const k=key(clip);if(cued[slot]===k)return;
+ try{players[slot].cueVideoById({videoId:clip.videoId,startSeconds:clip.start,endSeconds:clip.end});cued[slot]=k}catch(e){cued[slot]=null}
+}
+function primeNext(){
+ const c=upcoming(index);if(!c)return;
+ // The inactive player can cue the next clip without interrupting the current audio.
+ let slot=active===0?1:0;
+ if(active<0)slot=0;
+ prime(c,slot);
+}
+function switchVideo(g){
+ const c=story[index]?.clip;if(!c)return;
+ if(g!==generation)return;
+ const k=key(c);
+ let slot=cued.findIndex((v,i)=>v===k&&ready[i]);
+ if(slot<0)slot=ready.findIndex(Boolean);
+ if(slot<0){loadTimer=setTimeout(()=>{if(g===generation)toast('Preparando video…',5000)},4500);return}
+ active=slot;stopPlayers(slot);
+ document.querySelectorAll('.frame').forEach((n,i)=>n.classList.toggle('active',i===slot));
+ const p=players[slot],start=Date.now();let observed=false;
+ try{if(cued[slot]!==k)p.loadVideoById({videoId:c.videoId,startSeconds:c.start,endSeconds:c.end});
+ else {p.seekTo(c.start,true);p.playVideo()}cued[slot]=k}catch(e){toast('El video no pudo iniciar');return}
+ pollTimer=setInterval(()=>{
+  if(g!==generation){clearInterval(pollTimer);return}
+  let time=0,state=-2;
+  try{time=p.getCurrentTime();state=p.getPlayerState()}catch(_){}
+  if(state===1&&time>=c.start-.7)observed=true;
+  if(time>=c.end-.12 || (observed&&state===0)){go(index+1);return}
+  if(Date.now()-start>12500&&!observed){toast('YouTube no permitió iniciar este fragmento');clearInterval(pollTimer)}
+ },80);
+ primeNext();
+}
+function go(target){
+ if(!launched)return;
+ stopTimers();generation++;
+ // If we return to a video it must start from its beginning, never resume.
+ stopPlayers();document.querySelectorAll('.frame').forEach(n=>n.classList.remove('active'));active=-1;
+ index=Math.max(0,Math.min(story.length-1,target));
+ const slides=[...els.slides.children];
+ slides.forEach((s,i)=>{s.classList.toggle('current',i===index);s.setAttribute('aria-hidden',String(i!==index))});
+ els.prev.disabled=index===0;els.next.disabled=index===story.length-1;
+ const g=generation,s=story[index];
+ if(s.kind==='video')switchVideo(g);
+ else {primeNext();if(index<story.length-1)textTimer=setTimeout(()=>{if(g===generation)go(index+1)},s.ms)}
+}
+function start(i){
+ episode=entries[i];story=makeStory(episode);render();els.library.hidden=true;els.library.style.display='none';launched=true;
+ if(!document.fullscreenElement)document.documentElement.requestFullscreen?.().catch(()=>{});
+ screen.orientation?.lock?.('landscape').catch(()=>{});
+ go(0);
+}
+entries.forEach((e,i)=>{
+ const b=document.createElement('button');b.className='episode';b.setAttribute('aria-label','Reproducir '+e.title);
+ b.innerHTML='<span>EPISODIO '+String(i+1).padStart(2,'0')+' / '+e.clips.length+' MOMENTOS</span><strong>'+escapeHTML(e.title)+'</strong><span>'+escapeHTML(e.subtitle)+' →</span>';
+ b.addEventListener('click',()=>start(i));els.cards.appendChild(b);
+});
+els.prev.onclick=()=>go(index-1);els.next.onclick=()=>go(index+1);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(index+1);if(e.key==='ArrowLeft')go(index-1);if(e.key==='Escape'&&launched){stopTimers();stopPlayers();launched=false;els.library.hidden=false;els.library.style.display='flex'}});
+let pointer=null;const stage=document.getElementById('stage');
+stage.addEventListener('pointerdown',e=>{if(!launched)return;pointer={x:e.clientX,y:e.clientY,t:performance.now(),id:e.pointerId};},{passive:true});
+stage.addEventListener('pointerup',e=>{
+ if(!pointer||pointer.id!==e.pointerId)return;
+ let dx=e.clientX-pointer.x,dy=e.clientY-pointer.y,dt=performance.now()-pointer.t;pointer=null;
+ if(Math.abs(dx)>=44 && Math.abs(dx)>Math.abs(dy)*1.25 && dt<1100)go(index+(dx<0?1:-1));
+},{passive:true});stage.addEventListener('pointercancel',()=>pointer=null);
+window.onYouTubeIframeAPIReady=()=>{
+ for(let i=0;i<2;i++){
+  const slot=i;
+  players[i]=new YT.Player(i===0?'yt-a':'yt-b',{height:'100%',width:'100%',videoId:entries[0]?.videoId,
+   playerVars:{controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3,enablejsapi:1,origin:location.origin},
+   events:{onReady:()=>{ready[slot]=true;if(launched){const c=isVideo()?story[index].clip:upcoming(index);if(c){prime(c,slot);if(isVideo())go(index)}}},
+    onError:()=>{if(launched&&isVideo()){toast('Video no disponible en este navegador')}}}});
+ }
+};
+const api=document.createElement('script');api.src='https://www.youtube.com/iframe_api';api.async=true;document.head.appendChild(api);
+window.__sequenceQA={state:()=>({index,kind:story[index]?.kind,active,ready:[...ready],cued:[...cued],launched,slideCount:story.length}),go,start,spec:SPEC};
+</script></body></html>
