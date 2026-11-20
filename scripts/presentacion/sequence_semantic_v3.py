@@ -19,11 +19,11 @@ MOMENTS=[
    "start_anchor":"another thing we did in that survey",
    "end_anchor":"honest reliable dependable",
    "why":"Cambia los estereotipos por los valores que los participantes dijeron considerar más importantes."},
-  {"id":"generalizacion","idea":"¿Y SI GENERALIZAMOS DESDE LOS PEORES CASOS?",
-   "label":"03 / EL ERROR DE LA GENERALIZACIÓN",
-   "start_anchor":"we take the examples of the worst possible men",
-   "end_anchor":"we generalize it to all men",
-   "why":"Describe el salto desde casos extremos hacia una valoración de todos los hombres."}
+  {"id":"generalizacion","idea":"¿Y SI LA CAMPAÑA CONSIGUE LO CONTRARIO?",
+   "label":"03 / LAS CONSECUENCIAS NO INTENCIONADAS",
+   "start_anchor":"and not realizing that these sorts of campaigns",
+   "end_anchor":"the psychology is full of these unintended consequences",
+   "why":"Explica cómo campañas con buenas intenciones pueden provocar consecuencias no deseadas."}
 ]
 def tokens(s):
     plain=unicodedata.normalize("NFKD",s).encode("ascii","ignore").decode().lower()
