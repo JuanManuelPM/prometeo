@@ -12,7 +12,7 @@ permissions:
   contents: write
 concurrency:
   group: prometeo-montaje-cinema-v1
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   test-render-publish:
     runs-on: ubuntu-latest
@@ -23,9 +23,17 @@ jobs:
           fetch-depth: 0
       - name: Install ffmpeg and Pillow
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
-          python3 -m pip install --user --quiet pillow
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          if [ ! -f /usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq fonts-dejavu-core
+          fi
+          python3 -m venv /tmp/prometeo-montaje-venv
+          /tmp/prometeo-montaje-venv/bin/python -m pip install --quiet pillow
+          echo "/tmp/prometeo-montaje-venv/bin" >> "$GITHUB_PATH"
       - name: Checkout existing verified MP4 source files from Pages
         shell: bash
         run: |
