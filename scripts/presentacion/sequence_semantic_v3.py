@@ -47,7 +47,7 @@ def from_api(video_id):
 def from_ytdlp(video_id):
     with tempfile.TemporaryDirectory() as td:
         cmd=["yt-dlp","--no-playlist","--skip-download","--write-auto-subs",
-            "--sub-langs","en.*","--sub-format","json3",
+            "--sub-langs","en.*","--sub-format","json3","--js-runtimes","node","--remote-components","ejs:github",
             "-o",td+"/captions.%(ext)s",SOURCE_URL]
         p=subprocess.run(cmd,capture_output=True,text=True,timeout=150)
         if p.returncode:raise RuntimeError((p.stderr or p.stdout)[-1000:])
@@ -58,9 +58,68 @@ def from_ytdlp(video_id):
             txt="".join(v.get("utf8","") for v in e.get("segs",[])).strip()
             rows.append({"start":e.get("tStartMs",0)/1000,"duration":e.get("dDurationMs",0)/1000,"text":txt})
         return clean(rows),"yt-dlp-json3"
+
+def parse_vtt(raw):
+    import html as htmlmod
+    out=[]
+    parts=re.split(r"\r?\n\r?\n",raw.replace("\ufeff",""))
+    timecode=re.compile(r"(?:(\d+):)?(\d+):(\d+)\.(\d{3})")
+    def sec(s):
+        m=timecode.search(s)
+        if not m:raise ValueError("bad timestamp")
+        return int(m[1] or 0)*3600+int(m[2])*60+int(m[3])+int(m[4])/1000
+    for block in parts:
+        lines=block.strip().splitlines()
+        tt=next((i for i,x in enumerate(lines) if "-->" in x),None)
+        if tt is None:continue
+        left,right=lines[tt].split("-->",1)
+        try:a=sec(left);b=sec(right)
+        except ValueError:continue
+        body=" ".join(lines[tt+1:])
+        body=re.sub(r"<\d\d:\d\d:\d\d\.\d{3}>"," ",body)
+        body=re.sub(r"<[^>]+>"," ",body)
+        body=htmlmod.unescape(re.sub(r"\s+"," ",body)).strip()
+        if body and b>a:out.append({"start":a,"duration":b-a,"text":body})
+    return clean(out)
+def from_mirrors(video_id):
+    """Only public read-only subtitle endpoints; no YouTube downloading."""
+    import concurrent.futures,requests
+    hosts=["https://inv.nadeko.net","https://invidious.nerdvpn.de",
+           "https://yt.chocolatemoo53.com","https://invidious.tiekoetter.com"]
+    piped=["https://pipedapi.kavin.rocks","https://pipedapi.syncpundit.io"]
+    def worker(base):
+        if "piped" in base:
+            response=requests.get(base+"/streams/"+video_id,timeout=11)
+            response.raise_for_status()
+            tracks=response.json().get("subtitles",[])
+            english=[t for t in tracks if str(t.get("code","")).startswith("en")]
+            if not english:raise RuntimeError("No English subtitle")
+            url=english[0].get("url")
+            response=requests.get(url,timeout=11)
+            response.raise_for_status()
+        else:
+            response=requests.get(base+"/api/v1/captions/"+video_id+"?lang=en",timeout=11)
+            response.raise_for_status()
+        if not response.text.lstrip().startswith(("WEBVTT","\ufeffWEBVTT")):
+            raise RuntimeError("Not WebVTT: "+response.text[:75])
+        rows=parse_vtt(response.text)
+        if len(rows)<100:raise RuntimeError("Subtitle response unexpectedly short")
+        return rows,"public-vtt:"+base
+    failures=[]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        futures={pool.submit(worker,h):h for h in hosts+piped}
+        for fut in concurrent.futures.as_completed(futures):
+            try:
+                rows,source=fut.result()
+                # Require at least 6 exact anchor matches before accepting a mirror.
+                choose(rows)
+                return rows,source
+            except Exception as e:failures.append(futures[fut]+":"+str(e)[:100])
+    raise RuntimeError("all public mirror attempts failed: "+repr(failures))
+
 def load_captions(video_id):
     errors=[]
-    for fn in (from_api,from_ytdlp):
+    for fn in (from_api,from_ytdlp,from_mirrors):
         try:
             rows,via=fn(video_id)
             if len(rows)<100:raise RuntimeError("Transcript is implausibly short")
