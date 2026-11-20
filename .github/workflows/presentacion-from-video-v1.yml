@@ -1,5 +1,13 @@
 name: PROMETEO Video to Presentation V1
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/presentacion-from-video-v1.yml'
+      - 'scripts/presentacion/from_video.py'
+      - 'tests/test_video_flow.py'
+      - 'presentacion/flujo/**'
+      - 'presentacion/ejemplos/psicologia-masculina/**'
   workflow_dispatch:
     inputs:
       source:
@@ -12,7 +20,18 @@ concurrency:
   group: prometeo-video-to-deck-publish
   cancel-in-progress: false
 jobs:
+  test-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test source and decision contracts
+        run: |
+          python -m py_compile scripts/presentacion/from_video.py
+          python -m unittest discover -s tests -p 'test_video_flow.py' -v
   transcribe-curate-build:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test-engine
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
@@ -22,9 +41,7 @@ jobs:
       - name: Retrieve metadata, timed captions and candidate clips
         env:
           VIDEO_SOURCE: ${{ inputs.source }}
-        run: |
-          python scripts/presentacion/from_video.py --source "$VIDEO_SOURCE" --out dist/presentacion-auto
-          python -m unittest discover -s tests -p 'test_video_flow.py' -v
+        run: python scripts/presentacion/from_video.py --source "$VIDEO_SOURCE" --out dist/presentacion-auto
       - name: Archive evidence
         uses: actions/upload-artifact@v4
         with:
