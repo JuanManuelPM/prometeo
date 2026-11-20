@@ -4,7 +4,9 @@ on:
     branches: [main]
     paths:
       - 'scripts/presentacion/montaje/youtube_*.py'
-      - 'presentacion/montaje/youtube/**'
+      - 'presentacion/montaje/youtube/jobs/**'
+      - 'presentacion/montaje/youtube/SMOKE_LOCAL.json'
+      - 'presentacion/montaje/youtube/PROBE_JOB.json'
       - 'tests/test_youtube_job.py'
       - '.github/workflows/secuencia-youtube-prep-v1.yml'
   workflow_dispatch:
@@ -14,6 +16,11 @@ on:
         required: false
         default: 'presentacion/montaje/youtube/SMOKE_LOCAL.json'
         type: string
+      probe_youtube:
+        description: 'Explicitly retest YouTube on GitHub runner (may receive HTTP 429)'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: write
 jobs:
@@ -46,11 +53,11 @@ jobs:
           python -m unittest discover -s tests -p 'test_youtube_job.py' -v
       - name: Compile, capture or locate media, render MP4
         env:
-          JOB_FILE: ${{ github.event.inputs.job_file || 'presentacion/montaje/youtube/SMOKE_LOCAL.json' }}
+          JOB_FILE: ${{ github.event.inputs.job_file || 'presentacion/montaje/youtube/jobs/ACTIVE.json' }}
         run: |
           set -euo pipefail
           case "$JOB_FILE" in presentacion/montaje/youtube/*.json) ;; *) echo 'Invalid job file path'; exit 2;; esac
-          test -f "$JOB_FILE"
+          if [ ! -f "$JOB_FILE" ]; then JOB_FILE=presentacion/montaje/youtube/SMOKE_LOCAL.json; fi
           python scripts/presentacion/montaje/youtube_job.py --job "$JOB_FILE" --out dist/sequence-resolved.json
           python scripts/presentacion/montaje/youtube_capture.py --resolved dist/sequence-resolved.json --root /tmp/prometeo-youtube-sample --out-dir /tmp/prometeo-youtube-sample/captured --out dist/sequence-compiled.json
           python scripts/presentacion/montaje/render.py --recipe dist/sequence-compiled.json --source-root /tmp/prometeo-youtube-sample --out dist/secuencia.mp4
@@ -63,6 +70,7 @@ jobs:
           print('PASS',r['durationSeconds'],'seconds',r['sha256'])
           PY
       - name: Probe actual public YouTube section transport (non-blocking diagnostic)
+        if: github.event.inputs.probe_youtube == 'true'
         timeout-minutes: 6
         continue-on-error: true
         run: |
@@ -86,11 +94,13 @@ jobs:
       - name: Check explicit publication flag in the committed job
         id: publish-gate
         env:
-          JOB_FILE: ${{ github.event.inputs.job_file || 'presentacion/montaje/youtube/SMOKE_LOCAL.json' }}
+          JOB_FILE: ${{ github.event.inputs.job_file || 'presentacion/montaje/youtube/jobs/ACTIVE.json' }}
         run: |
           python - <<'PY'
           import json,os,re
-          job=json.load(open(os.environ['JOB_FILE']))
+          path=os.environ['JOB_FILE']
+          if not os.path.isfile(path):path='presentacion/montaje/youtube/SMOKE_LOCAL.json'
+          job=json.load(open(path))
           pub=job.get('publish') is True
           slug=job.get('slug','')
           if pub and not re.fullmatch(r'[a-z0-9][a-z0-9-]{1,48}[a-z0-9]',slug):

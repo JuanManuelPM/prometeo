@@ -1,6 +1,6 @@
 # SECUENCIA · Entrada de video + transcripción → montaje nativo
 
-**Estado:** pipeline preparado, probado localmente con MP4 sintético, pendiente de probar la descarga de YouTube desde un runner GitHub con un video real. No confundir captura de medios con selección editorial ni con alineación exacta de palabras.
+**Estado:** pipeline preparado; pruebas locales y GitHub Actions PASS con MP4 real. **La captura directa YouTube en GitHub Actions falló (HTTP 429)** el 20/11/2026; no confundir ese diagnóstico con la reproducción del MP4 que sí funciona. No confundir captura de medios con selección editorial ni con alineación exacta de palabras.
 
 ## Interfaz de trabajo: el próximo mensaje del usuario
 
@@ -24,7 +24,7 @@ No hace falta instalar una aplicación ni copiar los subtítulos otra vez. Entra
 
 ## Publicación y privacidad
 
-La ruta candidata para MP4 no reemplaza `/presentacion/`, `/presentacion/cine/` ni `/presentacion/montaje/`. El workflow crea artefactos de Actions por defecto. **Publicación en GitHub Pages es opcional y requiere `publish: true` junto con `slug` único en el trabajo**, que el chat debe configurar únicamente cuando el usuario pida compartirlo públicamente. El publicador se niega a sobrescribir una producción anterior. El texto completo de las transcripciones no se publica automáticamente. GitHub Actions en un repo público no es un almacén privado: para material personal hay que usar un repositorio privado cuya configuración permita acciones, o ejecutarlo localmente.
+La ruta candidata para MP4 no reemplaza `/presentacion/`, `/presentacion/cine/` ni `/presentacion/montaje/`. El workflow crea artefactos de Actions por defecto. Para el próximo video, el chat coloca el trabajo seleccionado en `presentacion/montaje/youtube/jobs/ACTIVE.json`: ese commit dispara el pipeline automáticamente en GitHub Actions, sin intervención manual en el sitio. **Publicación en GitHub Pages es opcional y requiere `publish: true` junto con `slug` único en el trabajo**, que el chat debe configurar únicamente cuando el usuario pida compartirlo públicamente. El publicador se niega a sobrescribir una producción anterior. El texto completo de las transcripciones no se publica automáticamente. GitHub Actions en un repo público no es un almacén privado: para material personal hay que usar un repositorio privado cuya configuración permita acciones, o ejecutarlo localmente.
 
 ## Límites comprobables
 
@@ -45,3 +45,9 @@ La ruta candidata para MP4 no reemplaza `/presentacion/`, `/presentacion/cine/` 
 ## Fuente alternativa vidIQ sin créditos
 
 El 20/11/2026 se verificó mediante el conector `vidiq_video_upload` una importación desde el video de prueba de Big Buck Bunny a MP4 temporal, con costo **0 créditos** y estado `ready`. Es una segunda vía concreta para obtener medios. El conector devuelve un enlace firmado que caduca; **no almacenarlo en GitHub**. El script `youtube_capture.py` acepta un enlace firmado de ese mismo tipo desde la variable de entorno `PROMETEO_SIGNED_MEDIA_URL`, descarga tramos con ffmpeg y nunca vuelca la URL a los recibos. **Pendiente de probarlo contra el runner en una producción real.** Si el video no es importable (tamaño, formato, restricciones), se utiliza la ruta normal `yt-dlp` o una fuente local.
+
+## Comprobaciones reales posteriores a la publicación inicial (20/11/2026)
+
+GitHub Actions run [44785829020](https://github.com/JuanManuelPM/prometeo/actions/runs/44785829020): **SUCCESS**. Nueve tests en runner y MP4 continuo de **5.921 segundos**, 5 segmentos, audio AAC y video H264. Artefacto `prometeo-secuencia-technical-candidate`, recibo SHA256 publicado dentro del ZIP de Actions. El **transporte remoto de YouTube** se probó con `aqz-KE-bpKQ` y falló con `HTTP 429 Too Many Requests` desde la IP de GitHub. La ejecución terminó en SUCCESS porque el probe de transporte era no bloqueante, no porque YouTube funcionara. El intento se activará ahora solo bajo `workflow_dispatch probe_youtube=true` para evitar reintentos innecesarios.
+
+La alternativa vidIQ de **importación de MP4 desde URL** sí produjo `status=ready` con costo 0. Para editar/componer dentro de vidIQ se cobra por operación; no ejecutar esas funciones sin aprobación del gasto. El script permite recibir un MP4 firmado en una variable de entorno, pero la transferencia automática de ese URL privado a GitHub Actions **no está implementada**. Mantener esa frontera explícita.
