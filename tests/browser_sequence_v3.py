@@ -45,7 +45,7 @@ def run(url):
   try:
    ctx=browser.new_context(viewport={"width":1280,"height":720},device_scale_factor=1)
    def intercept(route):route.fulfill(status=200,content_type="application/javascript",body=MOCK_API)
-   ctx.route(re.compile(r"https?://(?:www\\.)?youtube\\.com/iframe_api"),intercept)
+   ctx.route(re.compile(r"https?://(?:www\.)?youtube\.com/iframe_api"),intercept)
    page=ctx.new_page(); errors=[]
    page.on("pageerror",lambda e:errors.append(str(e)))
    page.goto(url,wait_until="domcontentloaded")
