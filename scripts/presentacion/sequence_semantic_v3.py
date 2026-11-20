@@ -111,7 +111,11 @@ def from_mirrors(video_id):
         for fut in concurrent.futures.as_completed(futures):
             try:
                 rows,source=fut.result()
-                # Require at least 6 exact anchor matches before accepting a mirror.
+                # Inspect actual caption windows around independently sourced quote timestamps.
+                for position in (599,1598,1834,2150,2203):
+                    nearby=[x for x in rows if position-7<=x["start"]<=position+55]
+                    print("CAPTION_WINDOW",source,position,
+                          json.dumps(nearby[:26],ensure_ascii=False)[:4800],flush=True)
                 choose(rows)
                 return rows,source
             except Exception as e:failures.append(futures[fut]+":"+str(e)[:100])
