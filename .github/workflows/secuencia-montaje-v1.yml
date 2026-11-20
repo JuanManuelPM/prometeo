@@ -1,0 +1,68 @@
+name: PROMETEO SECUENCIA - continuous cinema render
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/presentacion/montaje/**'
+      - 'presentacion/montaje/**'
+      - '.github/workflows/secuencia-montaje-v1.yml'
+      - 'tests/test_montaje.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-montaje-cinema-v1
+  cancel-in-progress: false
+jobs:
+  test-render-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install ffmpeg and Pillow
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          python3 -m pip install --user --quiet pillow
+      - name: Checkout existing verified MP4 source files from Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-montaje-pages origin/gh-pages
+          test -s /tmp/prometeo-montaje-pages/presentacion/v2/media/clip-01.mp4
+          test -s /tmp/prometeo-montaje-pages/presentacion/v2/media/clip-02.mp4
+          test -s /tmp/prometeo-montaje-pages/presentacion/v2/media/clip-03.mp4
+      - name: Unit tests and deterministic render
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_montaje.py' -v
+          python3 scripts/presentacion/montaje/render.py \
+            --recipe scripts/presentacion/montaje/demo.recipe.json \
+            --source-root /tmp/prometeo-montaje-pages \
+            --out dist/montaje.mp4
+          ffprobe -v error -show_entries format=duration,size -of json dist/montaje.mp4
+          test $(stat -c%s dist/montaje.mp4) -gt 250000
+      - name: Publish one MP4 and an isolated watch-only page
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          mkdir -p /tmp/prometeo-montaje-pages/presentacion/montaje
+          cp presentacion/montaje/index.html /tmp/prometeo-montaje-pages/presentacion/montaje/index.html
+          cp dist/montaje.mp4 dist/montaje.receipt.json /tmp/prometeo-montaje-pages/presentacion/montaje/
+          cp scripts/presentacion/montaje/demo.recipe.json /tmp/prometeo-montaje-pages/presentacion/montaje/recipe.json
+          cd /tmp/prometeo-montaje-pages
+          git add presentacion/montaje
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'pages: seamless native cinema montage with MP4 and render receipt'
+          for n in 1 2 3 4; do
+            if git push origin HEAD:gh-pages; then exit 0; fi
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+          done
+          exit 1
