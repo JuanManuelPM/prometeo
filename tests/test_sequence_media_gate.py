@@ -1,5 +1,5 @@
 """Regression gate: actual visible pixels + playable sound, not simply play() resolving."""
-import base64, copy, io, json, pathlib, subprocess, tempfile, unittest
+import base64, copy, io, json, pathlib, subprocess, tempfile, unittest, shutil
 from PIL import Image
 from playwright.sync_api import sync_playwright
 ROOT=pathlib.Path(__file__).resolve().parents[1]
@@ -23,7 +23,9 @@ class MediaVisibilityGate(unittest.TestCase):
         run(['ffmpeg','-nostdin','-y','-loglevel','error','-f','lavfi','-i','sine=frequency=440:sample_rate=48000','-t','9','-c:a','aac','-b:a','96k',str(cls.audio)])
         cls.video=source_data(cls.mp4,'video/mp4');cls.audioonly=source_data(cls.audio,'audio/mp4')
         cls.p=sync_playwright().start()
-        cls.browser=cls.p.chromium.launch(executable_path='/usr/bin/chromium' if pathlib.Path('/usr/bin/chromium').exists() else None,headless=True,args=['--no-sandbox','--autoplay-policy=no-user-gesture-required'])
+        chrome=next((shutil.which(name) for name in ('google-chrome','google-chrome-stable','chromium','chromium-browser') if shutil.which(name)),None)
+        print('SECUENCIA_MEDIA_GATE_BROWSER',chrome or 'bundled chromium',flush=True)
+        cls.browser=cls.p.chromium.launch(executable_path=chrome,headless=True,args=['--no-sandbox','--autoplay-policy=no-user-gesture-required'])
     @classmethod
     def tearDownClass(cls):cls.browser.close();cls.p.stop();cls.tmp.cleanup()
     def page(self,w=390,h=844,source='video',timeout=5000,medium=False):
