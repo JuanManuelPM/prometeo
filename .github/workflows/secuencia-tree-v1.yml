@@ -1,0 +1,41 @@
+name: PROMETEO SECUENCIA - vertical tree and video regression
+on:
+  push:
+    branches: [main, 'candidate/secuencia-arbol-interactivo-v1-20261120']
+    paths:
+      - 'presentacion/montaje/arbol/**'
+      - 'scripts/presentacion/shared/sequence-tree-v1.js'
+      - 'scripts/presentacion/shared/video-frame-guard.js'
+      - 'tests/test_sequence_tree.py'
+      - '.github/workflows/secuencia-tree-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tree-and-video-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install test browser and media tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet --disable-pip-version-check pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Build deterministic tree from video recipe and shared runtime
+        run: |
+          python presentacion/montaje/arbol/build.py
+          git diff --exit-code -- presentacion/montaje/arbol/index.html
+      - name: Test tree navigation and true painted media frames
+        run: |
+          python -m unittest discover -s tests -p 'test_sequence_tree.py' -v
+      - name: Keep rendered playback evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-secuencia-tree-painted-frame
+          path: tests/qa-tree-video-frame.png
+          if-no-files-found: warn
+          retention-days: 7
