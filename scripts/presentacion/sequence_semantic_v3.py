@@ -14,15 +14,15 @@ MOMENTS=[
    "start_anchor":"then beta bias is",
    "end_anchor":"might not work for men",
    "why":"Explica cómo asumir que un tratamiento sirve igual para todas las personas puede impedir comprobar su eficacia."},
-  {"id":"valores","idea":"¿QUÉ VALORAN REALMENTE LOS HOMBRES?",
-   "label":"02 / CUANDO HABLAN LOS DATOS",
-   "start_anchor":"another thing we did in that survey",
-   "end_anchor":"honest reliable dependable",
-   "why":"Cambia los estereotipos por los valores que los participantes dijeron considerar más importantes."},
+  {"id":"valores","idea":"¿QUÉ PASA CUANDO LA MASCULINIDAD SE VIVE COMO ALGO NEGATIVO?",
+   "label":"02 / LO QUE ENCONTRÓ UNA INVESTIGACIÓN",
+   "start_anchor":"men who think that masculinity",
+   "end_anchor":"in a nutshell",
+   "why":"Barry resume una asociación observada en su investigación entre percepciones negativas sobre masculinidad y bienestar psicológico; no establece causalidad."},
   {"id":"generalizacion","idea":"¿Y SI LA CAMPAÑA CONSIGUE LO CONTRARIO?",
    "label":"03 / LAS CONSECUENCIAS NO INTENCIONADAS",
-   "start_anchor":"and not realizing that these sorts of campaigns",
-   "end_anchor":"the psychology is full of these unintended consequences",
+   "start_anchor":"not realizing that these sorts of",
+   "end_anchor":"consequences",
    "why":"Explica cómo campañas con buenas intenciones pueden provocar consecuencias no deseadas."}
 ]
 def tokens(s):
