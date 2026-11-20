@@ -41,7 +41,11 @@ button{font:inherit}button:focus-visible{outline:2px solid var(--sage);outline-o
 #interlude{flex-direction:column;justify-content:space-between;padding:clamp(33px,7vh,90px) clamp(36px,8vw,145px);background:var(--paper);color:var(--ink);z-index:3;pointer-events:none}
 #interlude.dark{background:var(--ink);color:var(--paper)}#interlude h2{font-size:clamp(50px,10vw,160px);letter-spacing:-.09em;line-height:.92;margin:0;font-weight:900}
 #interlude p{font-size:clamp(12px,1.5vw,21px);max-width:670px;font-weight:700;line-height:1.35}
-#video-view{inset:0;z-index:2;background:black}
+/* The video remains rendered for the entire session. Other panels cover it. */
+#video-view{inset:0;z-index:1;background:black;display:block!important;opacity:1!important;visibility:visible!important;pointer-events:none}
+#cover,#hub,#decision,#synthesis{z-index:4;background:var(--ink)}
+#cover,#synthesis{background:var(--paper)}
+#interlude{z-index:5}
 #film{position:absolute;width:100%;height:100%;inset:0;object-fit:contain;background:black;pointer-events:none;outline:0}
 #video-shield{position:absolute;inset:0;z-index:1;touch-action:none;cursor:default}
 #buffer-note{position:absolute;bottom:7vh;left:8vw;right:8vw;z-index:2;text-align:center;color:var(--paper);font-size:12px;letter-spacing:.15em;font-weight:800;display:none;pointer-events:none}
@@ -80,18 +84,21 @@ button{font:inherit}button:focus-visible{outline:2px solid var(--sage);outline-o
 <script id="story-data" type="application/json">__STORY_JSON__</script>
 <script>
 'use strict';
+/*__FRAME_GUARD_INLINE__*/
 /* SECUENCIA branching engine, graph independent of media. Never auto-plays the entire source. */
 const story=window.__QA_STORY||JSON.parse(document.getElementById('story-data').textContent);
 const paths=story.paths, nodes=Object.fromEntries(story.nodes.map(n=>[n.id,n]));
 const $=id=>document.getElementById(id);const film=$('film');
 const watched=new Set();const completed=new Set();
-let current=null,phase='cover',epoch=0,ticker=0,bufferTimer=0,preludeTimer=0,currentTimeTarget=0,mediaSource=null,localObjectURL=null;
-let pendingSeek=false,playerStarted=false,mediaFailed=false,preludeExpired=false;
+let current=null,phase='cover',epoch=0,ticker=0,bufferTimer=0,preludeTimer=0,frameWatchdog=0,currentTimeTarget=0,mediaSource=null,localObjectURL=null;
+let pendingSeek=false,playerStarted=false,mediaFailed=false,preludeExpired=false,firstFrameReady=false;
+const frameGuard=window.PrometeoVideoFrameGuard.create(film);
+const frameTimeout=Number(window.__QA_FRAME_TIMEOUT_MS)||13500;
 const progressKey='prometeo-secuencia-branching/'+story.id;
 try{let s=JSON.parse(sessionStorage.getItem(progressKey)||'{}');for(const n of s.watched||[])if(nodes[n])watched.add(n);for(const p of s.completed||[])if(paths.some(x=>x.id===p))completed.add(p)}catch(e){}
 function persist(){try{sessionStorage.setItem(progressKey,JSON.stringify({watched:[...watched],completed:[...completed]}))}catch(e){}}
 function show(name){phase=name;document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===name));$('source-error').classList.remove('visible');}
-function stop(){epoch++;clearInterval(ticker);clearTimeout(bufferTimer);clearTimeout(preludeTimer);ticker=bufferTimer=preludeTimer=0;film.pause();playerStarted=false;pendingSeek=false;preludeExpired=false;$('buffer-note').classList.remove('visible');}
+function stop(){epoch++;frameGuard.cancel();clearInterval(ticker);clearTimeout(bufferTimer);clearTimeout(preludeTimer);clearTimeout(frameWatchdog);ticker=bufferTimer=preludeTimer=frameWatchdog=0;film.pause();playerStarted=false;pendingSeek=false;preludeExpired=false;firstFrameReady=false;$('buffer-note').classList.remove('visible');}
 function sourceFromHash(){let u=new URLSearchParams(location.hash.slice(1)).get('src');if(!u)return null;try{let x=new URL(u);if(x.protocol==='https:'&&x.hostname==='storage.googleapis.com'&&x.pathname.startsWith('/vidiq-user-videos/')&&x.pathname.endsWith('.mp4'))return x.href}catch(e){}return null}
 function sourceError(detail){stop();$('error-detail').textContent=detail||'No se pudo reproducir el archivo. Podés elegir una fuente MP4 local para seguir explorando.';$('source-error').classList.add('visible')}
 function setSource(url){if(!url)return;mediaSource=url;film.src=url;film.load();mediaFailed=false}
@@ -99,11 +106,18 @@ function lineTo(el,value){el.textContent=value}
 function nextInPath(path){let x=nodes[path.entry],list=[];while(x){list.push(x);const a=x.choices.find(c=>nodes[c.to]?.path===path.id);x=a?nodes[a.to]:null;if(x&&list.some(z=>z.id===x.id))break}return list.find(x=>!watched.has(x.id))||nodes[path.entry]}
 function renderHub(){show('hub');let wrap=$('paths');wrap.replaceChildren();for(const p of paths){const done=completed.has(p.id);const entry=nextInPath(p);const b=document.createElement('button');b.type='button';b.className='path'+(done?' done':'');const num=document.createElement('span');num.className='path-num';num.textContent=p.number+' / '+p.short;const title=document.createElement('span');title.className='path-name';title.textContent=p.title;const desc=document.createElement('span');desc.className='path-desc';desc.textContent=p.summary;const foot=document.createElement('span');foot.className='path-foot';const a=document.createElement('span');a.textContent=done?'✓ DESCUBIERTO':watched.has(p.entry)?'↗ CONTINUAR':'↗ ENTRAR';const s=document.createElement('span');s.textContent=done?'VOLVER A VER':'UNA RUTA ABIERTA';foot.append(a,s);b.append(num,title,desc,foot);b.addEventListener('click',()=>enterNode(entry.id));wrap.append(b)}let unlocked=completed.size>=story.unlock.requiredCompletedPaths;let r=$('reward');r.classList.toggle('locked',!unlocked);r.setAttribute('aria-disabled',String(!unlocked));lineTo($('reward-progress'),String(Math.min(completed.size,story.unlock.requiredCompletedPaths))+'/'+story.unlock.requiredCompletedPaths);lineTo($('reward-sub'),unlocked?'✓ DESBLOQUEADO · DOS PERSPECTIVAS CONECTADAS':'CIERRE BLOQUEADO · ENCONTRÁ DOS IDEAS');lineTo($('reward-label'),unlocked?'ABRIR EL CIERRE':'UNA LECTURA MÁS PROFUNDA');r.onclick=()=>{if(unlocked)openSynthesis()}}
 function openSynthesis(){stop();const s=story.synthesis;show('synthesis');lineTo($('synthesis-kicker'),s.eyebrow);lineTo($('synthesis-title'),s.headline);lineTo($('synthesis-desc'),s.description);lineTo($('synthesis-foot'),s.closing)}
-function showDecision(n){clearInterval(ticker);clearTimeout(bufferTimer);film.pause();playerStarted=false;watched.add(n.id);const p=paths.find(p=>p.id===n.path);if(p?.completionNode===n.id)completed.add(n.path);persist();show('decision');current=n;lineTo($('decision-progress'),completed.size+' / '+paths.length+' RUTAS DESCUBIERTAS');lineTo($('decision-kicker'),n.kicker+' · FRAGMENTO TERMINADO');lineTo($('decision-heading'),n.title);lineTo($('decision-takeaway'),n.finish);const choices=$('decision-options');choices.replaceChildren();for(const c of n.choices){const b=document.createElement('button');b.className='choice'+(c.primary?' prime':'');const h=document.createElement('strong');h.textContent=c.label;const d=document.createElement('span');d.textContent=c.detail;b.append(h,d);b.onclick=()=>enterNode(c.to);choices.append(b)}if(completed.size>=story.unlock.requiredCompletedPaths){const b=document.createElement('button');b.className='choice';const h=document.createElement('strong');h.textContent='✦ ABRIR EL CIERRE DESBLOQUEADO';const d=document.createElement('span');d.textContent='Conectar las ideas descubiertas';b.append(h,d);b.onclick=openSynthesis;choices.append(b)}}
-function clipBoundary(){if(phase!=='video'||!current||film.paused)return;if(film.currentTime>=current.end-.085)showDecision(current)}
-function tryReveal(token){if(token!==epoch||phase!=='interlude')return;let near=Math.abs(film.currentTime-currentTimeTarget)<1.3;if(!preludeExpired||!playerStarted||!near)return;show('video');$('buffer-note').classList.remove('visible');clearInterval(ticker);ticker=setInterval(clipBoundary,90);clipBoundary()}
+function showDecision(n){clearInterval(ticker);clearTimeout(bufferTimer);clearTimeout(frameWatchdog);frameGuard.cancel();film.pause();playerStarted=false;watched.add(n.id);const p=paths.find(p=>p.id===n.path);if(p?.completionNode===n.id)completed.add(n.path);persist();show('decision');current=n;lineTo($('decision-progress'),completed.size+' / '+paths.length+' RUTAS DESCUBIERTAS');lineTo($('decision-kicker'),n.kicker+' · FRAGMENTO TERMINADO');lineTo($('decision-heading'),n.title);lineTo($('decision-takeaway'),n.finish);const choices=$('decision-options');choices.replaceChildren();for(const c of n.choices){const b=document.createElement('button');b.className='choice'+(c.primary?' prime':'');const h=document.createElement('strong');h.textContent=c.label;const d=document.createElement('span');d.textContent=c.detail;b.append(h,d);b.onclick=()=>enterNode(c.to);choices.append(b)}if(completed.size>=story.unlock.requiredCompletedPaths){const b=document.createElement('button');b.className='choice';const h=document.createElement('strong');h.textContent='✦ ABRIR EL CIERRE DESBLOQUEADO';const d=document.createElement('span');d.textContent='Conectar las ideas descubiertas';b.append(h,d);b.onclick=openSynthesis;choices.append(b)}}
+function clipBoundary(){if(phase!=='video'||!current||film.paused||!frameGuard.ready())return;if(film.currentTime>=current.end-.085)showDecision(current)}
+function tryReveal(token){if(token!==epoch||phase!=='interlude')return;let near=Math.abs(film.currentTime-currentTimeTarget)<1.3;if(!preludeExpired||!playerStarted||!firstFrameReady||!near)return;clearTimeout(frameWatchdog);frameWatchdog=0;show('video');$('buffer-note').classList.remove('visible');clearInterval(ticker);ticker=setInterval(clipBoundary,90);clipBoundary()}
 function beginPlayback(token){if(token!==epoch)return;let p;try{p=film.play()}catch(e){sourceError('El navegador no permitió iniciar la reproducción. Elegí un archivo local o reintentá desde el mapa.');return}if(p?.then)p.then(()=>{if(token!==epoch)return;playerStarted=true;tryReveal(token)}).catch(()=>{if(token!==epoch)return;sourceError('El navegador bloqueó el inicio con audio. Volvé a elegir el recorrido desde el mapa o seleccioná un archivo local.')});else{playerStarted=true;tryReveal(token)}}
-function enterNode(id){const n=nodes[id];if(!n)return;stop();current=n;currentTimeTarget=n.start;const token=epoch;show('interlude');$('interlude').classList.toggle('dark',n.path==='circuito');lineTo($('interlude-kicker'),n.kicker+' / SECUENCIA');lineTo($('interlude-title'),n.title);lineTo($('interlude-note'),n.teaser);if(!mediaSource){sourceError('Necesitás un MP4 para reproducir los recorridos. La historia y el grafo están preparados; podés usar un archivo local.');return}try{film.currentTime=n.start;pendingSeek=true}catch(e){sourceError('No pudimos posicionarnos en el fragmento.');return}
+function enterNode(id){const n=nodes[id];if(!n)return;stop();current=n;currentTimeTarget=n.start;const token=epoch;show('interlude');$('interlude').classList.toggle('dark',n.path==='circuito');lineTo($('interlude-kicker'),n.kicker+' / SECUENCIA');lineTo($('interlude-title'),n.title);lineTo($('interlude-note'),n.teaser);if(!mediaSource){sourceError('Necesitás un MP4 para reproducir los recorridos. La historia y el grafo están preparados; podés usar un archivo local.');return}try{frameGuard.arm(n.start,n.end,()=>{if(token!==epoch)return;firstFrameReady=true;tryReveal(token)});film.currentTime=n.start;pendingSeek=true}
+catch(e){sourceError('No pudimos preparar el fragmento de video.');return}
+// Safety invariant: never show a black video with valid audio as a successful clip.
+frameWatchdog=setTimeout(()=>{
+  if(token!==epoch||phase!=='interlude')return;
+  const reason=frameGuard.evidence().reason;
+  sourceError('No llegaron fotogramas visibles del video ('+reason+'). La historia no avanzó. Podés volver a elegir la rama o seleccionar otra fuente.');
+},frameTimeout);
 preludeTimer=setTimeout(()=>{if(token!==epoch)return;preludeExpired=true;tryReveal(token);bufferTimer=setTimeout(()=>{if(token!==epoch)return;if(phase==='interlude'){$('buffer-note').classList.add('visible')}},1400)},650);
 // Play on the choice gesture. The editorial slate hides only the initial seek, not YouTube UI.
 beginPlayback(token);
@@ -119,5 +133,5 @@ $('synthesis-hub').onclick=()=>{stop();renderHub()};$('hub-reset').onclick=()=>{
 $('choose-file').onclick=()=>$('file-input').click();$('file-input').onchange=()=>{let f=$('file-input').files?.[0];if(!f)return;if(localObjectURL)URL.revokeObjectURL(localObjectURL);localObjectURL=URL.createObjectURL(f);setSource(localObjectURL);renderHub()};
 window.addEventListener('pagehide',()=>{if(localObjectURL)URL.revokeObjectURL(localObjectURL)});
 const src=window.__QA_SRC||sourceFromHash();if(src)setSource(src);
-window.__sequenceQA={phase:()=>phase,current:()=>current?.id||null,watched:()=>[...watched],completed:()=>[...completed],unlocked:()=>completed.size>=story.unlock.requiredCompletedPaths,progress:()=>completed.size,video:film,enterNode,renderHub,showDecision,story};
+window.__sequenceQA={phase:()=>phase,current:()=>current?.id||null,watched:()=>[...watched],completed:()=>[...completed],unlocked:()=>completed.size>=story.unlock.requiredCompletedPaths,progress:()=>completed.size,video:film,frameReady:()=>frameGuard.ready(),frameProof:()=>frameGuard.evidence(),videoComposited:()=>frameGuard.composited(),enterNode,renderHub,showDecision,story};
 </script></main></body></html>
