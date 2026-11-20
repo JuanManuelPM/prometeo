@@ -10,10 +10,10 @@ def fixture():
  seq=[
  ("then beta bias is the opposite", "when we have a therapy and it works well for women",
   "we don't really question whether it might not work for men"),
- ("another thing we did in that survey was ask men", "what core values they thought were most important",
-  "being honest reliable dependable"),
- ("and not realizing that these sorts of campaigns", "their intentions were supposed to be helpful",
-  "the psychology is full of these unintended consequences")
+ ("men who think that masculinity", "may have a bad effect on their behavior and their emotions",
+  "in a nutshell"),
+ ("not realizing that these sorts of", "campaigns can easily backfire and psychology is full of these unintended",
+  "consequences")
  ]
  for x,(a,b,c) in zip([10,40,72],seq):
   rows[x]["text"]=a;rows[x+1]["text"]=b;rows[x+2]["text"]="this is important to ask and to understand";rows[x+3]["text"]="and we have more details to explain";rows[x+4]["text"]=c
