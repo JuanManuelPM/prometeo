@@ -2,7 +2,7 @@
 """Representative Chromium playback/navigation QA, using a deliberately mock YouTube API.
 Tests actual UI and interaction; DOES NOT claim to test actual YouTube streaming or sound.
 """
-import argparse,json,pathlib,sys,time
+import argparse,json,pathlib,sys,time,re
 from playwright.sync_api import sync_playwright
 
 MOCK_API=r"""
@@ -45,7 +45,7 @@ def run(url):
   try:
    ctx=browser.new_context(viewport={"width":1280,"height":720},device_scale_factor=1)
    def intercept(route):route.fulfill(status=200,content_type="application/javascript",body=MOCK_API)
-   ctx.route("**/youtube.com/iframe_api",intercept)
+   ctx.route(re.compile(r"https?://(?:www\\.)?youtube\\.com/iframe_api"),intercept)
    page=ctx.new_page(); errors=[]
    page.on("pageerror",lambda e:errors.append(str(e)))
    page.goto(url,wait_until="domcontentloaded")

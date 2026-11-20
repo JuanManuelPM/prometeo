@@ -9,17 +9,17 @@ SOURCE_URL="https://www.youtube.com/watch?v="+VIDEO_ID
 # Start/end text is derived from the episode transcript, NOT from chapter names.
 # YouTube captions must independently contain both markers or the build fails.
 MOMENTS=[
-  {"id":"terapia","idea":"¿PARA QUIÉN ESTÁ PENSADA LA TERAPIA?",
+  {"id":"terapia","idea":"¿PARA QUIÉN SIRVE LA TERAPIA?",
    "label":"01 / UNA PREGUNTA INCÓMODA",
    "start_anchor":"then beta bias is",
    "end_anchor":"might not work for men",
    "why":"Explica cómo asumir que un tratamiento sirve igual para todas las personas puede impedir comprobar su eficacia."},
-  {"id":"valores","idea":"¿QUÉ PASA CUANDO LA MASCULINIDAD SE VIVE COMO ALGO NEGATIVO?",
+  {"id":"valores","idea":"¿CUÁNTO PESAN NUESTRAS CREENCIAS?",
    "label":"02 / LO QUE ENCONTRÓ UNA INVESTIGACIÓN",
    "start_anchor":"men who think that masculinity",
    "end_anchor":"nutshell",
    "why":"Barry resume una asociación observada en su investigación entre percepciones negativas sobre masculinidad y bienestar psicológico; no establece causalidad."},
-  {"id":"generalizacion","idea":"¿Y SI LA CAMPAÑA CONSIGUE LO CONTRARIO?",
+  {"id":"generalizacion","idea":"CUANDO UNA CAMPAÑA SALE MAL",
    "label":"03 / LAS CONSECUENCIAS NO INTENCIONADAS",
    "start_anchor":"not realizing that these sorts of",
    "end_anchor":"consequences",
@@ -141,11 +141,6 @@ def from_mirrors(video_id):
         for fut in concurrent.futures.as_completed(futures):
             try:
                 rows,source=fut.result()
-                # Inspect actual caption windows around independently sourced quote timestamps.
-                for position in (599,1598,1834,2150,2203):
-                    nearby=[x for x in rows if position-7<=x["start"]<=position+55]
-                    print("CAPTION_WINDOW",source,position,
-                          json.dumps(nearby[:26],ensure_ascii=False)[:4800],flush=True)
                 choose(rows)
                 return rows,source
             except Exception as e:failures.append(futures[fut]+":"+str(e)[:100])
