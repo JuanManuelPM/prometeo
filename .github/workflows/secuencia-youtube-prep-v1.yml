@@ -1,0 +1,141 @@
+name: PROMETEO SECUENCIA - YouTube preparation (isolated)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/presentacion/montaje/youtube_*.py'
+      - 'presentacion/montaje/youtube/**'
+      - 'tests/test_youtube_job.py'
+      - '.github/workflows/secuencia-youtube-prep-v1.yml'
+  workflow_dispatch:
+    inputs:
+      job_file:
+        description: 'Validated JSON job path from repository (default sample)'
+        required: false
+        default: 'presentacion/montaje/youtube/SMOKE_LOCAL.json'
+        type: string
+permissions:
+  contents: write
+jobs:
+  test-and-render-artifact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enable Deno for recent YouTube signature extraction
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Install media dependencies and JavaScript challenge runtime
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y ffmpeg; fi
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-dejavu-core
+          python -m pip install --quiet --disable-pip-version-check --upgrade 'yt-dlp[default]' pillow
+      - name: Checkout previously verified demo source without changing production
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-youtube-sample origin/gh-pages
+          test -s /tmp/prometeo-youtube-sample/presentacion/v2/media/clip-01.mp4
+      - name: Run tests with actual synthetic H264/AAC and prove the pipeline
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_youtube_job.py' -v
+      - name: Compile, capture or locate media, render MP4
+        env:
+          JOB_FILE: ${{ github.event.inputs.job_file || 'presentacion/montaje/youtube/SMOKE_LOCAL.json' }}
+        run: |
+          set -euo pipefail
+          case "$JOB_FILE" in presentacion/montaje/youtube/*.json) ;; *) echo 'Invalid job file path'; exit 2;; esac
+          test -f "$JOB_FILE"
+          python scripts/presentacion/montaje/youtube_job.py --job "$JOB_FILE" --out dist/sequence-resolved.json
+          python scripts/presentacion/montaje/youtube_capture.py --resolved dist/sequence-resolved.json --root /tmp/prometeo-youtube-sample --out-dir /tmp/prometeo-youtube-sample/captured --out dist/sequence-compiled.json
+          python scripts/presentacion/montaje/render.py --recipe dist/sequence-compiled.json --source-root /tmp/prometeo-youtube-sample --out dist/secuencia.mp4
+          ffprobe -v error -show_entries format=duration,size -of json dist/secuencia.mp4
+          python - <<'PY'
+          import json,pathlib
+          j=json.loads(pathlib.Path('dist/sequence-resolved.json').read_text())
+          r=json.loads(pathlib.Path('dist/secuencia.receipt.json').read_text())
+          assert r['status']=='VIDEO_FILE_ENCODED' and len(r['segments'])==len(j['timeline'])
+          print('PASS',r['durationSeconds'],'seconds',r['sha256'])
+          PY
+      - name: Probe actual public YouTube section transport (non-blocking diagnostic)
+        timeout-minutes: 6
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p /tmp/prometeo-youtube-sample/captured-probe
+          python scripts/presentacion/montaje/youtube_job.py --job presentacion/montaje/youtube/PROBE_JOB.json --out dist/probe-resolved.json
+          python scripts/presentacion/montaje/youtube_capture.py \
+            --resolved dist/probe-resolved.json \
+            --root /tmp/prometeo-youtube-sample \
+            --out-dir /tmp/prometeo-youtube-sample/captured-probe \
+            --out dist/probe-compiled.json > dist/probe-extractor.log 2>&1
+          CODE=$?
+          if [ "$CODE" -eq 0 ]; then
+            echo '{"youtubeCapture":"PASS","source":"official Big Buck Bunny","audioQA":"NOT_RUN"}' > dist/probe-transport.json
+          else
+            echo '{"youtubeCapture":"FAIL","source":"official Big Buck Bunny","fallback":"vidIQ signed source or local media","audioQA":"NOT_RUN"}' > dist/probe-transport.json
+          fi
+          cat dist/probe-transport.json
+          sed -n '1,10p' dist/probe-extractor.log
+          exit "$CODE"
+      - name: Check explicit publication flag in the committed job
+        id: publish-gate
+        env:
+          JOB_FILE: ${{ github.event.inputs.job_file || 'presentacion/montaje/youtube/SMOKE_LOCAL.json' }}
+        run: |
+          python - <<'PY'
+          import json,os,re
+          job=json.load(open(os.environ['JOB_FILE']))
+          pub=job.get('publish') is True
+          slug=job.get('slug','')
+          if pub and not re.fullmatch(r'[a-z0-9][a-z0-9-]{1,48}[a-z0-9]',slug):
+            raise SystemExit('Public publishing requires a unique 3-50 char slug')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+            out.write('publish='+str(pub).lower()+'\n')
+            out.write('slug='+(slug if pub else 'unpublished')+'\n')
+          PY
+      - name: Publish opt-in only to a new isolated Pages path
+        if: steps.publish-gate.outputs.publish == 'true'
+        env:
+          SLUG: ${{ steps.publish-gate.outputs.slug }}
+        run: |
+          set -euo pipefail
+          test "$(stat -c%s dist/secuencia.mp4)" -lt 95000000
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-youtube-publish origin/gh-pages
+          TARGET="/tmp/prometeo-youtube-publish/presentacion/montaje/producciones/$SLUG"
+          test ! -e "$TARGET/index.html" || { echo 'Refusing to overwrite an existing publication'; exit 2; }
+          mkdir -p "$TARGET"
+          cp presentacion/montaje/youtube/index.html "$TARGET/index.html"
+          cp dist/secuencia.mp4 "$TARGET/montaje.mp4"
+          cp dist/secuencia.receipt.json "$TARGET/receipt.json"
+          cp dist/sequence-compiled.json "$TARGET/recipe.json"
+          cd /tmp/prometeo-youtube-publish
+          git add "presentacion/montaje/producciones/$SLUG/"
+          git commit -m "pages: isolated SECUENCIA production $SLUG"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:gh-pages; then exit 0; fi
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+          done
+          exit 1
+      - name: Keep candidate output as an isolated Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-secuencia-technical-candidate
+          path: |
+            dist/secuencia.mp4
+            dist/secuencia.receipt.json
+            dist/sequence-resolved.json
+            dist/sequence-compiled.json
+            dist/sequence-compiled.capture.json
+            dist/probe-transport.json
+            dist/probe-extractor.log
+          retention-days: 7
