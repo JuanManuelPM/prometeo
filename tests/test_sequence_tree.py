@@ -1,5 +1,5 @@
 """Executable tests of the responsive branching tree and visible video frames."""
-import base64,copy,io,json,pathlib,subprocess,tempfile,unittest
+import base64,copy,io,json,pathlib,subprocess,tempfile,unittest,shutil,sys
 from PIL import Image
 from playwright.sync_api import sync_playwright
 ROOT=pathlib.Path(__file__).resolve().parents[1]
@@ -21,7 +21,9 @@ class TreeBrowserTests(unittest.TestCase):
   cls.source='data:video/mp4;base64,'+base64.b64encode(cls.mp4.read_bytes()).decode()
   cls.audioSource='data:audio/mp4;base64,'+base64.b64encode(cls.audio.read_bytes()).decode()
   cls.play=sync_playwright().start()
-  cls.browser=cls.play.chromium.launch(executable_path='/usr/bin/chromium' if pathlib.Path('/usr/bin/chromium').exists() else None,headless=True,args=['--no-sandbox','--autoplay-policy=no-user-gesture-required'])
+  exe=next((shutil.which(name) for name in ('google-chrome','google-chrome-stable','chromium','chromium-browser') if shutil.which(name)),None)
+  print('SECUENCIA_TEST_BROWSER',exe or 'bundled Playwright Chromium',flush=True)
+  cls.browser=cls.play.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox','--autoplay-policy=no-user-gesture-required'])
  @classmethod
  def tearDownClass(cls):cls.browser.close();cls.play.stop();cls.tmp.cleanup()
  def page(self,width=390,height=844,source='video',delay=10000):
@@ -55,7 +57,16 @@ class TreeBrowserTests(unittest.TestCase):
   p=self.page()
   p.locator('#scroll').evaluate('(x)=>x.scrollTop=520')
   p.locator('[data-node="a2"]').click()
-  p.wait_for_function('()=>window.__sequenceTreeQA.phase()==="video"',timeout=12000)
+  try:p.wait_for_function('()=>window.__sequenceTreeQA.phase()==="video"',timeout=12000)
+  except Exception:
+   print('FRAME_TEST_DIAGNOSTIC',p.evaluate("""() => ({
+     state:window.__sequenceTreeQA.phase(),
+     canPlay:document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'),
+     mediaError:window.__sequenceTreeQA.video.error?.message,
+     readyState:window.__sequenceTreeQA.video.readyState,
+     quality:window.__sequenceTreeQA.frameProof()
+   })"""),file=sys.stderr)
+   raise
   ev=p.evaluate('window.__sequenceTreeQA.frameProof()')
   self.assertTrue(ev['confirmed'],ev)
   self.assertEqual(ev['method'],'REQUEST_VIDEO_FRAME_CALLBACK')
