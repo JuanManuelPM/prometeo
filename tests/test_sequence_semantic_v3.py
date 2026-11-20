@@ -12,8 +12,8 @@ def fixture():
   "we don't really question whether it might not work for men"),
  ("another thing we did in that survey was ask men", "what core values they thought were most important",
   "being honest reliable dependable"),
- ("we take the examples of the worst possible men", "and we generalize it to all men",
-  "these sorts of campaigns are very easily backfired")
+ ("and not realizing that these sorts of campaigns", "their intentions were supposed to be helpful",
+  "the psychology is full of these unintended consequences")
  ]
  for x,(a,b,c) in zip([10,40,72],seq):
   rows[x]["text"]=a;rows[x+1]["text"]=b;rows[x+2]["text"]="this is important to ask and to understand";rows[x+3]["text"]="and we have more details to explain";rows[x+4]["text"]=c
