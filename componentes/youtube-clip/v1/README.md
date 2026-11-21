@@ -6,7 +6,9 @@
 
 ```html
 <div id="screen" style="width:640px;height:360px"></div>
-<script src="./prometeo-youtube-clip.js"></script>
+<button id="go" type="button">VER</button>
+<button id="next" type="button">OTRO FRAGMENTO</button>
+<script src="./player.js"></script>
 <script>
 const screen = PrometeoYouTubeClip.create({
   target:'#screen', url:'https://youtu.be/CgIGel3zXEI', start:'02:36', end:'03:16',
@@ -14,9 +16,9 @@ const screen = PrometeoYouTubeClip.create({
   onError: error => console.error(error)
 });
 // From a real user click (necessary in some browsers):
-button.onclick = () => screen.play();
+document.getElementById("go").onclick = () => screen.play();
 // Same YouTube URL, another cut, without recreating the app:
-nextButton.onclick = () => {screen.load({url:'https://youtu.be/CgIGel3zXEI',start:'05:57',end:'06:58'});screen.play()};
+document.getElementById("next").onclick = () => {screen.load({url:'https://youtu.be/CgIGel3zXEI',start:'05:57',end:'06:58'});screen.play()};
 // When leaving the 3D room or changing screens:
 // screen.stop(); screen.destroy();
 </script>
@@ -30,6 +32,7 @@ The actual public demo imports this file from a path next to the page. `create` 
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 const mount = document.createElement('div');
 mount.style.cssText = 'width:960px;height:540px;';
+document.body.appendChild(mount); // Connect the DOM before starting the iframe
 const player = PrometeoYouTubeClip.create({
   target:mount, url:'https://youtu.be/CgIGel3zXEI', start:156, end:196
 });
