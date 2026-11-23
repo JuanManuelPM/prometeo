@@ -1,0 +1,47 @@
+name: Tank capability lab · no personal data
+on:
+  pull_request:
+    paths:
+      - 'tooling/phone-control-lab/**'
+      - '.github/workflows/phone-capability-lab.yml'
+  push:
+    branches: ['feat/phone-capability-audit-jarvis-*']
+    paths:
+      - 'tooling/phone-control-lab/**'
+      - '.github/workflows/phone-capability-lab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit-and-prompt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read-only Android probe tests
+        run: |
+          python3 -m py_compile tooling/phone-control-lab/probe.py
+          python3 -m unittest discover -s tooling/phone-control-lab -p 'test_*.py' -v
+          python3 tooling/phone-control-lab/probe.py --json > /tmp/prometeo-probe-offline.json
+          python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/prometeo-probe-offline.json'))
+          assert x['schema']=='prometeo.android-capabilities/v1'
+          assert x['inspection_mode']=='READ_ONLY_NO_PERSONAL_DATA'
+          assert x['environment']['termux_detected'] is False
+          assert x['claims']['no_network_access']
+          PY
+      - name: Cloud UI client-side prompt tests
+        run: |
+          node --test tooling/phone-control-lab/test_cloud_ui.mjs
+      - name: Security boundary grep
+        run: |
+          ! grep -En 'subprocess\.run\(.*shell=True|os\.system\(|requests\.|urllib\.request|token.*print|open\(.*GH_TOKEN' tooling/phone-control-lab/probe.py
